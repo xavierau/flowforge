@@ -1,0 +1,6 @@
+Resolved 2 packages in 294ms
+Prepared 1 package in 0.99ms
+Uninstalled 1 package in 26ms
+Installed 1 package in 16ms
+ - protobuf==5.29.5
+ + protobuf==6.33.0
