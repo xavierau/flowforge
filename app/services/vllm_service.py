@@ -28,7 +28,7 @@ class VLLMProvider(ABC):
         image_base64: str,
         schema: dict[str, Any],
         prompt: str,
-    ) -> tuple[dict[str, Any], int, int]:
+    ) -> tuple[dict[str, Any], int, int, int]:
         """
         Extract structured data from image.
 
@@ -38,7 +38,7 @@ class VLLMProvider(ABC):
             prompt: Custom extraction prompt
 
         Returns:
-            Tuple of (extracted_data, tokens_used, processing_time_ms)
+            Tuple of (extracted_data, input_tokens, output_tokens, processing_time_ms)
         """
         pass
 
@@ -56,7 +56,7 @@ class OpenAIVLLMProvider(VLLMProvider):
         image_base64: str,
         schema: dict[str, Any],
         prompt: str,
-    ) -> tuple[dict[str, Any], int, int]:
+    ) -> tuple[dict[str, Any], int, int, int]:
         """Extract using OpenAI GPT-4V."""
         start_time = time.time()
 
@@ -91,9 +91,10 @@ Return ONLY valid JSON matching the schema. Do not include any explanation."""
                 max_tokens=4096,
             )
 
-            # Extract response
+            # Extract response and token usage
             content = response.choices[0].message.content
-            tokens_used = response.usage.total_tokens if response.usage else 0
+            input_tokens = response.usage.prompt_tokens if response.usage else 0
+            output_tokens = response.usage.completion_tokens if response.usage else 0
 
             # Parse JSON response
             # Try to extract JSON from markdown code blocks if present
@@ -106,7 +107,7 @@ Return ONLY valid JSON matching the schema. Do not include any explanation."""
 
             processing_time = int((time.time() - start_time) * 1000)
 
-            return extracted_data, tokens_used, processing_time
+            return extracted_data, input_tokens, output_tokens, processing_time
 
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse JSON response: {e}")
@@ -167,12 +168,17 @@ Return ONLY valid JSON matching the schema. Do not include any explanation or ma
             extracted_data = json.loads(content)
 
             # Get actual token usage from response metadata
-            # This includes both input tokens (image + prompt) and output tokens
-            tokens_used = response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else 0
+            # Gemini provides: prompt_token_count, candidates_token_count, total_token_count
+            if hasattr(response, 'usage_metadata'):
+                input_tokens = response.usage_metadata.prompt_token_count
+                output_tokens = response.usage_metadata.candidates_token_count
+            else:
+                input_tokens = 0
+                output_tokens = 0
 
             processing_time = int((time.time() - start_time) * 1000)
 
-            return extracted_data, tokens_used, processing_time
+            return extracted_data, input_tokens, output_tokens, processing_time
 
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse JSON response: {e}")
@@ -247,7 +253,9 @@ class VLLMService:
                 "is_valid": bool,
                 "validation_errors": [...],
                 "confidence_score": float,
-                "tokens_used": int,
+                "input_tokens": int,
+                "output_tokens": int,
+                "tokens_used": int,  # total tokens (input + output)
                 "processing_time_ms": int,
                 "model_used": str
             }
@@ -260,7 +268,7 @@ class VLLMService:
         vllm_provider = self.get_provider(provider)
 
         # Extract data
-        extracted_data, tokens_used, processing_time_ms = await vllm_provider.extract(
+        extracted_data, input_tokens, output_tokens, processing_time_ms = await vllm_provider.extract(
             image_base64=image_base64,
             schema=schema,
             prompt=custom_prompt,
@@ -278,7 +286,9 @@ class VLLMService:
             "is_valid": is_valid,
             "validation_errors": validation_errors,
             "confidence_score": confidence_score,
-            "tokens_used": tokens_used,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "tokens_used": input_tokens + output_tokens,  # total
             "processing_time_ms": processing_time_ms,
             "model_used": f"{provider}/{model}",
         }

@@ -24,7 +24,9 @@ class ExtractionResult(Base):
     extracted_data = Column(JSONB, nullable=False)
     confidence_score = Column(Float, nullable=True)
     model_used = Column(String(100), nullable=False)
-    tokens_used = Column(Integer, nullable=True)
+    input_tokens = Column(Integer, nullable=True)  # Prompt tokens (image + text)
+    output_tokens = Column(Integer, nullable=True)  # Completion/candidates tokens
+    tokens_used = Column(Integer, nullable=True)  # Total tokens (input + output)
     processing_time_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

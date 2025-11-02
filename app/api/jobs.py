@@ -104,6 +104,8 @@ async def get_job_result(
         extracted_data = result.extracted_data
         metadata = ExtractionMetadata(
             model_used=result.model_used,
+            input_tokens=result.input_tokens or 0,
+            output_tokens=result.output_tokens or 0,
             tokens_used=result.tokens_used or 0,
             processing_time_ms=result.processing_time_ms or 0,
             confidence_score=result.confidence_score or 0.0,
@@ -116,12 +118,16 @@ async def get_job_result(
         }
 
         # Aggregate metadata
+        total_input_tokens = sum(r.input_tokens or 0 for r in results)
+        total_output_tokens = sum(r.output_tokens or 0 for r in results)
         total_tokens = sum(r.tokens_used or 0 for r in results)
         total_time = sum(r.processing_time_ms or 0 for r in results)
         avg_confidence = sum(r.confidence_score or 0 for r in results) / len(results)
 
         metadata = ExtractionMetadata(
             model_used=results[0].model_used,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
             tokens_used=total_tokens,
             processing_time_ms=total_time,
             confidence_score=avg_confidence,

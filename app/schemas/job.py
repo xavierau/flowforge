@@ -59,7 +59,9 @@ class ExtractionMetadata(BaseModel):
     """Metadata about the extraction process."""
 
     model_used: str = Field(..., description="Model that performed extraction")
-    tokens_used: int = Field(..., description="Tokens consumed")
+    input_tokens: int = Field(..., description="Input tokens (image + prompt)")
+    output_tokens: int = Field(..., description="Output tokens (generated response)")
+    tokens_used: int = Field(..., description="Total tokens consumed (input + output)")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
     confidence_score: float = Field(..., description="Confidence score (0-1)")
 
@@ -68,7 +70,9 @@ class ExtractionMetadata(BaseModel):
 
         json_schema_extra = {
             "example": {
-                "model_used": "gemini-pro-vision",
+                "model_used": "google/gemini-2.5-flash",
+                "input_tokens": 1050,
+                "output_tokens": 200,
                 "tokens_used": 1250,
                 "processing_time_ms": 8500,
                 "confidence_score": 0.95,

@@ -70,6 +70,8 @@ def extract_from_page(
             extracted_data=result["extracted_data"],
             confidence_score=result["confidence_score"],
             model_used=result["model_used"],
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
             tokens_used=result["tokens_used"],
             processing_time_ms=result["processing_time_ms"],
         )
@@ -175,6 +177,8 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
                 extracted_data=result["extracted_data"],
                 confidence_score=result["confidence_score"],
                 model_used=result["model_used"],
+                input_tokens=result["input_tokens"],
+                output_tokens=result["output_tokens"],
                 tokens_used=result["tokens_used"],
                 processing_time_ms=result["processing_time_ms"],
             )

@@ -23,7 +23,9 @@
       "Bash(pdfinfo:*)",
       "Bash(psql:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(alembic revision:*)"
     ],
     "deny": [],
     "ask": []
