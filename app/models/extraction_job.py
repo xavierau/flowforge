@@ -20,6 +20,9 @@ class ExtractionJob(Base):
     custom_prompt = Column(Text, nullable=True)
     model_provider = Column(String(50), nullable=False)  # google, openai
     model_name = Column(String(100), nullable=False)
+    processing_mode = Column(
+        String(50), nullable=False, default="batch"
+    )  # batch (all pages in one call) or per_page (individual page processing)
     status = Column(
         String(50), nullable=False, default="queued"
     )  # queued, processing, completed, failed

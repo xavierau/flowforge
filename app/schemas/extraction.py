@@ -34,6 +34,10 @@ class ParseRequest(BaseModel):
         None, description="Custom extraction instructions"
     )
     model_provider_config: ModelConfig = Field(..., description="Model configuration")
+    processing_mode: str = Field(
+        default="batch",
+        description="Processing mode: 'batch' (all pages in one call) or 'per_page' (individual processing)"
+    )
 
     class Config:
         """Pydantic config."""
@@ -65,6 +69,7 @@ class ParseRequest(BaseModel):
                     "provider": "google",
                     "model": "gemini-2.5-flash",
                 },
+                "processing_mode": "batch",
             }
         }
 

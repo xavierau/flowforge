@@ -16,13 +16,19 @@ class DocumentResponse(BaseModel):
     size_bytes: int = Field(..., description="File size in bytes")
     status: str = Field(..., description="Processing status")
     page_count: Optional[int] = Field(None, description="Number of pages (for PDFs)")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Custom metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Custom metadata",
+        alias="document_metadata"
+    )
     created_at: datetime = Field(..., description="Upload timestamp")
 
     class Config:
         """Pydantic config."""
 
         from_attributes = True
+        populate_by_name = True  # Allow populating by both field name and alias
+        by_alias = False  # Serialize using field name, not alias
         json_schema_extra = {
             "example": {
                 "document_id": "550e8400-e29b-41d4-a716-446655440000",

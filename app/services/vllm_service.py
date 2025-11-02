@@ -42,6 +42,26 @@ class VLLMProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    async def extract_batch(
+        self,
+        images_base64: list[str],
+        schema: dict[str, Any],
+        prompt: str,
+    ) -> tuple[dict[str, Any], int, int, int]:
+        """
+        Extract structured data from multiple images in one call.
+
+        Args:
+            images_base64: List of base64 encoded images
+            schema: JSON schema for extraction
+            prompt: Custom extraction prompt
+
+        Returns:
+            Tuple of (extracted_data, input_tokens, output_tokens, processing_time_ms)
+        """
+        pass
+
 
 class OpenAIVLLMProvider(VLLMProvider):
     """OpenAI GPT-4 Vision provider."""
@@ -114,6 +134,66 @@ Return ONLY valid JSON matching the schema. Do not include any explanation."""
         except Exception as e:
             raise Exception(f"OpenAI API error: {e}")
 
+    async def extract_batch(
+        self,
+        images_base64: list[str],
+        schema: dict[str, Any],
+        prompt: str,
+    ) -> tuple[dict[str, Any], int, int, int]:
+        """Extract using OpenAI GPT-4V with multiple images."""
+        start_time = time.time()
+
+        # Build the system prompt
+        system_prompt = f"""You are a document data extraction expert.
+Extract information from the provided multi-page document images according to this JSON schema:
+
+{json.dumps(schema, indent=2)}
+
+Additional instructions: {prompt}
+
+IMPORTANT: The images represent pages of a single document. Combine all information across all pages into a single coherent JSON object.
+
+Return ONLY valid JSON matching the schema. Do not include any explanation."""
+
+        try:
+            # Build content array with text prompt + all images
+            content = [{"type": "text", "text": system_prompt}]
+
+            for img_b64 in images_base64:
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                })
+
+            # Make API call
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": content}],
+                max_tokens=4096,
+            )
+
+            # Extract response and token usage
+            response_content = response.choices[0].message.content
+            input_tokens = response.usage.prompt_tokens if response.usage else 0
+            output_tokens = response.usage.completion_tokens if response.usage else 0
+
+            # Parse JSON response
+            if "```json" in response_content:
+                response_content = response_content.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_content:
+                response_content = response_content.split("```")[1].split("```")[0].strip()
+
+            extracted_data = json.loads(response_content)
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            return extracted_data, input_tokens, output_tokens, processing_time
+
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse JSON response: {e}")
+        except Exception as e:
+            raise Exception(f"OpenAI API error: {e}")
+
 
 class GeminiVLLMProvider(VLLMProvider):
     """Google Gemini Vision provider."""
@@ -169,6 +249,80 @@ Return ONLY valid JSON matching the schema. Do not include any explanation or ma
 
             # Get actual token usage from response metadata
             # Gemini provides: prompt_token_count, candidates_token_count, total_token_count
+            if hasattr(response, 'usage_metadata'):
+                input_tokens = response.usage_metadata.prompt_token_count
+                output_tokens = response.usage_metadata.candidates_token_count
+            else:
+                input_tokens = 0
+                output_tokens = 0
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            return extracted_data, input_tokens, output_tokens, processing_time
+
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse JSON response: {e}")
+        except Exception as e:
+            raise Exception(f"Gemini API error: {e}")
+
+    async def extract_batch(
+        self,
+        images_base64: list[str],
+        schema: dict[str, Any],
+        prompt: str,
+    ) -> tuple[dict[str, Any], int, int, int]:
+        """Extract using Google Gemini with multiple images in one call."""
+        start_time = time.time()
+
+        # Build the prompt
+        full_prompt = f"""Extract information from this multi-page document according to this JSON schema:
+
+{json.dumps(schema, indent=2)}
+
+Additional instructions: {prompt}
+
+IMPORTANT: These images represent pages of a SINGLE document. Combine all information across all pages into ONE coherent JSON object.
+For example:
+- If invoice header is on page 1 and totals are on page 3, include both in the same JSON
+- If line items span multiple pages, combine them into a single array
+- Do not create separate JSON objects for each page
+
+Return ONLY valid JSON matching the schema. Do not include any explanation or markdown formatting."""
+
+        try:
+            # Decode all images and convert to PIL
+            import PIL.Image
+            import io
+
+            # Build contents list: [image1, image2, image3, ..., prompt]
+            contents = []
+
+            for img_b64 in images_base64:
+                image_data = base64.b64decode(img_b64)
+                image_pil = PIL.Image.open(io.BytesIO(image_data))
+                contents.append(image_pil)
+
+            # Add prompt at the end
+            contents.append(full_prompt)
+
+            # Make single API call with all images
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=contents,
+            )
+
+            # Extract text
+            content = response.text
+
+            # Try to extract JSON from markdown code blocks if present
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            extracted_data = json.loads(content)
+
+            # Get actual token usage from response metadata
             if hasattr(response, 'usage_metadata'):
                 input_tokens = response.usage_metadata.prompt_token_count
                 output_tokens = response.usage_metadata.candidates_token_count
@@ -289,6 +443,62 @@ class VLLMService:
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "tokens_used": input_tokens + output_tokens,  # total
+            "processing_time_ms": processing_time_ms,
+            "model_used": f"{provider}/{model}",
+        }
+
+    async def extract_from_images_batch(
+        self,
+        images_base64: list[str],
+        schema: dict[str, Any],
+        custom_prompt: str = "",
+        provider: str = "google",
+        model: str = "gemini-2.5-flash",
+    ) -> dict[str, Any]:
+        """
+        Extract structured data from multiple images in a single API call.
+
+        This is for multi-page documents where all pages belong to the same document.
+        The VLLM will see all images and combine information across pages.
+
+        Args:
+            images_base64: List of base64 encoded images (pages of the same document)
+            schema: JSON schema for extraction
+            custom_prompt: Custom extraction instructions
+            provider: VLLM provider ('google' or 'openai')
+            model: Model name
+
+        Returns:
+            Dictionary with extraction results (same format as extract_from_image)
+        """
+        # Validate schema
+        if not self.validator.is_valid_schema(schema):
+            raise ValueError("Invalid JSON schema provided")
+
+        # Get provider
+        vllm_provider = self.get_provider(provider)
+
+        # Extract data from all images in one call
+        extracted_data, input_tokens, output_tokens, processing_time_ms = await vllm_provider.extract_batch(
+            images_base64=images_base64,
+            schema=schema,
+            prompt=custom_prompt,
+        )
+
+        # Validate extracted data against schema
+        is_valid, validation_errors = self.validator.validate(extracted_data, schema)
+
+        # Calculate confidence score
+        confidence_score = 1.0 if is_valid else 0.5
+
+        return {
+            "extracted_data": extracted_data,
+            "is_valid": is_valid,
+            "validation_errors": validation_errors,
+            "confidence_score": confidence_score,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "tokens_used": input_tokens + output_tokens,
             "processing_time_ms": processing_time_ms,
             "model_used": f"{provider}/{model}",
         }

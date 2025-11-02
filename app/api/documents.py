@@ -146,6 +146,14 @@ async def parse_document(
             detail=f"Invalid provider. Must be one of: {', '.join(valid_providers)}",
         )
 
+    # Validate processing mode
+    valid_modes = ["batch", "per_page"]
+    if request.processing_mode not in valid_modes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid processing_mode. Must be one of: {', '.join(valid_modes)}",
+        )
+
     # Create extraction job
     job = ExtractionJob(
         document_id=document.id,
@@ -153,6 +161,7 @@ async def parse_document(
         custom_prompt=request.custom_prompt,
         model_provider=request.model_provider_config.provider,
         model_name=request.model_provider_config.model,
+        processing_mode=request.processing_mode,
         status="queued",
     )
 
@@ -171,7 +180,12 @@ async def parse_document(
 
     # Estimate processing time (rough estimate)
     page_count = document.page_count or 1
-    estimated_time = page_count * 15  # 15 seconds per page
+    if request.processing_mode == "batch":
+        # Batch mode: faster since it's one API call
+        estimated_time = 20  # Base time for batch processing
+    else:
+        # Per-page mode: 15 seconds per page
+        estimated_time = page_count * 15
 
     return ParseResponse(
         extraction_job_id=job.id,
@@ -227,7 +241,7 @@ async def list_documents(
                 size_bytes=doc.size_bytes,
                 status=doc.status,
                 page_count=doc.page_count,
-                metadata=doc.metadata,
+                metadata=doc.document_metadata,
                 created_at=doc.created_at,
             )
             for doc in documents
@@ -264,6 +278,6 @@ async def get_document(
         size_bytes=document.size_bytes,
         status=document.status,
         page_count=document.page_count,
-        metadata=document.metadata,
+        metadata=document.document_metadata,
         created_at=document.created_at,
     )
