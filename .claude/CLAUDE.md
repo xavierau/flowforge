@@ -2,7 +2,7 @@
 
 AI-powered document processing SaaS using Vision Language Models (VLLMs) with stateless job processing architecture.
 
-**CRITICAL: Always use context7 to verify API usage. Always use @agent-solution-architect, @agent-bug-hunter, and @agent-code-review-analyzer for code implementation.**
+**CRITICAL: Always use context7 to verify API usage. Always use @agent-solution-architect, @agent-bug-hunter, and @agent-code-review-analyzer for backend code implementation. Always use @agent-react-best-practices-expert for frontend/React implementation.**
 
 ---
 
@@ -14,6 +14,10 @@ AI-powered document processing SaaS using Vision Language Models (VLLMs) with st
 ### Architecture
 - **[Stateless Job Processing](../docs/architecture/2025-11-02-stateless-job-processing.md)** - Core design principles, state machines, retry strategies
 - **[VLLM Integration](../docs/architecture/2025-11-02-vllm-integration.md)** - Multi-provider setup, invoice extraction, adding providers
+
+### Frontend (React + Tailwind)
+- **[Testing Guide](../frontend/TESTING_GUIDE.md)** - Complete testing checklist for JSON Schema Builder
+- **[Implementation Status](../frontend/IMPLEMENTATION_STATUS.md)** - Progress tracker and phase completion
 
 ### Troubleshooting
 - **[Common Issues & Solutions](../docs/troubleshooting/2025-11-02-common-issues.md)** - All known issues with fixes
@@ -238,6 +242,69 @@ def my_task(self: Task, entity_id: str):
 
 **Details:** [Stateless Job Processing](../docs/architecture/2025-11-02-stateless-job-processing.md)
 
+### Frontend Development (React + Tailwind)
+
+**MANDATORY: Use @agent-react-best-practices-expert for ALL React implementation tasks.**
+
+**Tech Stack:**
+- React 19 + TypeScript 5.6+
+- Vite 7 (dev server & build)
+- Tailwind CSS 4 (use context7 to verify API usage)
+- Zustand 5 (state management)
+- shadcn/ui components
+- Lucide icons
+
+**Critical Rules:**
+1. **Always use context7** to verify Tailwind CSS 4 API syntax before using utilities
+   - Tailwind 4 has breaking changes from v3
+   - CSS variables require direct properties, not @apply directives
+   - Example: Use `background-color: hsl(var(--background))` NOT `@apply bg-background`
+
+2. **Always use @agent-react-best-practices-expert** for:
+   - React component implementation
+   - useEffect management
+   - State management with Zustand
+   - Component composition and architecture
+   - Performance optimization
+
+3. **shadcn/ui dependency management:**
+   - Manually install peer dependencies: `class-variance-authority`, `@radix-ui/react-icons`
+   - Use `npx shadcn@latest add [component]` for components
+   - Check package.json after installation
+
+**Frontend File Structure:**
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── ui/              # shadcn/ui components
+│   │   ├── preview/         # JSON preview components
+│   │   ├── schema-builder/  # Schema tree & editor
+│   │   └── templates/       # Template loading UI
+│   ├── lib/
+│   │   ├── utils.ts         # cn() utility
+│   │   ├── schema-converter.ts  # JSON Schema conversion
+│   │   └── template-loader.ts   # Template utilities
+│   ├── store/
+│   │   └── schemaStore.ts   # Zustand state management
+│   ├── types/
+│   │   ├── schema.ts        # Type definitions
+│   │   └── template.ts      # Template types
+│   └── templates/           # Pre-built schemas
+```
+
+**Common Tailwind 4 Fixes:**
+- ❌ `@apply border-border` → ✅ `border-color: hsl(var(--border))`
+- ❌ `@apply bg-background text-foreground` → ✅ `background-color: hsl(var(--background)); color: hsl(var(--foreground));`
+
+**Development Commands:**
+```bash
+cd frontend
+npm run dev      # Start dev server (http://localhost:3002)
+npm run build    # Build for production
+npm run preview  # Preview production build
+```
+
 ---
 
 ## 🔍 Debugging
@@ -304,6 +371,7 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 
 ## 🎯 Best Practices
 
+### Backend Development
 1. **Always use uv** - Not pip, for package management
 2. **Query current state** - Never trust state passed as parameters in tasks
 3. **Close DB sessions** - Always use try/finally in Celery tasks
@@ -311,6 +379,15 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 5. **Use context7** - Verify API usage against latest documentation
 6. **Use agents** - @agent-solution-architect, @agent-bug-hunter, @agent-code-review-analyzer
 7. **Test thoroughly** - Run pytest before commits
+
+### Frontend Development
+1. **Use @agent-react-best-practices-expert** - For ALL React/frontend implementation
+2. **Verify Tailwind 4 with context7** - BEFORE using any Tailwind utilities
+3. **Check shadcn/ui dependencies** - Manually install peer deps after adding components
+4. **State management** - Use Zustand store, avoid prop drilling
+5. **Component patterns** - Prefer composition over complexity, keep components focused
+6. **CSS variables** - Use direct properties in Tailwind 4, not @apply directives
+7. **TypeScript strict mode** - Ensure type safety throughout components
 
 ---
 
@@ -325,4 +402,4 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 ---
 
 **Last Updated:** 2025-11-02
-**Version:** 1.0
+**Version:** 1.1 (Added Frontend Development Guidelines)

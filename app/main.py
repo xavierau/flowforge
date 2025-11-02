@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import documents, jobs, health
+from app.api import documents, jobs, health, schemas
 from app.config import settings
 
 # Create FastAPI app
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(health.router, tags=["Health"])
 app.include_router(documents.router, prefix="/api/v1", tags=["Documents"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["Jobs"])
+app.include_router(schemas.router, prefix="/api/v1", tags=["Schemas"])
 
 
 @app.on_event("startup")
