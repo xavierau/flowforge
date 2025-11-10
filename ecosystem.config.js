@@ -1,7 +1,24 @@
 const path = require('path');
+const fs = require('fs');
 
 const projectRoot = '/home/forge/flowforge_app.activedevelopment.cloud';
-const venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
+
+// Try different Python locations in venv (uv uses different structure)
+const possiblePythonPaths = [
+  path.join(projectRoot, '.venv', 'bin', 'python'),
+  path.join(projectRoot, '.venv', 'bin', 'python3'),
+  'python3', // Fallback to system Python
+];
+
+let venvPython = possiblePythonPaths.find(p => {
+  try {
+    return fs.existsSync(p);
+  } catch {
+    return false;
+  }
+}) || 'python3';
+
+console.log(`Using Python: ${venvPython}`);
 
 module.exports = {
   apps: [
@@ -16,6 +33,8 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
+        VIRTUAL_ENV: path.join(projectRoot, '.venv'),
+        PATH: `${path.join(projectRoot, '.venv', 'bin')}:${process.env.PATH}`,
       },
       error_file: './logs/uvicorn-error.log',
       out_file: './logs/uvicorn-out.log',
@@ -33,6 +52,8 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
+        VIRTUAL_ENV: path.join(projectRoot, '.venv'),
+        PATH: `${path.join(projectRoot, '.venv', 'bin')}:${process.env.PATH}`,
       },
       error_file: './logs/celery-error.log',
       out_file: './logs/celery-out.log',
