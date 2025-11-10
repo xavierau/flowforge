@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Build and Restart Script for AI Document Processing
+# Build and Deploy Script for AI Document Processing
 # This script:
-# 1. Restarts Python web server (uvicorn)
-# 2. Restarts Celery worker
-# 3. Builds frontend using Node.js v20
+# 1. Pulls latest code from git
+# 2. Builds frontend (if needed) using Node.js v20
+# 3. Restarts services using PM2
 
 set -e  # Exit on error
 
@@ -31,31 +31,23 @@ print_warning() {
     echo -e "${YELLOW}[*]${NC} $1"
 }
 
-# 1. Stop existing Python web server (uvicorn)
-print_status "Stopping existing uvicorn process..."
-pkill -f "uvicorn app.main:app" || print_warning "No uvicorn process found"
+# Create logs directory if it doesn't exist
+mkdir -p logs
 
-# 2. Stop existing Celery worker
-print_status "Stopping existing Celery worker..."
-pkill -f "celery -A app.tasks.celery_app worker" || print_warning "No Celery worker found"
+# 1. Pull latest code
+print_status "Pulling latest code from git..."
+git pull origin develop || print_warning "Git pull failed or no changes"
 
-# Wait for processes to fully terminate
-sleep 2
+# 2. Check if frontend build is needed
+SKIP_FRONTEND_BUILD=false
+if [ "$1" == "--skip-frontend" ]; then
+    SKIP_FRONTEND_BUILD=true
+    print_warning "Skipping frontend build (dist folder will be used from git)"
+fi
 
-# 3. Start uvicorn in background
-print_status "Starting uvicorn web server..."
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > logs/uvicorn.log 2>&1 &
-UVICORN_PID=$!
-print_status "Uvicorn started (PID: $UVICORN_PID)"
-
-# 4. Start Celery worker in background
-print_status "Starting Celery worker..."
-celery -A app.tasks.celery_app worker --loglevel=info > logs/celery.log 2>&1 &
-CELERY_PID=$!
-print_status "Celery worker started (PID: $CELERY_PID)"
-
-# 5. Build frontend using Node.js v20
-print_status "Building frontend..."
+# 3. Build frontend if not skipped
+if [ "$SKIP_FRONTEND_BUILD" = false ]; then
+    print_status "Building frontend..."
 
 # Load nvm
 export NVM_DIR="$HOME/.nvm"
@@ -86,34 +78,45 @@ cd frontend
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then
     print_status "Installing frontend dependencies..."
-    npm install
+    pnpm install
 fi
 
-# Build frontend
-print_status "Running frontend build..."
-npm run build
+    # Build frontend
+    print_status "Running frontend build..."
+    pnpm run build
 
-cd ..
+    cd ..
+else
+    print_warning "Using pre-built frontend from git (frontend/dist/)"
+fi
 
-# 6. Save PIDs to file for later reference
-mkdir -p logs
-echo "$UVICORN_PID" > logs/uvicorn.pid
-echo "$CELERY_PID" > logs/celery.pid
+# 4. Restart services using PM2
+print_status "Restarting services with PM2..."
 
-print_status "Build complete!"
+# Check if PM2 is installed
+if ! command -v pm2 &> /dev/null; then
+    print_error "PM2 is not installed. Please install it with: npm install -g pm2"
+    exit 1
+fi
+
+# Start or reload services using ecosystem file
+pm2 startOrReload ecosystem.config.js
+
+print_status "Deployment complete!"
 echo ""
 echo "==================================="
 echo "Services Status:"
 echo "==================================="
-echo "Uvicorn PID: $UVICORN_PID (logs/uvicorn.log)"
-echo "Celery PID:  $CELERY_PID (logs/celery.log)"
-echo ""
-echo "Frontend built successfully!"
+pm2 list
 echo ""
 echo "To view logs:"
-echo "  tail -f logs/uvicorn.log"
-echo "  tail -f logs/celery.log"
+echo "  pm2 logs uvicorn-api"
+echo "  pm2 logs celery-worker"
+echo "  pm2 logs"
+echo ""
+echo "To monitor services:"
+echo "  pm2 monit"
 echo ""
 echo "To stop services:"
-echo "  kill $UVICORN_PID $CELERY_PID"
+echo "  pm2 stop all"
 echo "==================================="
