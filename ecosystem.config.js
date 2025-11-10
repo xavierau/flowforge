@@ -1,22 +1,7 @@
 const path = require('path');
-const fs = require('fs');
 
 const projectRoot = '/home/forge/flowforge_app.activedevelopment.cloud';
-
-// Try different Python locations in venv (uv uses different structure)
-const possiblePythonPaths = [
-  path.join(projectRoot, '.venv', 'bin', 'python'),
-  path.join(projectRoot, '.venv', 'bin', 'python3'),
-  'python3', // Fallback to system Python
-];
-
-let venvPython = possiblePythonPaths.find(p => {
-  try {
-    return fs.existsSync(p);
-  } catch {
-    return false;
-  }
-}) || 'python3';
+const venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
 
 console.log(`Using Python: ${venvPython}`);
 
