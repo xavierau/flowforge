@@ -32,6 +32,11 @@ interface PageHeaderProps {
   breadcrumbs?: BreadcrumbItem[];
 
   /**
+   * Optional actions to display in the header (e.g., buttons)
+   */
+  children?: React.ReactNode;
+
+  /**
    * Optional className for custom styling
    */
   className?: string;
@@ -59,6 +64,7 @@ export function PageHeader({
   title,
   subtitle,
   breadcrumbs,
+  children,
   className,
 }: PageHeaderProps) {
   return (
@@ -68,17 +74,29 @@ export function PageHeader({
         <Breadcrumb items={breadcrumbs} className="mb-3" />
       )}
 
-      {/* Title */}
-      <h1 className="text-3xl font-bold tracking-tight text-foreground">
-        {title}
-      </h1>
+      {/* Title and Actions Row */}
+      <div className="flex items-center justify-between">
+        <div>
+          {/* Title */}
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {title}
+          </h1>
 
-      {/* Subtitle */}
-      {subtitle && (
-        <p className="mt-2 text-base text-muted-foreground">
-          {subtitle}
-        </p>
-      )}
+          {/* Subtitle */}
+          {subtitle && (
+            <p className="mt-2 text-base text-muted-foreground">
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        {children && (
+          <div className="flex items-center gap-2">
+            {children}
+          </div>
+        )}
+      </div>
     </header>
   );
 }

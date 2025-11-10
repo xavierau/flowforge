@@ -72,7 +72,7 @@ export function SchemaJsonViewer({
     displayDataTypes: false,
     displayObjectSize: false,
     enableClipboard: true,
-    name: false,
+    name: null,
     style: {
       fontSize: '13px',
       fontFamily: 'monospace',

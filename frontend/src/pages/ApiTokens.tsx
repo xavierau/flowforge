@@ -23,7 +23,6 @@ import {
 import { apiTokenService } from '@/services/api-token.service';
 import { getCurrentUser } from '@/services/user.service';
 import type { ApiToken, ApiTokenCreateRequest, ApiTokenCreateResponse } from '@/types/api-token';
-import type { UserProfile } from '@/types/profile';
 
 export function ApiTokens() {
   const [tokens, setTokens] = useState<ApiToken[]>([]);

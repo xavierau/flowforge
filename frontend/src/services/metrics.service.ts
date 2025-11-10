@@ -76,21 +76,6 @@ async function handleApiResponse<T>(response: Response): Promise<T> {
 }
 
 /**
- * Creates authorization headers with JWT token
- */
-function createAuthHeaders(): HeadersInit {
-  const token = getAccessToken();
-  if (!token) {
-    throw new MetricsApiError('No authentication token found', 401);
-  }
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-/**
  * Centralized fetch wrapper with 401 interceptor for metrics API
  *
  * Automatically:

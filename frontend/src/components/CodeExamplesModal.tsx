@@ -357,7 +357,6 @@ done`,
  */
 export function CodeExamplesModal({
   jobId,
-  documentId,
   triggerText = 'Show Code Examples'
 }: CodeExamplesModalProps) {
   const [copiedLanguage, setCopiedLanguage] = useState<string | null>(null);

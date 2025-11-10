@@ -15,7 +15,6 @@
  */
 
 import { useState } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
 
 import { Page } from '@/components/layout/Page';
 import { PageHeader } from '@/components/layout/PageHeader';

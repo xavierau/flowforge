@@ -1,6 +1,5 @@
 import * as React from 'react';
 import type {
-  ColumnDef,
   ColumnFiltersState,
   SortingState,
   VisibilityState,
@@ -35,10 +34,7 @@ export function DataTable<TData>({
   pageSize = 10,
   pageSizeOptions = [10, 25, 50, 100],
   searchPlaceholder = 'Search...',
-  searchableColumns = [],
   filterableColumns = [],
-  rowActions = [],
-  bulkActions = [],
   exportFilename = 'export',
   exportableColumns = [],
   isLoading = false,

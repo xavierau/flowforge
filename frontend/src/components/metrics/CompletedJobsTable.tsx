@@ -72,18 +72,6 @@ interface CompletedJobsTableProps {
 }
 
 /**
- * Format currency value
- */
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(value);
-}
-
-/**
  * Format number with thousands separator
  */
 function formatNumber(value: number): string {
@@ -125,7 +113,6 @@ export function CompletedJobsTable({
   total,
   page,
   pageSize,
-  totalCost,
   isLoading = false,
   onPageChange,
   className,

@@ -28,7 +28,7 @@ export function SchemaBuilder() {
       getSchema(schemaId)
         .then((schema) => {
           // Convert API schema format to Properties
-          const props = jsonSchemaToProperties(schema.definitions);
+          const props = jsonSchemaToProperties(schema.definitions as any);
           loadTemplate(props, schema.name);
           toast.success('Schema loaded', {
             description: `Loaded schema "${schema.name}" for editing`,

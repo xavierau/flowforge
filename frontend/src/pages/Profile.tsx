@@ -145,7 +145,7 @@ export function Profile() {
                 {/* Avatar and Name */}
                 <div className="flex items-center gap-4">
                   <Avatar className="h-20 w-20">
-                    <AvatarImage src={profile.avatar} alt={profile.full_name} />
+                    <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
                     <AvatarFallback className="text-lg">
                       {getInitials(profile.full_name)}
                     </AvatarFallback>
@@ -156,10 +156,8 @@ export function Profile() {
                       {profile.email}
                     </p>
                     <div className="mt-2">
-                      <Badge variant={getRoleBadgeVariant(typeof profile.role === 'string' ? profile.role : profile.role.name)}>
-                        {typeof profile.role === 'string'
-                          ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1)
-                          : profile.role.display_name || profile.role.name}
+                      <Badge variant={getRoleBadgeVariant(profile.role.name)}>
+                        {profile.role.display_name || profile.role.name}
                       </Badge>
                     </div>
                   </div>
@@ -200,7 +198,7 @@ export function Profile() {
                       <div className="flex-1">
                         <p className="text-sm font-medium">Tenant</p>
                         <p className="text-sm text-muted-foreground">
-                          {profile.tenant_name || profile.tenant_id}
+                          {profile.tenant.name || profile.tenant.id}
                         </p>
                       </div>
                     </div>
@@ -210,9 +208,7 @@ export function Profile() {
                       <div className="flex-1">
                         <p className="text-sm font-medium">Role</p>
                         <p className="text-sm text-muted-foreground">
-                          {typeof profile.role === 'string'
-                            ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1)
-                            : profile.role.display_name || profile.role.name}
+                          {profile.role.display_name || profile.role.name}
                         </p>
                       </div>
                     </div>

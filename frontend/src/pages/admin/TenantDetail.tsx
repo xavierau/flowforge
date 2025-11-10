@@ -44,7 +44,6 @@ import {
   RefreshCw,
   FileText,
   CheckCircle2,
-  XCircle,
   Cpu,
   DollarSign,
   Users,
@@ -92,15 +91,15 @@ export function TenantDetail() {
 
     let isCancelled = false;
 
-    async function fetchData() {
+    async function fetchData(id: string) {
       setIsLoading(true);
       setError(null);
 
       try {
         const [details, userList, tokenList] = await Promise.all([
-          getTenantDetails(tenantId),
-          getTenantUsers(tenantId),
-          getTenantTokens(tenantId),
+          getTenantDetails(id),
+          getTenantUsers(id),
+          getTenantTokens(id),
         ]);
 
         if (!isCancelled) {
@@ -121,7 +120,7 @@ export function TenantDetail() {
       }
     }
 
-    fetchData();
+    fetchData(tenantId);
 
     return () => {
       isCancelled = true;

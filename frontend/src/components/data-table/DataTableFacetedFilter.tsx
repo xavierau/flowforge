@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { CheckIcon, PlusCircle } from 'lucide-react';
 import type { Column } from '@tanstack/react-table';
 

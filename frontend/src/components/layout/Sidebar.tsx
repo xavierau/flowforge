@@ -20,7 +20,6 @@ import {
   Briefcase,
   CreditCard,
   Key,
-  User,
   Shield,
   Building,
   Users,

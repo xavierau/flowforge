@@ -16,7 +16,7 @@ import { getPlatformSettings, updatePlatformSetting } from '@/services/admin.ser
 import type { PlatformSetting } from '@/types/admin';
 
 export function PlatformSettings() {
-  const [settings, setSettings] = useState<PlatformSetting[]>([]);
+  const [, setSettings] = useState<PlatformSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

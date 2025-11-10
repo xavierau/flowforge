@@ -115,7 +115,7 @@ export function TenantList() {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
-      page: key === 'page' ? value : 1, // Reset to page 1 when changing filters
+      page: key === 'page' ? Number(value) : 1, // Reset to page 1 when changing filters
     }));
   }, []);
 
