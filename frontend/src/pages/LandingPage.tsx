@@ -2,8 +2,11 @@ import { FileJson, Zap, Shield, Globe, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
+const API_DOCS_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/docs`;
+
 export function LandingPage() {
   const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
@@ -16,7 +19,7 @@ export function LandingPage() {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-slate-600 hover:text-slate-900 transition-colors">Features</a>
             <a href="#pricing" className="text-slate-600 hover:text-slate-900 transition-colors">Pricing</a>
-            <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">API Docs</a>
+            <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">API Docs</a>
             <Button variant="ghost" onClick={() => navigate('/login')}>Log In</Button>
             <Button onClick={() => navigate('/signup')}>Sign Up</Button>
           </nav>
@@ -46,7 +49,7 @@ export function LandingPage() {
               Try Schema Builder
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Button size="lg" variant="outline" className="text-lg px-8 py-6" onClick={() => window.open('http://localhost:8000/docs', '_blank')}>
+            <Button size="lg" variant="outline" className="text-lg px-8 py-6" onClick={() => window.open(API_DOCS_URL, '_blank')}>
               View API Docs
             </Button>
           </div>
@@ -364,7 +367,7 @@ export function LandingPage() {
               Start Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-blue-700 text-lg px-8 py-6" onClick={() => window.open('http://localhost:8000/docs', '_blank')}>
+            <Button size="lg" variant="outline" className="border-white text-white hover:bg-blue-700 text-lg px-8 py-6" onClick={() => window.open(API_DOCS_URL, '_blank')}>
               View Documentation
             </Button>
           </div>
@@ -389,7 +392,7 @@ export function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="http://localhost:8000/docs" className="hover:text-white transition-colors">API Docs</a></li>
+                <li><a href={API_DOCS_URL} className="hover:text-white transition-colors">API Docs</a></li>
               </ul>
             </div>
             <div>
