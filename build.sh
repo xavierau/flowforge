@@ -82,8 +82,8 @@ if [ ! -d "node_modules" ]; then
 fi
 
     # Build frontend
-    print_status "Running frontend build..."
-    pnpm run build
+#    print_status "Running frontend build..."
+#    pnpm run build
 
     cd ..
 else
