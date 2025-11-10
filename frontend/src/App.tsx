@@ -1,44 +1,58 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Dashboard } from '@/pages/Dashboard';
-import { BillingDetails } from '@/pages/BillingDetails';
-import { SchemaBuilder } from '@/pages/SchemaBuilder';
-import { Login } from '@/pages/Login';
-import { Signup } from '@/pages/Signup';
-import { SchemaList } from '@/pages/schemas/SchemaList';
-import { SchemaDetail } from '@/pages/schemas/SchemaDetail';
-import { JobList } from '@/pages/jobs/JobList';
-import { JobCreate } from '@/pages/jobs/JobCreate';
-import { JobDetail } from '@/pages/jobs/JobDetail';
-import { JobResults } from '@/pages/jobs/JobResults';
-import { ApiTokens } from '@/pages/ApiTokens';
-import { Profile } from '@/pages/Profile';
-import { Settings } from '@/pages/Settings';
-import { AdminDashboard } from '@/pages/admin/AdminDashboard';
-import { TenantList } from '@/pages/admin/TenantList';
-import { TenantDetail } from '@/pages/admin/TenantDetail';
-import { UserList } from '@/pages/admin/UserList';
-import { PlatformSettings } from '@/pages/admin/PlatformSettings';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthenticatedLayout } from '@/components/layout';
 import { Toaster } from '@/components/ui/sonner';
 
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
+
+// Lazy load all pages for code splitting
+const Login = lazy(() => import('@/pages/Login').then(m => ({ default: m.Login })));
+const Signup = lazy(() => import('@/pages/Signup').then(m => ({ default: m.Signup })));
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const BillingDetails = lazy(() => import('@/pages/BillingDetails').then(m => ({ default: m.BillingDetails })));
+const SchemaBuilder = lazy(() => import('@/pages/SchemaBuilder').then(m => ({ default: m.SchemaBuilder })));
+const SchemaList = lazy(() => import('@/pages/schemas/SchemaList').then(m => ({ default: m.SchemaList })));
+const SchemaDetail = lazy(() => import('@/pages/schemas/SchemaDetail').then(m => ({ default: m.SchemaDetail })));
+const JobList = lazy(() => import('@/pages/jobs/JobList').then(m => ({ default: m.JobList })));
+const JobCreate = lazy(() => import('@/pages/jobs/JobCreate').then(m => ({ default: m.JobCreate })));
+const JobDetail = lazy(() => import('@/pages/jobs/JobDetail').then(m => ({ default: m.JobDetail })));
+const JobResults = lazy(() => import('@/pages/jobs/JobResults').then(m => ({ default: m.JobResults })));
+const ApiTokens = lazy(() => import('@/pages/ApiTokens').then(m => ({ default: m.ApiTokens })));
+const Profile = lazy(() => import('@/pages/Profile').then(m => ({ default: m.Profile })));
+const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const TenantList = lazy(() => import('@/pages/admin/TenantList').then(m => ({ default: m.TenantList })));
+const TenantDetail = lazy(() => import('@/pages/admin/TenantDetail').then(m => ({ default: m.TenantDetail })));
+const UserList = lazy(() => import('@/pages/admin/UserList').then(m => ({ default: m.UserList })));
+const PlatformSettings = lazy(() => import('@/pages/admin/PlatformSettings').then(m => ({ default: m.PlatformSettings })));
+
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <AuthenticatedLayout>
-                <Dashboard />
-              </AuthenticatedLayout>
-            </ProtectedRoute>
-          }
-        />
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <AuthenticatedLayout>
+                  <Dashboard />
+                </AuthenticatedLayout>
+              </ProtectedRoute>
+            }
+          />
         <Route
           path="/billing"
           element={
@@ -213,7 +227,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-      </Routes>
+        </Routes>
+      </Suspense>
       <Toaster />
     </BrowserRouter>
   );
