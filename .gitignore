@@ -67,7 +67,6 @@ alembic/versions/__pycache__/
 
 # Marketing Site (Astro)
 marketing/node_modules/
-marketing/dist/
 marketing/.astro/
 
 # Frontend (React)
