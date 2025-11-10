@@ -1,0 +1,3 @@
+[submodule "marketing"]
+	path = marketing
+	url = git@github.com:xavierau/ai_document_processing_marketing.git
