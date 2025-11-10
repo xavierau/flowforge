@@ -55,12 +55,16 @@ uv sync
 
 print_status "Python environment ready at .venv/"
 
-# Verify Python binary exists
+# Verify Python binary exists and show details
 if [ -f ".venv/bin/python" ]; then
     print_status "Python binary found: .venv/bin/python"
+    ls -lh .venv/bin/python
+    file .venv/bin/python
     .venv/bin/python --version
+    print_status "Absolute path: $(pwd)/.venv/bin/python"
 elif [ -f ".venv/bin/python3" ]; then
     print_status "Python binary found: .venv/bin/python3"
+    ls -lh .venv/bin/python3
     .venv/bin/python3 --version
 else
     print_error "Warning: No Python binary found in .venv/bin/"
