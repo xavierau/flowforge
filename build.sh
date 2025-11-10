@@ -72,14 +72,23 @@ else
     ls -la .venv/bin/ || echo "Directory does not exist"
 fi
 
-# 4. Check if frontend build is needed
+# 4. Run database migrations
+print_status "Running database migrations..."
+if [ -f ".venv/bin/alembic" ]; then
+    .venv/bin/alembic upgrade head
+    print_status "Database migrations completed"
+else
+    print_warning "Alembic not found, skipping migrations"
+fi
+
+# 5. Check if frontend build is needed
 SKIP_FRONTEND_BUILD=false
 if [ "$1" == "--skip-frontend" ]; then
     SKIP_FRONTEND_BUILD=true
     print_warning "Skipping frontend build (dist folder will be used from git)"
 fi
 
-# 5. Build frontend if not skipped
+# 6. Build frontend if not skipped
 if [ "$SKIP_FRONTEND_BUILD" = false ]; then
     print_status "Building frontend..."
 
@@ -124,7 +133,7 @@ else
     print_warning "Using pre-built frontend from git (frontend/dist/)"
 fi
 
-# 6. Restart services using PM2
+# 7. Restart services using PM2
 print_status "Restarting services with PM2..."
 
 # Check if PM2 is installed
