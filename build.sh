@@ -38,14 +38,22 @@ mkdir -p logs
 print_status "Pulling latest code from git..."
 git pull origin develop || print_warning "Git pull failed or no changes"
 
-# 2. Check if frontend build is needed
+# 2. Sync Python dependencies with uv
+print_status "Syncing Python dependencies with uv..."
+if command -v uv &> /dev/null; then
+    uv sync
+else
+    print_warning "uv not found, skipping Python dependency sync"
+fi
+
+# 3. Check if frontend build is needed
 SKIP_FRONTEND_BUILD=false
 if [ "$1" == "--skip-frontend" ]; then
     SKIP_FRONTEND_BUILD=true
     print_warning "Skipping frontend build (dist folder will be used from git)"
 fi
 
-# 3. Build frontend if not skipped
+# 4. Build frontend if not skipped
 if [ "$SKIP_FRONTEND_BUILD" = false ]; then
     print_status "Building frontend..."
 
@@ -90,7 +98,7 @@ else
     print_warning "Using pre-built frontend from git (frontend/dist/)"
 fi
 
-# 4. Restart services using PM2
+# 5. Restart services using PM2
 print_status "Restarting services with PM2..."
 
 # Check if PM2 is installed
