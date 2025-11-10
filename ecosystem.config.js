@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'ai-document-processing-api',
-      script: '/home/forge/flowforge_app.activedevelopment.cloud/.venv/bin/python',
-      args: '-m uvicorn app.main:app --host 0.0.0.0 --port 8000',
+      script: 'uvicorn',
+      args: 'app.main:app --host 0.0.0.0 --port 8000',
       cwd: '/home/forge/flowforge_app.activedevelopment.cloud',
       instances: 1,
       autorestart: true,
@@ -19,8 +19,8 @@ module.exports = {
     },
     {
       name: 'ai-document-processing-celery-worker',
-      script: '/home/forge/flowforge_app.activedevelopment.cloud/.venv/bin/python',
-      args: '-m celery -A app.tasks.celery_app worker --loglevel=info',
+      script: 'celery',
+      args: '-A app.tasks.celery_app worker --loglevel=info',
       cwd: '/home/forge/flowforge_app.activedevelopment.cloud',
       instances: 1,
       autorestart: true,
