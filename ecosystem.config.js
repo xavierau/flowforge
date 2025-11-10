@@ -1,8 +1,10 @@
 const path = require('path');
 
-const projectRoot = '/home/forge/flowforge_app.activedevelopment.cloud';
+// Use __dirname to get the actual project root dynamically
+const projectRoot = __dirname;
 const venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
 
+console.log(`Project root: ${projectRoot}`);
 console.log(`Using Python: ${venvPython}`);
 
 module.exports = {
