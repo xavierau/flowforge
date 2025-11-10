@@ -25,7 +25,7 @@ def create_platform_tenant(db: Session) -> Tenant:
             slug="platform",
             status="active",
             subscription_plan="enterprise",
-            credit_balance=1000000,  # Large balance for platform
+            cached_balance=1000000,  # Large balance for platform
             tenant_metadata={"is_platform": True, "created_by": "seed_script"}
         )
         db.add(tenant)
