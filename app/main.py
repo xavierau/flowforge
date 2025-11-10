@@ -21,17 +21,15 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Configure CORS
-# Use JWT_ALLOWED_ORIGINS from settings, fallback to wildcard for development
-cors_origins = list(settings.jwt_allowed_origins_list) if settings.jwt_allowed_origins_list else ["*"]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Configure CORS - Allow all origins
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=["*"],
+# )
 
 # Add tenant context middleware for multi-tenancy support
 app.add_middleware(TenantContextMiddleware)
