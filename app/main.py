@@ -3,8 +3,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import documents, jobs, health, schemas
+from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, invitations, subscriptions, admin, credits
 from app.config import settings
+from app.middleware.tenant_context import TenantContextMiddleware
+from app.middleware.admin_audit import AdminAuditMiddleware
+from app.logging_config import setup_logging
+
+# Initialize logging
+setup_logging(log_dir=settings.log_dir, log_level=settings.log_level)
 
 # Create FastAPI app
 app = FastAPI(
@@ -24,11 +30,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add tenant context middleware for multi-tenancy support
+app.add_middleware(TenantContextMiddleware)
+
+# Add admin audit logging middleware (must be after tenant context)
+app.add_middleware(AdminAuditMiddleware)
+
 # Include routers
 app.include_router(health.router, tags=["Health"])
+app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
+app.include_router(users.router, prefix="/api/v1", tags=["Users"])
+app.include_router(tokens.router, prefix="/api/v1", tags=["API Tokens"])
+app.include_router(invitations.router, prefix="/api/v1", tags=["Invitations"])
+app.include_router(subscriptions.router, prefix="/api/v1", tags=["Subscriptions"])
+app.include_router(credits.router, tags=["Credits"])
 app.include_router(documents.router, prefix="/api/v1", tags=["Documents"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["Jobs"])
 app.include_router(schemas.router, prefix="/api/v1", tags=["Schemas"])
+app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
+app.include_router(logging.router, prefix="/api/v1", tags=["Logging"])
+app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 
 
 @app.on_event("startup")

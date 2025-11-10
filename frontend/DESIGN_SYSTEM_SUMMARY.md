@@ -286,21 +286,39 @@ I've created a **complete, production-ready design system** for the JSON Schema 
 
 ## 🎨 Visual Specifications
 
-### Color Palette
+### FlowForge Color Palette
 
-**Semantic Colors (shadcn/ui theme):**
-- Background: `hsl(0 0% 100%)` / `hsl(222.2 84% 4.9%)` (dark)
-- Foreground: `hsl(222.2 84% 4.9%)` / `hsl(210 40% 98%)` (dark)
-- Primary: `hsl(222.2 47.4% 11.2%)`
-- Destructive: `hsl(0 84.2% 60.2%)`
-- Muted: `hsl(210 40% 96.1%)`
+**Primary Colors:**
+- Primary Dark (Brand): `#1A4B6B` `hsl(200 61% 26%)` - Dark Blue/Teal
+- Primary Mid: `#3BA08D` `hsl(168 46% 44%)` - Mid Blue/Green
+- Primary Light: `#90D3C3` `hsl(168 46% 69%)` - Light Blue/Green
 
-**Type-Specific Colors (custom):**
-- String: Blue `#3b82f6`
-- Number: Green `#10b981`
-- Boolean: Purple `#a855f7`
-- Object: Orange `#f97316`
-- Array: Pink `#ec4899`
+**Accent Colors:**
+- Accent Green (Success): `#65C695` `hsl(146 48% 60%)` - Vibrant Green
+- Accent Orange (Warning): `#FFA05B` `hsl(27 100% 68%)` - Subtle Orange
+
+**Neutral Colors:**
+- Background: `#F8F8F8` `hsl(0 0% 97%)` - Off-White/Light Gray
+- Foreground: `#333333` `hsl(0 0% 20%)` - Dark Gray
+- Card/White: `#FFFFFF` `hsl(0 0% 100%)` - White
+- Border/Muted: `#AAAAAA` `hsl(0 0% 67%)` - Mid Gray
+
+**Tailwind Usage:**
+```tsx
+// Primary elements
+<Button className="bg-primary text-primary-foreground">Save</Button>
+
+// Success states
+<Badge className="bg-accent text-accent-foreground">Completed</Badge>
+
+// Warning states
+<Badge className="bg-secondary text-secondary-foreground">Pending</Badge>
+
+// Borders and dividers
+<div className="border border-border">Content</div>
+```
+
+**See:** [COLOR_GUIDE.md](./docs/COLOR_GUIDE.md) for complete color system documentation
 
 ### Typography
 

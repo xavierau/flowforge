@@ -15,6 +15,12 @@ class Document(Base):
     __tablename__ = "documents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,  # Nullable initially for migration
+        index=True
+    )
     filename = Column(String(255), nullable=False)
     mime_type = Column(String(100), nullable=False)
     size_bytes = Column(Integer, nullable=False)
@@ -28,6 +34,7 @@ class Document(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    tenant = relationship("Tenant", back_populates="documents")
     pages = relationship("DocumentPage", back_populates="document", cascade="all, delete-orphan")
     extraction_jobs = relationship(
         "ExtractionJob", back_populates="document", cascade="all, delete-orphan"
@@ -35,6 +42,7 @@ class Document(Base):
 
     # Indexes
     __table_args__ = (
+        Index("idx_documents_tenant_id", "tenant_id"),
         Index("idx_documents_status", "status"),
         Index("idx_documents_created_at", "created_at"),
     )

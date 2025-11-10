@@ -1,0 +1,156 @@
+{
+  "brand": {
+    "primary_dark": {
+      "hex": "#1A4B6B",
+      "rgb": "26, 75, 107",
+      "hsl": "200, 61%, 26%",
+      "name": "Dark Blue/Teal",
+      "usage": "Headers, primary navigation, footer backgrounds, main brand color"
+    },
+    "primary_mid": {
+      "hex": "#3BA08D",
+      "rgb": "59, 160, 141",
+      "hsl": "169, 46%, 43%",
+      "name": "Mid Blue/Green",
+      "usage": "Primary CTA buttons, links, brand elements, hover states"
+    },
+    "primary_light": {
+      "hex": "#90D3C3",
+      "rgb": "144, 211, 195",
+      "hsl": "166, 43%, 70%",
+      "name": "Light Blue/Green",
+      "usage": "Backgrounds, highlights, cards, subtle accents"
+    }
+  },
+  "accent": {
+    "vibrant_green": {
+      "hex": "#65C695",
+      "rgb": "101, 198, 149",
+      "hsl": "150, 47%, 59%",
+      "name": "Vibrant Green",
+      "usage": "Success states, positive actions, badges, notifications"
+    },
+    "subtle_orange": {
+      "hex": "#FFA05B",
+      "rgb": "255, 160, 91",
+      "hsl": "25, 100%, 68%",
+      "name": "Subtle Orange",
+      "usage": "Warnings, emphasis, secondary CTAs, highlights"
+    }
+  },
+  "neutral": {
+    "off_white": {
+      "hex": "#F8F8F8",
+      "rgb": "248, 248, 248",
+      "hsl": "0, 0%, 97%",
+      "name": "Off-White / Light Gray",
+      "usage": "Light mode backgrounds, card backgrounds, section dividers"
+    },
+    "dark_gray": {
+      "hex": "#333333",
+      "rgb": "51, 51, 51",
+      "hsl": "0, 0%, 20%",
+      "name": "Dark Gray",
+      "usage": "Light mode body text, headings, primary content"
+    },
+    "mid_gray": {
+      "hex": "#AAAAAA",
+      "rgb": "170, 170, 170",
+      "hsl": "0, 0%, 67%",
+      "name": "Mid Gray",
+      "usage": "Borders, secondary text, placeholders, disabled states"
+    },
+    "white": {
+      "hex": "#FFFFFF",
+      "rgb": "255, 255, 255",
+      "hsl": "0, 0%, 100%",
+      "name": "White",
+      "usage": "Text on dark backgrounds, card backgrounds, primary background"
+    },
+    "black": {
+      "hex": "#000000",
+      "rgb": "0, 0, 0",
+      "hsl": "0, 0%, 0%",
+      "name": "Black",
+      "usage": "Deep shadows, overlays (optional use)"
+    }
+  },
+  "semantic": {
+    "success": {
+      "hex": "#65C695",
+      "rgb": "101, 198, 149",
+      "name": "Vibrant Green (Accent 1)",
+      "usage": "Success messages, completed states, positive feedback"
+    },
+    "warning": {
+      "hex": "#FFA05B",
+      "rgb": "255, 160, 91",
+      "name": "Subtle Orange (Accent 2)",
+      "usage": "Warnings, caution states, attention-grabbing elements"
+    },
+    "error": {
+      "hex": "#D94F4F",
+      "rgb": "217, 79, 79",
+      "name": "Error Red",
+      "usage": "Error messages, destructive actions, validation errors"
+    },
+    "info": {
+      "hex": "#3BA08D",
+      "rgb": "59, 160, 141",
+      "name": "Mid Blue/Green (Primary)",
+      "usage": "Info messages, neutral notifications, tips"
+    }
+  },
+  "usage_guide": {
+    "text": {
+      "primary": "#333333 (Dark Gray)",
+      "secondary": "#AAAAAA (Mid Gray)",
+      "inverse": "#FFFFFF (White - on dark backgrounds)",
+      "brand": "#1A4B6B (Primary Dark - for headings)"
+    },
+    "background": {
+      "primary": "#FFFFFF (White)",
+      "secondary": "#F8F8F8 (Off-White)",
+      "dark": "#1A4B6B (Primary Dark - for dark sections)",
+      "accent": "#90D3C3 (Primary Light - for subtle backgrounds)"
+    },
+    "buttons": {
+      "primary": "#3BA08D (Primary Mid) with hover: #1A4B6B (Primary Dark)",
+      "secondary": "#FFA05B (Subtle Orange) with hover: darken 10%",
+      "success": "#65C695 (Vibrant Green)",
+      "outline": "border: #3BA08D, text: #3BA08D"
+    },
+    "border": {
+      "default": "#AAAAAA (Mid Gray)",
+      "light": "#F8F8F8 (Off-White)",
+      "focus": "#3BA08D (Primary Mid)",
+      "dark": "#1A4B6B (Primary Dark)"
+    },
+    "links": {
+      "default": "#3BA08D (Primary Mid)",
+      "hover": "#1A4B6B (Primary Dark)",
+      "visited": "#1A4B6B (Primary Dark)"
+    }
+  },
+  "tailwind_config": {
+    "note": "Use these in tailwind.config.mjs",
+    "colors": {
+      "primary": {
+        "dark": "#1A4B6B",
+        "DEFAULT": "#3BA08D",
+        "light": "#90D3C3"
+      },
+      "accent": {
+        "green": "#65C695",
+        "orange": "#FFA05B"
+      },
+      "neutral": {
+        "white": "#FFFFFF",
+        "off-white": "#F8F8F8",
+        "mid-gray": "#AAAAAA",
+        "dark": "#333333",
+        "black": "#000000"
+      }
+    }
+  }
+}

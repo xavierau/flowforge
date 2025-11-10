@@ -26,6 +26,8 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          mid: "hsl(var(--primary-mid))",
+          light: "hsl(var(--primary-light))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -50,6 +52,18 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+        },
+        // FlowForge direct color references (for when you need the exact hex values)
+        flowforge: {
+          'primary-dark': '#1A4B6B',
+          'primary-mid': '#3BA08D',
+          'primary-light': '#90D3C3',
+          'accent-green': '#65C695',
+          'accent-orange': '#FFA05B',
+          'neutral-bg': '#F8F8F8',
+          'neutral-dark': '#333333',
+          'neutral-light': '#FFFFFF',
+          'neutral-border': '#AAAAAA',
         },
       },
       borderRadius: {
