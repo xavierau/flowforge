@@ -55,6 +55,19 @@ uv sync
 
 print_status "Python environment ready at .venv/"
 
+# Verify Python binary exists
+if [ -f ".venv/bin/python" ]; then
+    print_status "Python binary found: .venv/bin/python"
+    .venv/bin/python --version
+elif [ -f ".venv/bin/python3" ]; then
+    print_status "Python binary found: .venv/bin/python3"
+    .venv/bin/python3 --version
+else
+    print_error "Warning: No Python binary found in .venv/bin/"
+    print_warning "Contents of .venv/bin/:"
+    ls -la .venv/bin/ || echo "Directory does not exist"
+fi
+
 # 4. Check if frontend build is needed
 SKIP_FRONTEND_BUILD=false
 if [ "$1" == "--skip-frontend" ]; then
