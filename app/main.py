@@ -22,14 +22,14 @@ app = FastAPI(
 )
 
 # Configure CORS - Allow all origins
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-#     expose_headers=["*"],
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 # Add tenant context middleware for multi-tenancy support
 app.add_middleware(TenantContextMiddleware)
