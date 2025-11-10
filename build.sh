@@ -42,8 +42,12 @@ git pull origin develop || print_warning "Git pull failed or no changes"
 if ! command -v uv &> /dev/null; then
     print_status "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.cargo/bin:$PATH"
+    # Add uv to PATH for current session
+    export PATH="$HOME/.local/bin:$PATH"
 fi
+
+# Ensure uv is in PATH
+export PATH="$HOME/.local/bin:$PATH"
 
 # 3. Create virtual environment and sync dependencies
 print_status "Setting up Python virtual environment with uv..."
