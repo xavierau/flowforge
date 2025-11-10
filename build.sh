@@ -74,8 +74,9 @@ fi
 
 # 4. Run database migrations
 print_status "Running database migrations..."
-if [ -f ".venv/bin/alembic" ]; then
-    .venv/bin/alembic upgrade head
+# Use python -m to avoid shebang path issues across different servers
+if .venv/bin/python -m alembic --version &> /dev/null; then
+    .venv/bin/python -m alembic upgrade head
     print_status "Database migrations completed"
 else
     print_warning "Alembic not found, skipping migrations"
