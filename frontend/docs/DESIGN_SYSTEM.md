@@ -1039,67 +1039,84 @@ Level 0 (Root Properties)
 
 ## 6. Color System & Theming
 
-### Semantic Color Usage
+### FlowForge Color System
 
-**Base Colors (from shadcn/ui theme):**
+**Complete color documentation:** [COLOR_GUIDE.md](./COLOR_GUIDE.md)
+
+**Base Colors:**
 
 ```css
-/* Light Mode */
---background: 0 0% 100%;           /* #FFFFFF */
---foreground: 222.2 84% 4.9%;      /* #020817 */
---primary: 222.2 47.4% 11.2%;      /* #1e293b */
---primary-foreground: 210 40% 98%; /* #f8fafc */
---secondary: 210 40% 96.1%;        /* #f1f5f9 */
---destructive: 0 84.2% 60.2%;      /* #ef4444 */
---muted: 210 40% 96.1%;            /* #f1f5f9 */
---accent: 210 40% 96.1%;           /* #f1f5f9 */
---border: 214.3 31.8% 91.4%;       /* #e2e8f0 */
+/* Primary Colors - FlowForge Brand */
+--color-primary: 200 61% 26%;           /* #1A4B6B - Dark Blue/Teal */
+--color-primary-foreground: 0 0% 100%;  /* #FFFFFF - White text */
+--color-primary-mid: 168 46% 44%;       /* #3BA08D - Mid Blue/Green */
+--color-primary-light: 168 46% 69%;     /* #90D3C3 - Light Blue/Green */
 
-/* Dark Mode */
---background: 222.2 84% 4.9%;      /* #020817 */
---foreground: 210 40% 98%;         /* #f8fafc */
---primary: 210 40% 98%;            /* #f8fafc */
---destructive: 0 62.8% 30.6%;      /* #991b1b */
---muted: 217.2 32.6% 17.5%;        /* #1e293b */
---border: 217.2 32.6% 17.5%;       /* #1e293b */
+/* Accent Colors */
+--color-accent: 146 48% 60%;            /* #65C695 - Vibrant Green */
+--color-accent-foreground: 0 0% 20%;    /* #333333 - Dark text */
+--color-secondary: 27 100% 68%;         /* #FFA05B - Subtle Orange */
+--color-secondary-foreground: 0 0% 20%; /* #333333 - Dark text */
+
+/* Neutral Colors */
+--color-background: 0 0% 97%;           /* #F8F8F8 - Off-White */
+--color-foreground: 0 0% 20%;           /* #333333 - Dark Gray */
+--color-card: 0 0% 100%;                /* #FFFFFF - White */
+--color-border: 0 0% 67%;               /* #AAAAAA - Mid Gray */
+--color-muted-foreground: 0 0% 67%;     /* #AAAAAA - Secondary text */
+
+/* Status Colors */
+--color-destructive: 0 84.2% 60.2%;     /* #ef4444 - Error Red */
 ```
 
-### Type-Specific Colors
+### FlowForge Extended Palette (Tailwind Config)
 
-**Extended Palette (add to Tailwind config):**
+**Direct color references (when you need exact hex values):**
 
 ```js
 // tailwind.config.js - extend.colors
 extend: {
   colors: {
-    // Type indicators
-    'type-string': {
-      DEFAULT: 'hsl(217, 91%, 60%)',  // Blue #3b82f6
-      light: 'hsl(217, 91%, 95%)',
-      dark: 'hsl(217, 91%, 15%)',
-    },
-    'type-number': {
-      DEFAULT: 'hsl(142, 71%, 45%)',  // Green #10b981
-      light: 'hsl(142, 71%, 95%)',
-      dark: 'hsl(142, 71%, 15%)',
-    },
-    'type-boolean': {
-      DEFAULT: 'hsl(271, 91%, 65%)',  // Purple #a855f7
-      light: 'hsl(271, 91%, 95%)',
-      dark: 'hsl(271, 91%, 15%)',
-    },
-    'type-object': {
-      DEFAULT: 'hsl(31, 91%, 60%)',   // Orange #f97316
-      light: 'hsl(31, 91%, 95%)',
-      dark: 'hsl(31, 91%, 15%)',
-    },
-    'type-array': {
-      DEFAULT: 'hsl(330, 81%, 60%)',  // Pink #ec4899
-      light: 'hsl(330, 81%, 95%)',
-      dark: 'hsl(330, 81%, 15%)',
+    // ... existing color mappings ...
+    flowforge: {
+      'primary-dark': '#1A4B6B',
+      'primary-mid': '#3BA08D',
+      'primary-light': '#90D3C3',
+      'accent-green': '#65C695',
+      'accent-orange': '#FFA05B',
+      'neutral-bg': '#F8F8F8',
+      'neutral-dark': '#333333',
+      'neutral-light': '#FFFFFF',
+      'neutral-border': '#AAAAAA',
     },
   }
 }
+```
+
+### Usage Examples
+
+```tsx
+// Primary button with FlowForge brand color
+<Button className="bg-primary text-primary-foreground hover:bg-primary-mid">
+  Save Changes
+</Button>
+
+// Success state with accent green
+<Badge className="bg-accent text-accent-foreground">
+  Completed
+</Badge>
+
+// Warning state with accent orange
+<Badge className="bg-secondary text-secondary-foreground">
+  Pending
+</Badge>
+
+// Standard card with FlowForge background
+<Card className="bg-white border-border">
+  <CardContent className="text-foreground">
+    Content
+  </CardContent>
+</Card>
 ```
 
 ### Depth Level Backgrounds
@@ -1119,17 +1136,18 @@ export function getDepthStyles(level: number) {
 }
 ```
 
-### State-Based Color Usage
+### State-Based Color Usage (FlowForge)
 
 | State | Background | Border | Text | Icon |
 |-------|-----------|--------|------|------|
-| **Default** | `bg-background` | `border-border` | `text-foreground` | `text-muted-foreground` |
-| **Hover** | `bg-accent/50` | `border-accent` | `text-foreground` | `text-foreground` |
-| **Active/Selected** | `bg-primary/10` | `border-primary` | `text-primary-foreground` | `text-primary` |
-| **Disabled** | `bg-muted/50` | `border-muted` | `text-muted-foreground` | `text-muted-foreground` |
+| **Default** | `bg-background` (#F8F8F8) | `border-border` (#AAAAAA) | `text-foreground` (#333333) | `text-muted-foreground` (#AAAAAA) |
+| **Hover** | `bg-primary-light/30` | `border-primary-mid` | `text-foreground` | `text-primary` |
+| **Active/Selected** | `bg-primary` (#1A4B6B) | `border-primary` | `text-primary-foreground` (#FFFFFF) | `text-primary-foreground` |
+| **Disabled** | `bg-muted` (#F8F8F8) | `border-border` | `text-muted-foreground` (#AAAAAA) | `text-muted-foreground` |
 | **Error** | `bg-destructive/10` | `border-destructive` | `text-destructive` | `text-destructive` |
-| **Success** | `bg-green-50` | `border-green-500` | `text-green-900` | `text-green-600` |
-| **Warning (Max Depth)** | `bg-amber-50` | `border-amber-500` | `text-amber-900` | `text-amber-600` |
+| **Success** | `bg-accent` (#65C695) | `border-accent` | `text-accent-foreground` (#333333) | `text-accent-foreground` |
+| **Warning** | `bg-secondary` (#FFA05B) | `border-secondary` | `text-secondary-foreground` (#333333) | `text-secondary-foreground` |
+| **Info** | `bg-primary-mid` (#3BA08D) | `border-primary-mid` | `text-white` | `text-white` |
 
 ---
 

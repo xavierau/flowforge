@@ -4,13 +4,17 @@ import asyncio
 import base64
 from datetime import datetime
 from uuid import UUID
-from celery import Task, group
+from celery import Task
+import logging
 
 from app.tasks.celery_app import celery_app
+from app.tasks.callback import send_extraction_callback
 from app.database import SessionLocal
 from app.models import ExtractionJob, ExtractionResult, DocumentPage, Document
 from app.services.storage import get_storage_service
 from app.services.vllm_service import get_vllm_service
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -97,10 +101,13 @@ def extract_from_page(
         db.close()
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
     """
     Process an extraction job for all pages of a document.
+
+    Retries up to 3 times with exponential backoff if processing fails.
+    Retry delays: 60s, 120s, 240s (4 minutes max)
 
     Args:
         extraction_job_id: Extraction job UUID as string
@@ -235,6 +242,33 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
 
         db.commit()
 
+        # --- CREDIT BILLING NOTE ---
+        # Credits are now deducted SYNCHRONOUSLY in the API endpoint (app/api/documents.py)
+        # when the job is created. This eliminates the TOCTOU race condition.
+        # No async deduction needed here for successful jobs.
+        # If the job fails, credits are refunded in the exception handler below.
+        # --- END CREDIT BILLING NOTE ---
+
+        # Get the extraction result for callback
+        extraction_result = (
+            db.query(ExtractionResult)
+            .filter(ExtractionResult.extraction_job_id == job.id)
+            .first()
+        )
+
+        # Queue callback task asynchronously if URL is configured
+        if job.callback_url and extraction_result:
+            callback_data = {
+                "extracted_data": extraction_result.extracted_data,
+                "job_id": str(job.id),
+                "document_id": str(document.id),
+                "status": "completed",
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            }
+            # Fire and forget - doesn't block extraction completion
+            send_extraction_callback.delay(job.callback_url, callback_data)
+            logger.info(f"Queued callback task for job {job.id} to {job.callback_url}")
+
         return {
             "extraction_job_id": extraction_job_id,
             "status": "completed",
@@ -242,14 +276,65 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
         }
 
     except Exception as e:
-        # Update job status to failed
-        if job:
-            job.status = "failed"
-            job.error_message = str(e)
-            job.completed_at = datetime.utcnow()
-            db.commit()
+        db.rollback()
 
-        raise
+        # Check if we should retry
+        if self.request.retries < self.max_retries:
+            # Still have retries left - don't mark as failed yet
+            logger.warning(
+                f"Extraction job {extraction_job_id} failed "
+                f"(attempt {self.request.retries + 1}/{self.max_retries}): {str(e)}"
+            )
+            db.close()
+            # Retry with exponential backoff: 60s, 120s, 240s
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        else:
+            # All retries exhausted - mark job as failed
+            logger.error(f"Extraction job {extraction_job_id} failed after all retries: {str(e)}")
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)
+                job.completed_at = datetime.utcnow()
+                db.commit()
+
+                # REFUND CREDITS: Credits were deducted upfront, now refund them
+                from app.services.credit_service import CreditService
+
+                if job.credits_deducted and job.credits_cost:
+                    try:
+                        credit_service = CreditService(db)
+                        refund_transaction = credit_service.refund_job_credits(
+                            job_id=job.id,
+                            tenant_id=job.document.tenant_id,
+                            refund_amount=job.credits_cost,
+                            reason=f"Job failed after {self.max_retries} retries: {str(e)[:100]}",
+                            user_id=None,  # System refund
+                        )
+                        db.commit()
+
+                        logger.info(
+                            f"✓ Refunded {job.credits_cost} credits for failed job {job.id} "
+                            f"(refund transaction {refund_transaction.id})"
+                        )
+
+                    except Exception as refund_error:
+                        # Log refund failure but don't fail the job failure handling
+                        logger.error(
+                            f"BILLING ERROR: Failed to refund {job.credits_cost} credits for failed job {job.id}: {str(refund_error)}. "
+                            f"MANUAL REFUND REQUIRED."
+                        )
+                        # Store refund error in job metadata
+                        if not job.document_metadata:
+                            job.document_metadata = {}
+                        if isinstance(job.document_metadata, dict):
+                            job.document_metadata["refund_error"] = {
+                                "error": str(refund_error),
+                                "credits_to_refund": job.credits_cost,
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        db.commit()
+
+            raise
 
     finally:
         db.close()

@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: 0 0% 100%;
-  --color-foreground: 222.2 84% 4.9%;
-  --color-card: 0 0% 100%;
-  --color-card-foreground: 222.2 84% 4.9%;
-  --color-popover: 0 0% 100%;
-  --color-popover-foreground: 222.2 84% 4.9%;
-  --color-primary: 222.2 47.4% 11.2%;
-  --color-primary-foreground: 210 40% 98%;
-  --color-secondary: 210 40% 96.1%;
-  --color-secondary-foreground: 222.2 47.4% 11.2%;
-  --color-muted: 210 40% 96.1%;
-  --color-muted-foreground: 215.4 16.3% 46.9%;
-  --color-accent: 210 40% 96.1%;
-  --color-accent-foreground: 222.2 47.4% 11.2%;
-  --color-destructive: 0 84.2% 60.2%;
-  --color-destructive-foreground: 210 40% 98%;
-  --color-border: 214.3 31.8% 91.4%;
-  --color-input: 214.3 31.8% 91.4%;
-  --color-ring: 222.2 84% 4.9%;
+  /* FlowForge Color System */
+  /* Primary Colors */
+  --color-primary: 200 61% 26%;           /* Dark Blue/Teal #1A4B6B */
+  --color-primary-foreground: 0 0% 100%;  /* White text on primary */
+  --color-primary-mid: 168 46% 44%;       /* Mid Blue/Green #3BA08D */
+  --color-primary-light: 168 46% 69%;     /* Light Blue/Green #90D3C3 */
+
+  /* Accent Colors */
+  --color-accent: 146 48% 60%;            /* Vibrant Green #65C695 */
+  --color-accent-foreground: 0 0% 20%;    /* Dark text on accent */
+  --color-secondary: 27 100% 68%;         /* Subtle Orange #FFA05B */
+  --color-secondary-foreground: 0 0% 20%; /* Dark text on secondary */
+
+  /* Neutral Colors */
+  --color-background: 0 0% 97%;           /* Off-White #F8F8F8 */
+  --color-foreground: 0 0% 20%;           /* Dark Gray #333333 */
+  --color-card: 0 0% 100%;                /* White for cards */
+  --color-card-foreground: 0 0% 20%;      /* Dark text on cards */
+  --color-popover: 0 0% 100%;             /* White for popovers */
+  --color-popover-foreground: 0 0% 20%;   /* Dark text on popovers */
+
+  /* UI Elements */
+  --color-muted: 0 0% 97%;                /* Light gray backgrounds #F8F8F8 */
+  --color-muted-foreground: 0 0% 67%;     /* Mid gray text #AAAAAA */
+  --color-border: 0 0% 67%;               /* Mid gray borders #AAAAAA */
+  --color-input: 0 0% 67%;                /* Mid gray input borders */
+  --color-ring: 200 61% 26%;              /* Focus ring matches primary */
+
+  /* Status Colors */
+  --color-destructive: 0 84.2% 60.2%;     /* Keep existing red for errors */
+  --color-destructive-foreground: 0 0% 100%;
+
+  /* Border Radius */
   --radius: 0.5rem;
+
+  /* Chart Colors */
+  --color-chart-1: 200 61% 26%;      /* Primary blue/teal */
+  --color-chart-2: 146 48% 60%;      /* Green accent */
+  --color-chart-3: 27 100% 68%;      /* Orange secondary */
+  --color-chart-4: 168 46% 44%;      /* Mid blue/green */
+  --color-chart-5: 168 46% 69%;      /* Light blue/green */
 }
 
 /* shadcn/ui compatibility - create aliases without --color- prefix */
@@ -33,6 +54,8 @@
   --popover-foreground: var(--color-popover-foreground);
   --primary: var(--color-primary);
   --primary-foreground: var(--color-primary-foreground);
+  --primary-mid: var(--color-primary-mid);
+  --primary-light: var(--color-primary-light);
   --secondary: var(--color-secondary);
   --secondary-foreground: var(--color-secondary-foreground);
   --muted: var(--color-muted);
@@ -44,6 +67,11 @@
   --border: var(--color-border);
   --input: var(--color-input);
   --ring: var(--color-ring);
+  --chart-1: var(--color-chart-1);
+  --chart-2: var(--color-chart-2);
+  --chart-3: var(--color-chart-3);
+  --chart-4: var(--color-chart-4);
+  --chart-5: var(--color-chart-5);
 }
 
 @layer base {
@@ -55,5 +83,19 @@
     color: hsl(var(--foreground));
     margin: 0;
     min-height: 100vh;
+  }
+
+  /* Lighter placeholder text */
+  ::placeholder {
+    color: hsl(0 0% 80%);
+    opacity: 1;
+  }
+
+  :-ms-input-placeholder {
+    color: hsl(0 0% 80%);
+  }
+
+  ::-ms-input-placeholder {
+    color: hsl(0 0% 80%);
   }
 }

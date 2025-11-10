@@ -2,6 +2,10 @@
 
 from celery import Celery
 from app.config import settings
+from app.logging_config import setup_logging
+
+# Initialize logging for Celery workers
+setup_logging(log_dir=settings.log_dir, log_level=settings.log_level)
 
 # Create Celery app
 celery_app = Celery(

@@ -85,10 +85,17 @@ class JobResultResponse(BaseModel):
 
     job_id: UUID = Field(..., description="Job identifier")
     document_id: UUID = Field(..., description="Document identifier")
+    schema_definition_id: Optional[UUID] = Field(None, description="ID of saved schema definition used (null if custom schema)")
     status: str = Field(..., description="Job status")
     extracted_data: dict[str, Any] = Field(..., description="Extracted structured data")
     metadata: ExtractionMetadata = Field(..., description="Extraction metadata")
     completed_at: datetime = Field(..., description="Completion timestamp")
+    # Job configuration used for this extraction
+    extraction_schema: dict[str, Any] = Field(..., description="JSON Schema used for extraction")
+    custom_prompt: Optional[str] = Field(None, description="Custom extraction prompt")
+    model_provider: str = Field(..., description="Model provider (google, openai, deepseek)")
+    model_name: str = Field(..., description="Model name")
+    callback_url: Optional[str] = Field(None, description="Webhook callback URL")
 
     class Config:
         """Pydantic config."""
@@ -118,5 +125,59 @@ class JobResultResponse(BaseModel):
                     "confidence_score": 0.95,
                 },
                 "completed_at": "2025-11-02T10:31:20Z",
+            }
+        }
+
+
+class JobListItem(BaseModel):
+    """Individual job item in list response."""
+
+    id: UUID = Field(..., description="Job identifier")
+    document_id: UUID = Field(..., description="Document identifier")
+    document_name: Optional[str] = Field(None, description="Document name")
+    schema_definition_id: Optional[UUID] = Field(None, description="ID of saved schema definition used (null if custom schema)")
+    status: str = Field(..., description="Job status")
+    progress: Optional[JobProgress] = Field(None, description="Progress information")
+    started_at: Optional[datetime] = Field(None, description="Job start time")
+    completed_at: Optional[datetime] = Field(None, description="Job completion time")
+    created_at: datetime = Field(..., description="Job creation time")
+    updated_at: datetime = Field(..., description="Last update time")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    model_used: Optional[str] = Field(None, description="Model used for extraction")
+
+    class Config:
+        """Pydantic config."""
+
+        from_attributes = True
+
+
+class JobListResponse(BaseModel):
+    """Response model for paginated job list."""
+
+    jobs: list[JobListItem] = Field(..., description="List of jobs")
+    total: int = Field(..., description="Total number of jobs")
+    limit: int = Field(..., description="Results per page")
+    offset: int = Field(..., description="Pagination offset")
+
+    class Config:
+        """Pydantic config."""
+
+        json_schema_extra = {
+            "example": {
+                "jobs": [
+                    {
+                        "id": "660e8400-e29b-41d4-a716-446655440000",
+                        "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "document_name": "invoice_2024.pdf",
+                        "status": "completed",
+                        "model_used": "gemini-2.5-flash",
+                        "created_at": "2025-11-02T10:30:00Z",
+                        "updated_at": "2025-11-02T10:31:20Z",
+                        "completed_at": "2025-11-02T10:31:20Z",
+                    }
+                ],
+                "total": 42,
+                "limit": 20,
+                "offset": 0,
             }
         }

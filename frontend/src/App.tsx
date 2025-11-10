@@ -1,229 +1,221 @@
-import { useState, useCallback } from 'react';
-import { FileJson, Download, Save, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { JsonPreview } from '@/components/preview/JsonPreview';
-import { SchemaTree } from '@/components/schema-builder/SchemaTree';
-import { TemplateSelector } from '@/components/templates/TemplateSelector';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Dashboard } from '@/pages/Dashboard';
+import { BillingDetails } from '@/pages/BillingDetails';
+import { SchemaBuilder } from '@/pages/SchemaBuilder';
+import { Login } from '@/pages/Login';
+import { Signup } from '@/pages/Signup';
+import { SchemaList } from '@/pages/schemas/SchemaList';
+import { SchemaDetail } from '@/pages/schemas/SchemaDetail';
+import { JobList } from '@/pages/jobs/JobList';
+import { JobCreate } from '@/pages/jobs/JobCreate';
+import { JobDetail } from '@/pages/jobs/JobDetail';
+import { JobResults } from '@/pages/jobs/JobResults';
+import { ApiTokens } from '@/pages/ApiTokens';
+import { Profile } from '@/pages/Profile';
+import { Settings } from '@/pages/Settings';
+import { AdminDashboard } from '@/pages/admin/AdminDashboard';
+import { TenantList } from '@/pages/admin/TenantList';
+import { TenantDetail } from '@/pages/admin/TenantDetail';
+import { UserList } from '@/pages/admin/UserList';
+import { PlatformSettings } from '@/pages/admin/PlatformSettings';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AuthenticatedLayout } from '@/components/layout';
 import { Toaster } from '@/components/ui/sonner';
-import { toast } from 'sonner';
-import { useSchemaStore } from '@/store/schemaStore';
-import { propertiesToJsonSchema } from '@/lib/schema-converter';
-import { submitSchema, validateSchemaName, SchemaApiError } from '@/lib/api';
 
 function App() {
-  const { schemaName, properties, setSchemaName, markClean } = useSchemaStore();
-  const [nameError, setNameError] = useState<string>('');
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Handle schema name change with validation
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    setSchemaName(newName);
-
-    // Clear error when user starts typing
-    if (nameError) {
-      setNameError('');
-    }
-  }, [setSchemaName, nameError]);
-
-  // Validate name on blur
-  const handleNameBlur = useCallback(() => {
-    const validation = validateSchemaName(schemaName);
-    if (!validation.isValid && validation.error) {
-      setNameError(validation.error);
-    }
-  }, [schemaName]);
-
-  // Handle schema save/submit
-  const handleSaveSchema = useCallback(async () => {
-    // Validate name first
-    const validation = validateSchemaName(schemaName);
-    if (!validation.isValid) {
-      setNameError(validation.error || 'Invalid schema name');
-      toast.error('Cannot save schema', {
-        description: validation.error || 'Please fix the schema name',
-      });
-      return;
-    }
-
-    // Validate properties exist
-    if (properties.length === 0) {
-      toast.error('Cannot save schema', {
-        description: 'Please add at least one property to the schema',
-      });
-      return;
-    }
-
-    setIsSaving(true);
-    setNameError('');
-
-    try {
-      const schema = propertiesToJsonSchema(properties, schemaName);
-
-      await submitSchema({
-        name: schemaName.trim(),
-        definitions: schema,
-      });
-
-      // Success - mark as clean and show toast
-      markClean();
-      toast.success('Schema saved successfully!', {
-        description: `"${schemaName}" has been saved to the database`,
-      });
-    } catch (error) {
-      if (error instanceof SchemaApiError) {
-        // Handle specific API errors
-        if (error.statusCode === 409) {
-          setNameError('Schema name already exists');
-          toast.error('Schema name already exists', {
-            description: 'Please choose a different name for your schema',
-          });
-        } else if (error.statusCode === 400) {
-          toast.error('Invalid schema', {
-            description: error.detail || 'The schema format is invalid',
-          });
-        } else if (error.statusCode === 422) {
-          toast.error('Validation error', {
-            description: error.detail || 'Please check your schema data',
-          });
-        } else if (error.statusCode === 0) {
-          // Network error
-          toast.error('Connection failed', {
-            description: 'Could not connect to the server. Please ensure the API is running.',
-          });
-        } else {
-          toast.error('Failed to save schema', {
-            description: error.message || 'An unexpected error occurred',
-          });
-        }
-      } else {
-        // Unknown error
-        toast.error('Failed to save schema', {
-          description: error instanceof Error ? error.message : 'An unexpected error occurred',
-        });
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  }, [schemaName, properties, setSchemaName, markClean]);
-
-  const handleExport = () => {
-    const schema = propertiesToJsonSchema(properties, schemaName);
-    const blob = new Blob([JSON.stringify(schema, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${schemaName.replace(/\s+/g, '_').toLowerCase()}_schema.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Determine if save button should be disabled
-  const isSaveDisabled =
-    properties.length === 0 ||
-    !schemaName.trim() ||
-    schemaName.trim().length > 255 ||
-    isSaving;
-
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3 flex-1 max-w-md">
-            <FileJson className="h-6 w-6 text-primary flex-shrink-0" />
-            <div className="flex-1">
-              <div className="flex flex-col gap-1">
-                <Input
-                  type="text"
-                  value={schemaName}
-                  onChange={handleNameChange}
-                  onBlur={handleNameBlur}
-                  placeholder="Enter schema name"
-                  maxLength={255}
-                  className={nameError ? 'border-destructive focus-visible:ring-destructive' : ''}
-                  aria-label="Schema name"
-                  aria-invalid={!!nameError}
-                  aria-describedby={nameError ? 'name-error' : undefined}
-                />
-                {nameError && (
-                  <p id="name-error" className="text-xs text-destructive">
-                    {nameError}
-                  </p>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">JSON Schema Builder</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <TemplateSelector />
-            <Button
-              onClick={handleSaveSchema}
-              disabled={isSaveDisabled}
-              variant="default"
-              aria-label="Save schema"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Schema
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={handleExport}
-              disabled={properties.length === 0}
-              variant="outline"
-              aria-label="Export schema as JSON"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Schema
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Schema Tree */}
-        <div className="w-1/2 border-r overflow-auto p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold mb-2">Schema Structure</h2>
-            <p className="text-sm text-muted-foreground">
-              Build your JSON schema by adding properties. Maximum 3 levels of nesting supported.
-            </p>
-          </div>
-
-          <SchemaTree />
-        </div>
-
-        {/* Right Panel - JSON Preview */}
-        <div className="w-1/2 overflow-auto p-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold mb-2">Preview</h2>
-            <p className="text-sm text-muted-foreground">
-              View the generated JSON Schema and sample data
-            </p>
-          </div>
-
-          <JsonPreview />
-        </div>
-      </main>
-
-      {/* Toast notifications */}
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <Dashboard />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <BillingDetails />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/schema-builder"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <SchemaBuilder />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/schemas"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <SchemaList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/schemas/:id"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <SchemaDetail />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/jobs"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <JobList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/jobs/new"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <JobCreate />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/jobs/:id"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <JobDetail />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/jobs/:id/results"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <JobResults />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/documents"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <div className="p-6">
+                  <h1 className="text-3xl font-bold">Documents</h1>
+                  <p className="text-muted-foreground mt-2">Coming soon...</p>
+                </div>
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tokens"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <ApiTokens />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <Profile />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <Settings />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        {/* Admin Routes - Require platform_admin role */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requiredRole="platform_admin">
+              <AuthenticatedLayout>
+                <AdminDashboard />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tenants"
+          element={
+            <ProtectedRoute requiredRole="platform_admin">
+              <AuthenticatedLayout>
+                <TenantList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tenants/:tenantId"
+          element={
+            <ProtectedRoute requiredRole="platform_admin">
+              <AuthenticatedLayout>
+                <TenantDetail />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute requiredRole="platform_admin">
+              <AuthenticatedLayout>
+                <UserList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute requiredRole="platform_admin">
+              <AuthenticatedLayout>
+                <PlatformSettings />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
       <Toaster />
-    </div>
+    </BrowserRouter>
   );
 }
 

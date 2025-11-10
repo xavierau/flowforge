@@ -31,8 +31,8 @@ export function SchemaTree() {
 
   return (
     <>
-      <Card className="h-full flex flex-col p-4">
-        <div className="mb-4 flex items-center justify-between flex-shrink-0">
+      <div className="flex flex-col">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="font-semibold">Properties</h3>
             <p className="text-sm text-muted-foreground">
@@ -45,7 +45,7 @@ export function SchemaTree() {
           </Button>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div>
           {properties.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <p className="mb-2">No properties yet</p>
@@ -63,7 +63,7 @@ export function SchemaTree() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       <PropertyEditor
         property={editingProperty}

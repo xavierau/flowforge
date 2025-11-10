@@ -48,7 +48,21 @@
       "mcp__chrome-devtools__handle_dialog",
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git checkout:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python -m app.db.seed:*)",
+      "Bash(npx astro:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:tf-bigspring-light-astro.vercel.app)",
+      "Bash(git clone:*)",
+      "Bash(npm run preview:*)",
+      "Bash(./sync-assets.sh)",
+      "Bash(ls:*)",
+      "Bash(python update_role_permissions.py:*)",
+      "Bash(redis-cli:*)",
+      "Bash(python verify_security_fixes.py:*)"
     ],
     "deny": [],
     "ask": []
