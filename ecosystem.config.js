@@ -1,10 +1,15 @@
+const path = require('path');
+
+const projectRoot = '/home/forge/flowforge_app.activedevelopment.cloud';
+const venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
+
 module.exports = {
   apps: [
     {
       name: 'ai-document-processing-api',
-      script: 'uvicorn',
-      args: 'app.main:app --host 0.0.0.0 --port 8000',
-      cwd: '/home/forge/flowforge_app.activedevelopment.cloud',
+      script: venvPython,
+      args: '-m uvicorn app.main:app --host 0.0.0.0 --port 8000',
+      cwd: projectRoot,
       instances: 1,
       autorestart: true,
       watch: false,
@@ -19,9 +24,9 @@ module.exports = {
     },
     {
       name: 'ai-document-processing-celery-worker',
-      script: 'celery',
-      args: '-A app.tasks.celery_app worker --loglevel=info',
-      cwd: '/home/forge/flowforge_app.activedevelopment.cloud',
+      script: venvPython,
+      args: '-m celery -A app.tasks.celery_app worker --loglevel=info',
+      cwd: projectRoot,
       instances: 1,
       autorestart: true,
       watch: false,
