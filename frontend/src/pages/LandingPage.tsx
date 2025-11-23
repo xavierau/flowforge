@@ -2,7 +2,9 @@ import { FileJson, Zap, Shield, Globe, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
-const API_DOCS_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/docs`;
+const API_DOCS_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/docs`
+  : '/docs';  // Use Vite proxy when VITE_API_URL not set
 
 export function LandingPage() {
   const navigate = useNavigate();

@@ -56,7 +56,7 @@ export default defineConfig({
     minify: 'esbuild',
   },
   server: {
-    port: 3000,
+    port: 3004,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

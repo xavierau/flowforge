@@ -29,6 +29,7 @@ const JobResults = lazy(() => import('@/pages/jobs/JobResults').then(m => ({ def
 const ApiTokens = lazy(() => import('@/pages/ApiTokens').then(m => ({ default: m.ApiTokens })));
 const Profile = lazy(() => import('@/pages/Profile').then(m => ({ default: m.Profile })));
 const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
+const WorkflowBuilder = lazy(() => import('@/pages/WorkflowBuilder').then(m => ({ default: m.WorkflowBuilder })));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const TenantList = lazy(() => import('@/pages/admin/TenantList').then(m => ({ default: m.TenantList })));
 const TenantDetail = lazy(() => import('@/pages/admin/TenantDetail').then(m => ({ default: m.TenantDetail })));
@@ -172,6 +173,16 @@ function App() {
             <ProtectedRoute>
               <AuthenticatedLayout>
                 <Settings />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <WorkflowBuilder />
               </AuthenticatedLayout>
             </ProtectedRoute>
           }

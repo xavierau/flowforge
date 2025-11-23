@@ -43,6 +43,8 @@ class Tenant(Base):
     schema_definitions = relationship("SchemaDefinition", back_populates="tenant")
     credit_transactions = relationship("CreditTransaction", back_populates="tenant")
     subscription = relationship("Subscription", back_populates="tenant", uselist=False)
+    workflows = relationship("Workflow", back_populates="tenant")
+    workflow_executions = relationship("WorkflowExecution", back_populates="tenant")
 
     # Indexes
     __table_args__ = (

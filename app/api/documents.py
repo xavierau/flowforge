@@ -1,8 +1,9 @@
 """Document management endpoints."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
+import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query
 from fastapi.responses import StreamingResponse
@@ -10,18 +11,20 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Document, ExtractionJob, User
+from app.models import Document, DocumentPage, ExtractionJob, User
 from app.schemas.document import (
     DocumentUploadResponse,
     DocumentListResponse,
     DocumentResponse,
 )
-from app.schemas.extraction import ParseRequest, ParseResponse
+from app.schemas.extraction import ParseRequest, ParseResponse, DocumentPageResponse
 from app.services.storage import get_storage_service, StorageService
 from app.services.schema_validator import SchemaValidator
+from app.services.extraction_service import ExtractionCreditValidator
 from app.dependencies.auth import require_permission_flexible
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/documents/upload", response_model=DocumentUploadResponse, status_code=201)
@@ -196,93 +199,77 @@ async def parse_document(
         )
 
     # Validate processing mode
-    valid_modes = ["batch", "per_page"]
+    valid_modes = ["batch", "per_page", "markdown"]
     if request.processing_mode not in valid_modes:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid processing_mode. Must be one of: {', '.join(valid_modes)}",
         )
 
-    # --- SYNCHRONOUS CREDIT DEDUCTION (Option 2) ---
-    # FIX: Deduct credits IMMEDIATELY in API endpoint (not async in Celery)
-    # This eliminates TOCTOU race condition completely
-    # If job fails, credits are refunded via compensating transaction
-    from app.services.credit_service import CreditService
-    from app.models.tenant import Tenant
-    from app.exceptions.credits import InsufficientCreditsError
-
-    # Calculate required credits (1 credit per page)
-    required_credits = document.page_count or 1
-
-    try:
-        # CRITICAL: Acquire pessimistic lock on tenant row FIRST
-        # This prevents concurrent requests from checking credits simultaneously
-        tenant = (
-            db.query(Tenant)
-            .filter(Tenant.id == current_user.tenant_id)
-            .with_for_update()  # SELECT FOR UPDATE - blocks other transactions
-            .first()
-        )
-
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-
-        # Check credit balance while holding lock
-        credit_service = CreditService(db)
-        has_sufficient, current_balance = credit_service.check_sufficient_credits(
-            tenant_id=current_user.tenant_id,
-            required_credits=required_credits
-        )
-
-        if not has_sufficient:
-            # Release lock by rolling back
-            db.rollback()
+    # Validate markdown configuration if markdown mode
+    if request.processing_mode == "markdown":
+        if not request.markdown_converter:
             raise HTTPException(
-                status_code=402,  # HTTP 402 Payment Required
-                detail={
-                    "error": "insufficient_credits",
-                    "message": f"Insufficient credits to process document. Required: {required_credits}, Available: {current_balance}",
-                    "required_credits": required_credits,
-                    "available_credits": current_balance,
-                    "credits_needed": required_credits - current_balance,
-                }
+                status_code=400,
+                detail="markdown_converter is required for markdown processing mode"
             )
 
-        # Create extraction job (within same transaction, while holding lock)
+        # Validate converter availability
+        from app.services.converters import get_converter_factory
+        factory = get_converter_factory()
+        available = factory.list_available_converters()
+
+        if request.markdown_converter not in available["markdown_converters"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Markdown converter '{request.markdown_converter}' not available. "
+                       f"Available converters: {available['markdown_converters']}. "
+                       f"Check API keys in settings."
+            )
+
+        # Validate markdown format
+        valid_formats = ["standard", "table_heavy", "layout_preserved"]
+        if request.markdown_format and request.markdown_format not in valid_formats:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid markdown_format. Must be one of: {', '.join(valid_formats)}"
+            )
+
+    # --- SYNCHRONOUS CREDIT DEDUCTION ---
+    # Use shared ExtractionCreditValidator service (DRY principle)
+    # This service handles pessimistic locking, balance checking, and transaction creation
+    credit_validator = ExtractionCreditValidator(db)
+
+    try:
+        # Create extraction job FIRST (need ID for credit transaction reference)
         job = ExtractionJob(
             document_id=document.id,
-            tenant_id=current_user.tenant_id,  # FIX: Set tenant_id for performance
+            tenant_id=current_user.tenant_id,
             schema_definition_id=schema_def_id,
             extraction_schema=final_schema,
             custom_prompt=request.custom_prompt,
             model_provider=request.model_provider_config.provider,
             model_name=request.model_provider_config.model,
             processing_mode=request.processing_mode,
+            markdown_converter=request.markdown_converter if request.processing_mode == "markdown" else None,
+            markdown_format=request.markdown_format if request.processing_mode == "markdown" else None,
             callback_url=request.callback_url,
             status="queued",
-            credits_cost=required_credits,
+            credits_cost=document.page_count or 1,
         )
 
         db.add(job)
         db.flush()  # Get job ID without committing
 
-        # SYNCHRONOUS DEDUCTION: Deduct credits IMMEDIATELY (before commit)
-        # This is atomic with job creation - both succeed or both fail
-        credit_transaction = credit_service.deduct_credits(
+        # Atomically validate and deduct credits
+        credit_transaction, required_credits = credit_validator.validate_and_deduct_credits(
             tenant_id=current_user.tenant_id,
-            amount=required_credits,
-            reference_type="extraction_job",
-            reference_id=job.id,
-            description=f"Document extraction - {required_credits} page(s) (job {job.id})",
-            created_by_user_id=current_user.id,
-            metadata={
-                "job_id": str(job.id),
-                "document_id": str(document.id),
-                "page_count": required_credits,
-                "model_provider": request.model_provider_config.provider,
-                "model_name": request.model_provider_config.model,
-            },
-            allow_negative=False,  # Enforce balance check
+            page_count=document.page_count or 1,
+            job_id=job.id,
+            document_id=document.id,
+            user_id=current_user.id,
+            model_provider=request.model_provider_config.provider,
+            model_name=request.model_provider_config.model
         )
 
         # Link transaction to job
@@ -291,22 +278,12 @@ async def parse_document(
 
         # Commit atomically - job creation + credit deduction happen together
         db.commit()
+        db.refresh(job)
 
     except HTTPException:
         # Re-raise HTTP exceptions (insufficient credits, tenant not found)
-        raise
-    except InsufficientCreditsError as e:
-        # This shouldn't happen (we just checked), but handle it gracefully
         db.rollback()
-        raise HTTPException(
-            status_code=402,
-            detail={
-                "error": "insufficient_credits",
-                "message": str(e),
-                "required_credits": e.required,
-                "available_credits": e.available,
-            }
-        )
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -314,20 +291,41 @@ async def parse_document(
             detail=f"Failed to create extraction job: {str(e)}"
         )
 
-    # Refresh job to get generated fields
-    db.refresh(job)
-
     # --- END SYNCHRONOUS CREDIT DEDUCTION ---
 
-    # Queue extraction tasks - use combined task for unprocessed documents
-    if document.status == "uploaded":
-        # Document needs to be processed (PDF to images) AND extracted
-        from app.tasks.combined_extraction import process_document_and_extract
-        task = process_document_and_extract.delay(str(job.id))
+    # Route to appropriate pipeline based on processing_mode
+    if request.processing_mode == "markdown":
+        # NEW: Markdown pipeline (vision → markdown → JSON)
+        # For unprocessed documents (uploaded status), they need PDF→images first
+        if document.status == "uploaded":
+            # Chain: PDF→images → markdown pipeline
+            from app.tasks.combined_extraction import process_document_and_extract
+            task = process_document_and_extract.delay(str(job.id))
+            logger.info(f"Queued combined processing (PDF+markdown) for job {job.id}")
+        else:
+            # Document already has images, go directly to markdown pipeline
+            from app.tasks.markdown_pipeline import process_markdown_extraction_pipeline
+            task = process_markdown_extraction_pipeline.delay(str(job.id))
+            logger.info(f"Queued markdown pipeline for job {job.id}")
+
+    elif request.processing_mode in ["batch", "per_page"]:
+        # EXISTING: Direct vision extraction
+        if document.status == "uploaded":
+            # Document needs to be processed (PDF to images) AND extracted
+            from app.tasks.combined_extraction import process_document_and_extract
+            task = process_document_and_extract.delay(str(job.id))
+            logger.info(f"Queued combined processing (PDF+extraction) for job {job.id}")
+        else:
+            # Document already processed, just need extraction
+            from app.tasks.extractor import process_extraction_job
+            task = process_extraction_job.delay(str(job.id))
+            logger.info(f"Queued direct extraction for job {job.id}")
+
     else:
-        # Document already processed, just need extraction
-        from app.tasks.extractor import process_extraction_job
-        task = process_extraction_job.delay(str(job.id))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid processing_mode: {request.processing_mode}"
+        )
 
     # Update job with celery task ID
     job.celery_task_id = task.id
@@ -335,7 +333,11 @@ async def parse_document(
 
     # Estimate processing time (rough estimate)
     page_count = document.page_count or 1
-    if request.processing_mode == "batch":
+    if request.processing_mode == "markdown":
+        # Markdown mode: 2-stage pipeline (vision→markdown + text→JSON)
+        # Roughly 30 seconds base + 10 seconds per page
+        estimated_time = 30 + (page_count * 10)
+    elif request.processing_mode == "batch":
         # Batch mode: faster since it's one API call
         estimated_time = 20  # Base time for batch processing
     else:
@@ -521,3 +523,49 @@ async def download_document_file(
         raise HTTPException(
             status_code=500, detail=f"Failed to download file: {str(e)}"
         )
+
+
+@router.get("/documents/{document_id}/pages", response_model=List[DocumentPageResponse])
+async def get_document_pages(
+    document_id: UUID,
+    current_user: User = Depends(require_permission_flexible("documents:read")),
+    db: Session = Depends(get_db),
+) -> List[DocumentPageResponse]:
+    """
+    Get all pages for a document with markdown content.
+
+    This endpoint is used by the frontend MarkdownViewer component
+    to display markdown content for debugging and review.
+
+    Supports both JWT and API token authentication.
+
+    Required Permission: documents:read
+
+    Args:
+        document_id: Document ID to retrieve pages for
+        current_user: Authenticated user with documents:read permission
+        db: Database session
+
+    Returns:
+        List of document pages with markdown content (ordered by page number)
+    """
+    # Get document with tenant check
+    document = (
+        db.query(Document)
+        .filter(Document.id == document_id)
+        .filter(Document.tenant_id == current_user.tenant_id)
+        .first()
+    )
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Get all pages ordered by page number
+    pages = (
+        db.query(DocumentPage)
+        .filter(DocumentPage.document_id == document_id)
+        .order_by(DocumentPage.page_number)
+        .all()
+    )
+
+    return pages

@@ -51,28 +51,40 @@ export function DataTableRowActions<TData>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[160px]">
-        {defaultActions.map((action, index) => (
-          <DropdownMenuItem
-            key={index}
-            onClick={() => action.onClick(rowData)}
-          >
-            {action.icon && <action.icon className="mr-2 h-4 w-4" />}
-            {action.label}
-          </DropdownMenuItem>
-        ))}
+        {defaultActions.map((action, index) => {
+          const isDisabled = action.disabled ? action.disabled(rowData) : false;
+          const label = typeof action.label === 'function' ? action.label(rowData) : action.label;
+
+          return (
+            <DropdownMenuItem
+              key={index}
+              onClick={() => !isDisabled && action.onClick(rowData)}
+              disabled={isDisabled}
+            >
+              {action.icon && <action.icon className="mr-2 h-4 w-4" />}
+              {label}
+            </DropdownMenuItem>
+          );
+        })}
         {defaultActions.length > 0 && destructiveActions.length > 0 && (
           <DropdownMenuSeparator />
         )}
-        {destructiveActions.map((action, index) => (
-          <DropdownMenuItem
-            key={index}
-            onClick={() => action.onClick(rowData)}
-            className="text-destructive focus:text-destructive"
-          >
-            {action.icon && <action.icon className="mr-2 h-4 w-4" />}
-            {action.label}
-          </DropdownMenuItem>
-        ))}
+        {destructiveActions.map((action, index) => {
+          const isDisabled = action.disabled ? action.disabled(rowData) : false;
+          const label = typeof action.label === 'function' ? action.label(rowData) : action.label;
+
+          return (
+            <DropdownMenuItem
+              key={index}
+              onClick={() => !isDisabled && action.onClick(rowData)}
+              disabled={isDisabled}
+              className="text-destructive focus:text-destructive"
+            >
+              {action.icon && <action.icon className="mr-2 h-4 w-4" />}
+              {label}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

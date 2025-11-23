@@ -28,6 +28,14 @@ from app.models.admin_audit_log import AdminAuditLog
 # Platform settings model
 from app.models.platform_setting import PlatformSetting
 
+# Workflow models
+from app.models.workflow import (
+    Workflow,
+    WorkflowVersion,
+    WorkflowExecution,
+    WorkflowNodeExecution,
+)
+
 __all__ = [
     "Document",
     "DocumentPage",
@@ -52,4 +60,9 @@ __all__ = [
     "AdminAuditLog",
     # Platform Settings
     "PlatformSetting",
+    # Workflows
+    "Workflow",
+    "WorkflowVersion",
+    "WorkflowExecution",
+    "WorkflowNodeExecution",
 ]

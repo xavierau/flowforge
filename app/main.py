@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, invitations, subscriptions, admin, credits
+from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, invitations, subscriptions, admin, credits, workflows
 from app.config import settings
 from app.middleware.tenant_context import TenantContextMiddleware
 from app.middleware.admin_audit import AdminAuditMiddleware
@@ -51,6 +51,7 @@ app.include_router(schemas.router, prefix="/api/v1", tags=["Schemas"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
 app.include_router(logging.router, prefix="/api/v1", tags=["Logging"])
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
+app.include_router(workflows.router, prefix="/api/v1", tags=["Workflows"])
 
 
 @app.on_event("startup")

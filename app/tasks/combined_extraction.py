@@ -9,7 +9,9 @@ from app.tasks.celery_app import celery_app
 from app.database import SessionLocal
 from app.models import ExtractionJob, Document
 from app.tasks.pdf_processor import pdf_to_images
+from app.tasks.image_preprocessor import preprocess_document_images
 from app.tasks.extractor import process_extraction_job
+from app.tasks.markdown_pipeline import process_markdown_extraction_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +61,27 @@ def process_document_and_extract(self: Task, extraction_job_id: str) -> dict:
         # Step 1: Process PDF to images if needed
         if is_pdf and document.status == "uploaded":
             logger.info(f"Converting PDF to images for document {document_id}")
-            # Call pdf_to_images task synchronously
-            pdf_result = pdf_to_images(self, document_id)
+            # Call pdf_to_images task synchronously (don't pass self - Celery injects it)
+            pdf_result = pdf_to_images(document_id)
             logger.info(
                 f"PDF conversion completed: {pdf_result['page_count']} pages"
             )
 
-        # Step 2: Perform extraction using existing task
-        logger.info(f"Delegating to process_extraction_job for {extraction_job_id}")
-        extraction_result = process_extraction_job(self, extraction_job_id)
+        # Step 2: Preprocess images (noise removal, contrast enhancement, grid overlay)
+        logger.info(f"Preprocessing images for document {document_id}")
+        preprocess_result = preprocess_document_images(document_id)
+        logger.info(
+            f"Image preprocessing completed: {preprocess_result['pages_processed']} "
+            f"pages preprocessed"
+        )
+
+        # Step 3: Perform extraction using appropriate task based on processing mode
+        if job.processing_mode == "markdown":
+            logger.info(f"Delegating to markdown pipeline for {extraction_job_id}")
+            extraction_result = process_markdown_extraction_pipeline(extraction_job_id)
+        else:
+            logger.info(f"Delegating to process_extraction_job for {extraction_job_id}")
+            extraction_result = process_extraction_job(extraction_job_id)
 
         logger.info(f"Combined workflow completed for job {extraction_job_id}")
 

@@ -74,6 +74,13 @@ def create_permissions(db: Session) -> dict[str, Permission]:
 
         # Platform permissions
         ("platform:super_admin", "platform", "super_admin", "Super admin platform access"),
+
+        # Workflow permissions
+        ("workflows:create", "workflows", "create", "Create new workflows"),
+        ("workflows:read", "workflows", "read", "View workflows and execution history"),
+        ("workflows:update", "workflows", "update", "Modify workflow definitions"),
+        ("workflows:delete", "workflows", "delete", "Delete workflows"),
+        ("workflows:execute", "workflows", "execute", "Execute workflows and manage executions"),
     ]
 
     permissions_map = {}
@@ -115,7 +122,8 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "schemas:create", "schemas:read", "schemas:update", "schemas:delete", "schemas:share",
                 "users:invite", "users:read", "users:update", "users:delete",
                 "tenant:manage", "tenant:billing",
-                "platform:super_admin"
+                "platform:super_admin",
+                "workflows:create", "workflows:read", "workflows:update", "workflows:delete", "workflows:execute"
             ]
         },
         "tenant_admin": {
@@ -128,7 +136,8 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "extraction:create", "jobs:read",
                 "schemas:create", "schemas:read", "schemas:update", "schemas:delete", "schemas:share",
                 "users:invite", "users:read", "users:update", "users:delete",
-                "tenant:manage", "tenant:billing"
+                "tenant:manage", "tenant:billing",
+                "workflows:create", "workflows:read", "workflows:update", "workflows:delete", "workflows:execute"
             ]
         },
         "member": {
@@ -140,6 +149,7 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "documents:create", "documents:read", "documents:update", "documents:share", "documents:export",
                 "extraction:create", "jobs:read",
                 "schemas:create", "schemas:read", "schemas:update",
+                "workflows:create", "workflows:read", "workflows:execute"
             ]
         },
         "viewer": {
@@ -151,6 +161,7 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "documents:read", "documents:export",
                 "jobs:read",
                 "schemas:read",
+                "workflows:read"
             ]
         }
     }

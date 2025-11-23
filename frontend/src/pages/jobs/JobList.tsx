@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FileText, Plus, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Eye, FileText, Plus, Clock, CheckCircle, XCircle, Loader2, RotateCw, Files, FileCode } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Page, PageHeader, PageContent } from '@/components/layout';
@@ -13,13 +13,15 @@ import {
   createActionsColumn,
 } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
+import { ProcessingModeBadge } from '@/components/markdown/ProcessingModeBadge';
 import type { Job } from '@/types/job';
-import { listJobs } from '@/lib/api';
+import { listJobs, retryJob } from '@/lib/api';
 
 export function JobList() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
 
   // Fetch jobs on mount with proper cleanup to prevent race conditions
   useEffect(() => {
@@ -56,6 +58,28 @@ export function JobList() {
     };
   }, []);
 
+  // Handle retry job
+  const handleRetryJob = async (job: Job) => {
+    try {
+      setRetryingJobId(job.id);
+      const response = await retryJob(job.id);
+
+      toast.success('Job retried successfully', {
+        description: `New job created: ${response.extraction_job_id.substring(0, 8)}...`,
+      });
+
+      // Refresh job list to show new job
+      const updatedJobs = await listJobs({ limit: 100, offset: 0 });
+      setJobs(updatedJobs.jobs);
+    } catch (error) {
+      toast.error('Failed to retry job', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setRetryingJobId(null);
+    }
+  };
+
   // Define columns
   const columns = [
     createSelectColumn<Job>(),
@@ -74,6 +98,18 @@ export function JobList() {
     createSortableColumn<Job>('model_used', 'Model', (model: string) => (
       <div className="text-sm text-muted-foreground">{model || 'N/A'}</div>
     )),
+    {
+      id: 'processing_mode',
+      accessorKey: 'processing_mode',
+      header: 'Mode',
+      cell: ({ row }: { row: any }) => {
+        const mode = row.original.processing_mode;
+        return mode ? <ProcessingModeBadge mode={mode} /> : <span className="text-muted-foreground">N/A</span>;
+      },
+      filterFn: (row: any, id: string, value: string[]) => {
+        return value.includes(row.getValue(id));
+      },
+    },
     createDateColumn<Job>('created_at', 'Created', {
       year: 'numeric',
       month: 'short',
@@ -92,6 +128,12 @@ export function JobList() {
         icon: FileText,
         onClick: (job) => navigate(`/jobs/${job.id}/results`),
         show: (job) => job.status === 'completed',
+      },
+      {
+        label: (job) => retryingJobId === job.id ? 'Retrying...' : 'Retry',
+        icon: RotateCw,
+        onClick: handleRetryJob,
+        disabled: (job) => retryingJobId === job.id,
       },
     ]),
   ];
@@ -146,9 +188,30 @@ export function JobList() {
                 },
               ],
             },
+            {
+              id: 'processing_mode',
+              title: 'Processing Mode',
+              options: [
+                {
+                  label: 'Direct',
+                  value: 'direct',
+                  icon: FileText,
+                },
+                {
+                  label: 'Batch',
+                  value: 'batch',
+                  icon: Files,
+                },
+                {
+                  label: 'Markdown',
+                  value: 'markdown',
+                  icon: FileCode,
+                },
+              ],
+            },
           ]}
           exportFilename="extraction-jobs"
-          exportableColumns={['id', 'document_name', 'status', 'model_used', 'created_at']}
+          exportableColumns={['id', 'document_name', 'status', 'processing_mode', 'model_used', 'created_at']}
           isLoading={isLoading}
           emptyMessage="No jobs found. Create your first extraction job to get started."
         />

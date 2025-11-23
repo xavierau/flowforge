@@ -80,6 +80,10 @@ def setup_logging(log_dir: str = "logs", log_level: str = "INFO") -> None:
         task_logger.addHandler(celery_file_handler)
         task_logger.setLevel(logging.DEBUG)
 
+    # Markdown converter logger - enable DEBUG level for full markdown output
+    markdown_logger = logging.getLogger("app.services.converters.gemini_markdown_converter")
+    markdown_logger.setLevel(logging.DEBUG)
+
     # Error log file handler (rotating) - only errors and critical
     error_file_handler = logging.handlers.RotatingFileHandler(
         filename=error_log_file,

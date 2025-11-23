@@ -50,8 +50,14 @@ def extract_from_page(
         if not page:
             raise ValueError(f"Page {document_page_id} not found")
 
-        # Download image
-        image_bytes = storage.download_file_sync(page.image_path)
+        # Download image (prefer preprocessed if available)
+        image_path = page.preprocessed_image_path or page.image_path
+        image_bytes = storage.download_file_sync(image_path)
+
+        if page.preprocessed_image_path:
+            logger.debug(f"Using preprocessed image for page {page.page_number}")
+        else:
+            logger.debug(f"Using original image for page {page.page_number}")
 
         # Convert to base64
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -64,6 +70,7 @@ def extract_from_page(
                 custom_prompt=job.custom_prompt or "",
                 provider=job.model_provider,
                 model=job.model_name,
+                thinking_budget=job.thinking_budget,
             )
         )
 
@@ -153,12 +160,18 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
                 storage_svc = get_storage_service()
                 vllm_service = get_vllm_service()
 
-                # Load all page images
+                # Load all page images (prefer preprocessed if available)
                 images_base64 = []
                 for page in pages:
-                    image_bytes = storage_svc.download_file_sync(page.image_path)
+                    image_path = page.preprocessed_image_path or page.image_path
+                    image_bytes = storage_svc.download_file_sync(image_path)
                     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
                     images_base64.append(image_base64)
+
+                    if page.preprocessed_image_path:
+                        logger.debug(f"Using preprocessed image for page {page.page_number}")
+                    else:
+                        logger.debug(f"Using original image for page {page.page_number}")
 
                 # Single API call with all images
                 result = asyncio.run(
@@ -168,6 +181,7 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
                         custom_prompt=job.custom_prompt or "",
                         provider=job.model_provider,
                         model=job.model_name,
+                        thinking_budget=job.thinking_budget,
                     )
                 )
 
@@ -214,6 +228,7 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
                     custom_prompt=job.custom_prompt or "",
                     provider=job.model_provider,
                     model=job.model_name,
+                    thinking_budget=job.thinking_budget,
                 )
             )
 
@@ -289,50 +304,18 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
             # Retry with exponential backoff: 60s, 120s, 240s
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
         else:
-            # All retries exhausted - mark job as failed
-            logger.error(f"Extraction job {extraction_job_id} failed after all retries: {str(e)}")
+            # All retries exhausted - mark job as failed and refund credits
             if job:
-                job.status = "failed"
-                job.error_message = str(e)
-                job.completed_at = datetime.utcnow()
-                db.commit()
+                from app.utils.job_failure_handler import handle_job_failure
 
-                # REFUND CREDITS: Credits were deducted upfront, now refund them
-                from app.services.credit_service import CreditService
-
-                if job.credits_deducted and job.credits_cost:
-                    try:
-                        credit_service = CreditService(db)
-                        refund_transaction = credit_service.refund_job_credits(
-                            job_id=job.id,
-                            tenant_id=job.document.tenant_id,
-                            refund_amount=job.credits_cost,
-                            reason=f"Job failed after {self.max_retries} retries: {str(e)[:100]}",
-                            user_id=None,  # System refund
-                        )
-                        db.commit()
-
-                        logger.info(
-                            f"✓ Refunded {job.credits_cost} credits for failed job {job.id} "
-                            f"(refund transaction {refund_transaction.id})"
-                        )
-
-                    except Exception as refund_error:
-                        # Log refund failure but don't fail the job failure handling
-                        logger.error(
-                            f"BILLING ERROR: Failed to refund {job.credits_cost} credits for failed job {job.id}: {str(refund_error)}. "
-                            f"MANUAL REFUND REQUIRED."
-                        )
-                        # Store refund error in job metadata
-                        if not job.document_metadata:
-                            job.document_metadata = {}
-                        if isinstance(job.document_metadata, dict):
-                            job.document_metadata["refund_error"] = {
-                                "error": str(refund_error),
-                                "credits_to_refund": job.credits_cost,
-                                "timestamp": datetime.utcnow().isoformat(),
-                            }
-                        db.commit()
+                handle_job_failure(
+                    db=db,
+                    job=job,
+                    error=e,
+                    max_retries=self.max_retries,
+                    current_retry=self.request.retries,
+                    failure_context="JSON extraction",
+                )
 
             raise
 

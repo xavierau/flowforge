@@ -56,9 +56,15 @@ class DocumentPage(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     page_number = Column(Integer, nullable=False)
-    image_path = Column(Text, nullable=False)  # S3 key or local path
+    image_path = Column(Text, nullable=False)  # S3 key or local path (original image)
+    preprocessed_image_path = Column(Text, nullable=True)  # S3 key or local path (preprocessed image)
     status = Column(String(50), nullable=False, default="pending")  # pending, ready, processed
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # Markdown pipeline fields
+    markdown_content = Column(Text, nullable=True)  # Generated markdown content
+    markdown_provider = Column(String(50), nullable=True)  # Provider used (gemini_vision, gpt4v)
+    markdown_generated_at = Column(DateTime, nullable=True)  # When markdown was generated
 
     # Relationships
     document = relationship("Document", back_populates="pages")
@@ -70,4 +76,5 @@ class DocumentPage(Base):
     __table_args__ = (
         Index("idx_document_pages_document_id", "document_id"),
         Index("idx_document_pages_unique", "document_id", "page_number", unique=True),
+        Index("idx_document_pages_markdown_generated", "markdown_generated_at"),
     )

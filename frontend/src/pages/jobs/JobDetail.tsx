@@ -9,8 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { CodeExamplesModal } from '@/components/CodeExamplesModal';
+import { ProcessingModeBadge } from '@/components/markdown/ProcessingModeBadge';
+import { MarkdownViewer } from '@/components/markdown/MarkdownViewer';
 import type { Job } from '@/types/job';
 import { getJobStatus } from '@/lib/api';
+import { ProcessingMode, getMarkdownConverterLabel, getMarkdownFormatLabel } from '@/types/enums';
 
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -193,6 +196,30 @@ export function JobDetail() {
                   <div className="text-base">{job.model_used}</div>
                 </div>
               )}
+              {job.processing_mode && (
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Processing Mode</div>
+                  <div className="mt-1">
+                    <ProcessingModeBadge mode={job.processing_mode} />
+                  </div>
+                </div>
+              )}
+              {job.processing_mode === ProcessingMode.MARKDOWN && (
+                <>
+                  {job.markdown_converter && (
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground">Markdown Converter</div>
+                      <div className="text-base">{getMarkdownConverterLabel(job.markdown_converter)}</div>
+                    </div>
+                  )}
+                  {job.markdown_format && (
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground">Markdown Format</div>
+                      <div className="text-base">{getMarkdownFormatLabel(job.markdown_format)}</div>
+                    </div>
+                  )}
+                </>
+              )}
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Created</div>
                 <div className="text-base">
@@ -235,6 +262,11 @@ export function JobDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Show markdown viewer if markdown mode is used */}
+          {job.processing_mode === ProcessingMode.MARKDOWN && (
+            <MarkdownViewer documentId={job.document_id} />
+          )}
         </div>
       </PageContent>
     </Page>

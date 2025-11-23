@@ -85,6 +85,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_dir: str = "logs"
 
+    # Netflix Conductor
+    conductor_url: str = "http://localhost:8080"
+    conductor_timeout: int = 30
+
+    # Markdown Pipeline Configuration
+    default_markdown_converter: str = "gemini_vision"
+    default_markdown_format: str = "table_heavy"
+    enable_markdown_caching: bool = True
+    markdown_pipeline_enabled: bool = True  # Feature flag
+
     @property
     def max_file_size_bytes(self) -> int:
         """Get max file size in bytes."""

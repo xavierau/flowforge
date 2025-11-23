@@ -16,7 +16,9 @@ import type {
 } from '@/types/metrics';
 import { getAccessToken, clearTokens } from './auth.service';
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`;
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1';  // Use Vite proxy when VITE_API_URL not set
 
 export class MetricsApiError extends Error {
   statusCode: number;

@@ -10,6 +10,7 @@ import json
 from app.config import settings
 from app.database import get_db
 from app.models import ExtractionJob, ExtractionResult, DocumentPage, Document, User, SchemaDefinition
+from app.models.tenant import Tenant
 from app.schemas.job import (
     JobStatusResponse,
     JobResultResponse,
@@ -21,6 +22,7 @@ from app.schemas.job import (
 from app.schemas.extraction import ExtractRequest, ExtractResponse
 from app.services.storage import get_storage_service, StorageService
 from app.services.schema_validator import SchemaValidator
+from app.services.extraction_service import ExtractionCreditValidator
 from app.dependencies.auth import require_permission, require_permission_flexible
 
 router = APIRouter()
@@ -35,7 +37,11 @@ async def extract_from_file(
     model_provider: str = Form(None),
     model_name: str = Form(None),
     processing_mode: str = Form("batch"),
+    markdown_converter: str = Form(None),
+    markdown_format: str = Form(None),
     callback_url: str = Form(None),
+    enable_thinking: bool = Form(False),
+    thinking_budget: int = Form(3000),
     current_user: User = Depends(require_permission_flexible("extraction:create")),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
@@ -57,6 +63,8 @@ async def extract_from_file(
         model_name: Optional model name. Uses default from .env if not provided
         processing_mode: Processing mode ('batch' or 'per_page')
         callback_url: Optional webhook URL for completion notification
+        enable_thinking: Enable AI thinking mode (default: False)
+        thinking_budget: Token budget for thinking when enabled (default: 3000)
         current_user: Authenticated user
         db: Database session
         storage: Storage service
@@ -64,10 +72,22 @@ async def extract_from_file(
     Returns:
         Extraction job ID and status
 
+    Raises:
+        400: Invalid request (schema, file type, or processing mode)
+        402: Insufficient credits
+        404: Schema definition not found
+        500: Server error
+
+    Credit Deduction:
+        Credits are deducted SYNCHRONOUSLY before job creation to prevent
+        race conditions. If credit deduction fails, job creation is rolled back.
+        Cost: 1 credit per page (minimum 1 credit for unknown page count).
+
     Note:
         - At least one of schema_definition_id or extraction_schema must be provided
         - If both are provided, schema_definition_id takes precedence
         - If model_provider or model_name not provided, defaults from .env are used
+        - thinking_budget only applies when enable_thinking is True
     """
     # Use defaults from settings if not provided
     if not model_provider:
@@ -138,12 +158,37 @@ async def extract_from_file(
         )
 
     # Validate processing mode
-    valid_modes = ["batch", "per_page"]
+    valid_modes = ["batch", "per_page", "markdown"]
     if processing_mode not in valid_modes:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid processing_mode. Must be one of: {', '.join(valid_modes)}",
         )
+
+    # Validate markdown configuration if markdown mode
+    if processing_mode == "markdown":
+        if not markdown_converter:
+            raise HTTPException(
+                status_code=400,
+                detail="markdown_converter is required for markdown processing mode"
+            )
+
+        # Validate converter availability
+        from app.services.converters import get_converter_factory
+        factory = get_converter_factory()
+        available = factory.list_available_converters()
+
+        if markdown_converter not in available["markdown_converters"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Markdown converter '{markdown_converter}' not available. "
+                       f"Available converters: {available['markdown_converters']}. "
+                       f"Check API keys in settings."
+            )
+
+        # Set default markdown format if not provided
+        if not markdown_format:
+            markdown_format = "table_heavy"
 
     # Upload to storage
     file_path, size = await storage.upload_file(file, prefix="documents")
@@ -169,23 +214,67 @@ async def extract_from_file(
     db.commit()
     db.refresh(document)
 
-    # Create extraction job immediately
-    job = ExtractionJob(
-        document_id=document.id,
-        tenant_id=current_user.tenant_id,  # FIX: Set tenant_id for performance
-        schema_definition_id=schema_definition_id if schema_definition_id else None,  # Track which saved schema was used
-        extraction_schema=final_schema,
-        custom_prompt=custom_prompt,
-        model_provider=model_provider,
-        model_name=model_name,
-        processing_mode=processing_mode,
-        callback_url=callback_url,
-        status="queued",
-    )
+    # --- CRITICAL FIX: SYNCHRONOUS CREDIT DEDUCTION ---
+    # FIX: Deduct credits IMMEDIATELY before creating job (not async in Celery)
+    # This follows the same pattern as /api/v1/documents/{id}/parse endpoint
 
-    db.add(job)
-    db.commit()
-    db.refresh(job)
+    # Initialize credit validator
+    credit_validator = ExtractionCreditValidator(db)
+
+    try:
+        # Create job FIRST (need ID for credit transaction reference)
+        job = ExtractionJob(
+            document_id=document.id,
+            tenant_id=current_user.tenant_id,
+            schema_definition_id=schema_definition_id if schema_definition_id else None,
+            extraction_schema=final_schema,
+            custom_prompt=custom_prompt,
+            model_provider=model_provider,
+            model_name=model_name,
+            processing_mode=processing_mode,
+            markdown_converter=markdown_converter if processing_mode == "markdown" else None,
+            markdown_format=markdown_format if processing_mode == "markdown" else None,
+            callback_url=callback_url,
+            enable_thinking=enable_thinking,
+            thinking_budget=thinking_budget if enable_thinking else 0,
+            status="queued",
+            credits_cost=page_count or 1,  # Set cost upfront
+        )
+
+        db.add(job)
+        db.flush()  # Get job ID without committing
+
+        # Atomically validate and deduct credits
+        # This acquires SELECT FOR UPDATE lock on tenant row
+        credit_transaction, required_credits = credit_validator.validate_and_deduct_credits(
+            tenant_id=current_user.tenant_id,
+            page_count=page_count or 1,
+            job_id=job.id,
+            document_id=document.id,
+            user_id=current_user.id,
+            model_provider=model_provider,
+            model_name=model_name
+        )
+
+        # Link transaction to job
+        job.credits_deducted = True
+        job.credit_transaction_id = credit_transaction.id
+
+        # Commit atomically - job creation + credit deduction happen together
+        db.commit()
+        db.refresh(job)
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (insufficient credits, tenant not found)
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create extraction job: {str(e)}"
+        )
+    # --- END CREDIT DEDUCTION ---
 
     # Queue combined processing task
     from app.tasks.combined_extraction import process_document_and_extract
@@ -489,4 +578,143 @@ async def get_job_result(
         model_provider=job.model_provider,
         model_name=job.model_name,
         callback_url=job.callback_url,
+    )
+
+
+@router.post("/jobs/{job_id}/retry", response_model=ExtractResponse, status_code=202)
+async def retry_job(
+    job_id: UUID,
+    current_user: User = Depends(require_permission_flexible("extraction:create")),
+    db: Session = Depends(get_db),
+) -> ExtractResponse:
+    """
+    Retry an extraction job with the same configuration.
+
+    Creates a new extraction job with identical configuration to the original job,
+    using the same document without re-uploading.
+
+    Required Permission: extraction:create
+
+    Args:
+        job_id: ID of the job to retry
+        current_user: Authenticated user with extraction:create permission
+        db: Database session
+
+    Returns:
+        New extraction job ID and status
+
+    Raises:
+        402: Insufficient credits
+        404: Job not found or belongs to different tenant
+
+    Credit Deduction:
+        Credits are deducted SYNCHRONOUSLY before job creation.
+        Cost: 1 credit per page (same as original job).
+    """
+    # Get original job with tenant filtering
+    original_job = (
+        db.query(ExtractionJob)
+        .join(Document)
+        .filter(Document.tenant_id == current_user.tenant_id)
+        .filter(ExtractionJob.id == job_id)
+        .first()
+    )
+    if not original_job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Verify document still exists and belongs to tenant
+    document = (
+        db.query(Document)
+        .filter(Document.tenant_id == current_user.tenant_id)
+        .filter(Document.id == original_job.document_id)
+        .first()
+    )
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="Original document not found or has been deleted"
+        )
+
+    # --- CRITICAL: SYNCHRONOUS CREDIT DEDUCTION FOR RETRY ---
+    # Initialize credit validator
+    credit_validator = ExtractionCreditValidator(db)
+
+    try:
+        # Create new extraction job with same configuration
+        new_job = ExtractionJob(
+            document_id=original_job.document_id,
+            tenant_id=current_user.tenant_id,  # Set tenant_id
+            schema_definition_id=original_job.schema_definition_id,
+            extraction_schema=original_job.extraction_schema,
+            custom_prompt=original_job.custom_prompt,
+            model_provider=original_job.model_provider,
+            model_name=original_job.model_name,
+            processing_mode=original_job.processing_mode,
+            callback_url=original_job.callback_url,
+            status="queued",
+            credits_cost=document.page_count or 1,  # Set cost upfront
+        )
+
+        db.add(new_job)
+        db.flush()  # Get job ID without committing
+
+        # Atomically validate and deduct credits
+        credit_transaction, required_credits = credit_validator.validate_and_deduct_credits(
+            tenant_id=current_user.tenant_id,
+            page_count=document.page_count or 1,
+            job_id=new_job.id,
+            document_id=document.id,
+            user_id=current_user.id,
+            model_provider=original_job.model_provider,
+            model_name=original_job.model_name
+        )
+
+        # Link transaction to job
+        new_job.credits_deducted = True
+        new_job.credit_transaction_id = credit_transaction.id
+
+        # Commit atomically
+        db.commit()
+        db.refresh(new_job)
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (insufficient credits, tenant not found)
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retry extraction job: {str(e)}"
+        )
+    # --- END CREDIT DEDUCTION ---
+
+    # Queue extraction task
+    from app.tasks.combined_extraction import process_document_and_extract
+
+    task = process_document_and_extract.delay(str(new_job.id))
+
+    # Update job with celery task ID
+    new_job.celery_task_id = task.id
+    db.commit()
+
+    # Estimate processing time
+    is_pdf = document.mime_type == settings.allowed_pdf_type
+    base_time = 10 if is_pdf else 0
+    page_estimate = document.page_count or 1
+
+    if new_job.processing_mode == "batch":
+        extraction_time = 20
+    else:
+        extraction_time = page_estimate * 15
+
+    estimated_time = base_time + extraction_time
+
+    return ExtractResponse(
+        extraction_job_id=new_job.id,
+        document_id=document.id,
+        status=new_job.status,
+        message="Extraction job retried successfully",
+        estimated_time_seconds=estimated_time,
+        created_at=new_job.created_at,
     )

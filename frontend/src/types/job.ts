@@ -3,6 +3,8 @@
  * Corresponds to app/schemas/job.py
  */
 
+import type { ProcessingMode, MarkdownConverter, MarkdownFormat } from './enums';
+
 export interface JobProgress {
   total_pages: number;
   completed_pages: number;
@@ -41,6 +43,11 @@ export interface JobResultResponse {
   model_provider: string;
   model_name: string;
   callback_url?: string;
+  enable_thinking?: boolean;  // Whether thinking mode was enabled
+  thinking_budget?: number;   // Thinking budget in tokens
+  processing_mode?: ProcessingMode;  // Processing mode used
+  markdown_converter?: MarkdownConverter;  // Markdown converter if markdown mode
+  markdown_format?: MarkdownFormat;  // Markdown format if markdown mode
 }
 
 // For list page display (combining status and metadata)
@@ -58,6 +65,9 @@ export interface Job {
   error?: string;
   // For display in list
   model_used?: string;
+  processing_mode?: ProcessingMode;  // Processing mode used
+  markdown_converter?: MarkdownConverter;  // Markdown converter if markdown mode
+  markdown_format?: MarkdownFormat;  // Markdown format if markdown mode
 }
 
 export interface JobListResponse {
@@ -65,4 +75,20 @@ export interface JobListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+/**
+ * Extraction job creation request
+ */
+export interface ExtractionJobCreate {
+  extraction_schema: Record<string, any>;
+  custom_prompt?: string;
+  model_provider: string;
+  model_name: string;
+  processing_mode: ProcessingMode;
+  markdown_converter?: MarkdownConverter;
+  markdown_format?: MarkdownFormat;
+  enable_thinking: boolean;
+  thinking_budget: number;
+  callback_url?: string;
 }

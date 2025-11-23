@@ -15,6 +15,7 @@ class ExtractionJob(Base):
     __tablename__ = "extraction_jobs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     schema_definition_id = Column(
         UUID(as_uuid=True),
@@ -27,7 +28,14 @@ class ExtractionJob(Base):
     model_name = Column(String(100), nullable=False)
     processing_mode = Column(
         String(50), nullable=False, default="batch"
-    )  # batch (all pages in one call) or per_page (individual page processing)
+    )  # batch (all pages in one call) or per_page (individual page processing) or markdown (vision → markdown → JSON)
+    enable_thinking = Column(Boolean, nullable=False, default=False)  # Enable AI thinking mode
+    thinking_budget = Column(Integer, nullable=False, default=0)  # Token budget for thinking (0=disabled)
+
+    # Markdown pipeline fields
+    markdown_converter = Column(String(50), nullable=True)  # Converter used (gemini_vision, gpt4v)
+    markdown_format = Column(String(50), nullable=True)  # Format style (standard, table_heavy, layout_preserved)
+
     status = Column(
         String(50), nullable=False, default="queued"
     )  # queued, processing, completed, failed
@@ -58,6 +66,7 @@ class ExtractionJob(Base):
 
     # Indexes
     __table_args__ = (
+        Index("idx_extraction_jobs_tenant_id", "tenant_id"),
         Index("idx_extraction_jobs_document_id", "document_id"),
         Index("idx_extraction_jobs_schema_definition_id", "schema_definition_id"),
         Index("idx_extraction_jobs_status", "status"),

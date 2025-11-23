@@ -71,6 +71,32 @@ export enum SubscriptionStatus {
 }
 
 /**
+ * Processing mode for extraction jobs
+ */
+export enum ProcessingMode {
+  PER_PAGE = "per_page",
+  BATCH = "batch",
+  MARKDOWN = "markdown",
+}
+
+/**
+ * Markdown converter providers
+ */
+export enum MarkdownConverter {
+  GEMINI_VISION = "gemini_vision",
+  GPT4V = "gpt4v",
+}
+
+/**
+ * Markdown format styles
+ */
+export enum MarkdownFormat {
+  STANDARD = "standard",
+  TABLE_HEAVY = "table_heavy",
+  LAYOUT_PRESERVED = "layout_preserved",
+}
+
+/**
  * Type guards for runtime validation
  */
 
@@ -120,4 +146,39 @@ export function getCreditTransactionTypeLabel(type: CreditTransactionType): stri
     [CreditTransactionType.MIGRATION_BALANCE_IMPORT]: "Migration Import",
   };
   return labels[type];
+}
+
+export function getProcessingModeLabel(mode: ProcessingMode): string {
+  const labels: Record<ProcessingMode, string> = {
+    [ProcessingMode.PER_PAGE]: "Per Page",
+    [ProcessingMode.BATCH]: "Batch",
+    [ProcessingMode.MARKDOWN]: "Markdown Pipeline",
+  };
+  return labels[mode];
+}
+
+export function getProcessingModeColor(mode: ProcessingMode): string {
+  const colors: Record<ProcessingMode, string> = {
+    [ProcessingMode.PER_PAGE]: "text-gray-600",
+    [ProcessingMode.BATCH]: "text-blue-600",
+    [ProcessingMode.MARKDOWN]: "text-green-600",
+  };
+  return colors[mode];
+}
+
+export function getMarkdownConverterLabel(converter: MarkdownConverter): string {
+  const labels: Record<MarkdownConverter, string> = {
+    [MarkdownConverter.GEMINI_VISION]: "Gemini Vision",
+    [MarkdownConverter.GPT4V]: "GPT-4 Vision",
+  };
+  return labels[converter];
+}
+
+export function getMarkdownFormatLabel(format: MarkdownFormat): string {
+  const labels: Record<MarkdownFormat, string> = {
+    [MarkdownFormat.STANDARD]: "Standard",
+    [MarkdownFormat.TABLE_HEAVY]: "Table Heavy",
+    [MarkdownFormat.LAYOUT_PRESERVED]: "Layout Preserved",
+  };
+  return labels[format];
 }

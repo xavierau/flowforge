@@ -6,7 +6,9 @@ import type { ApiSchema, ApiSchemaListResponse, CreateApiSchemaRequest, UpdateAp
 import type { JobListResponse, JobStatusResponse, JobResultResponse } from '@/types/job';
 import { clearTokens } from '@/services/auth.service';
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1`;
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1';  // Use Vite proxy when VITE_API_URL not set
 
 export interface CreateSchemaRequest {
   name: string;
@@ -578,8 +580,12 @@ export interface ExtractRequest {
   custom_prompt?: string;
   model_provider: string;             // e.g., "google", "openai"
   model_name: string;                 // e.g., "gemini-2.5-flash"
-  processing_mode?: 'batch' | 'per_page'; // Default: "batch"
+  processing_mode?: 'batch' | 'per_page' | 'markdown'; // Default: "batch"
+  markdown_converter?: string;        // Required when processing_mode is "markdown"
+  markdown_format?: string;           // Required when processing_mode is "markdown"
   callback_url?: string;
+  enable_thinking?: boolean;          // Enable thinking mode (default: false)
+  thinking_budget?: number;           // Thinking budget in tokens (default: 3000)
 }
 
 export interface ExtractResponse {
@@ -626,8 +632,26 @@ export async function extractFromFile(request: ExtractRequest): Promise<ExtractR
       formData.append('processing_mode', request.processing_mode);
     }
 
+    // Markdown pipeline configuration (required when processing_mode is 'markdown')
+    if (request.markdown_converter) {
+      formData.append('markdown_converter', request.markdown_converter);
+    }
+
+    if (request.markdown_format) {
+      formData.append('markdown_format', request.markdown_format);
+    }
+
     if (request.callback_url) {
       formData.append('callback_url', request.callback_url);
+    }
+
+    // Thinking mode configuration
+    if (request.enable_thinking !== undefined) {
+      formData.append('enable_thinking', String(request.enable_thinking));
+    }
+
+    if (request.thinking_budget !== undefined) {
+      formData.append('thinking_budget', String(request.thinking_budget));
     }
 
     const response = await apiFetch(`${API_BASE_URL}/jobs/extract`, {
@@ -647,6 +671,39 @@ export async function extractFromFile(request: ExtractRequest): Promise<ExtractR
     if (error instanceof ApiServiceError) throw error;
     throw new ApiServiceError(
       error instanceof Error ? error.message : 'Failed to extract from file',
+      0
+    );
+  }
+}
+
+/**
+ * Retry an extraction job with the same configuration
+ *
+ * @param jobId - ID of the job to retry
+ * @returns Extract response with new job and document IDs
+ * @throws ApiServiceError with specific status codes
+ */
+export async function retryJob(jobId: string): Promise<ExtractResponse> {
+  try {
+    const response = await apiFetch(`${API_BASE_URL}/jobs/${jobId}/retry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData: ApiError = await response.json().catch(() => ({
+        detail: 'Failed to retry job',
+      }));
+      throw new ApiServiceError(errorData.detail, response.status);
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof ApiServiceError) throw error;
+    throw new ApiServiceError(
+      error instanceof Error ? error.message : 'Failed to retry job',
       0
     );
   }

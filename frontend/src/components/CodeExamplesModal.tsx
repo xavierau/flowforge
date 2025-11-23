@@ -46,6 +46,8 @@ interface JobConfig {
   model: string;
   provider: string;
   callbackUrl?: string;
+  enableThinking?: boolean;
+  thinkingBudget?: number;
 }
 
 /**
@@ -59,13 +61,16 @@ function generateCodeExamples(config: JobConfig) {
   // Determine whether to use schema_definition_id or extraction_schema
   const useSchemaId = !!config.schemaDefinitionId;
 
+  // Get API base URL from environment or use default
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:9001';
+
   return {
     python: `import requests
 import time
 import json
 
 # Configuration
-API_BASE_URL = "http://localhost:8000/api/v1"
+API_BASE_URL = "${apiBaseUrl}/api/v1"  # Update this to your API server URL
 API_KEY = "your_api_key_here"  # Replace with your actual API key
 
 headers = {
@@ -84,7 +89,9 @@ def extract_from_file(file_path: str) -> str:
             'model_name': '${config.model}',
             'custom_prompt': '${promptText}',
             'processing_mode': 'batch',
-            'callback_url': '${callbackUrl}'
+            'callback_url': '${callbackUrl}',
+            'enable_thinking': ${config.enableThinking || false},
+            'thinking_budget': ${config.thinkingBudget || 3000}
         }
 
         response = requests.post(
@@ -130,7 +137,7 @@ if __name__ == "__main__":
     typescript: `import axios, { AxiosInstance } from 'axios';
 
 // Configuration
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = '${apiBaseUrl}/api/v1';  // Update this to your API server URL
 const API_KEY = 'your_api_key_here'; // Replace with your actual API key
 
 // Create axios instance with auth
@@ -166,6 +173,8 @@ async function extractFromFile(file: File): Promise<string> {
   formData.append('custom_prompt', '${promptText}');
   formData.append('processing_mode', 'batch');
   formData.append('callback_url', '${callbackUrl}');
+  formData.append('enable_thinking', '${config.enableThinking || false}');
+  formData.append('thinking_budget', '${config.thinkingBudget || 3000}');
 
   const response = await api.post<ExtractResponse>(
     '/jobs/extract',
@@ -222,7 +231,7 @@ async function extractData(file: File): Promise<any> {
 }`,
 
     javascript: `// Using fetch API (browser-compatible)
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = '${apiBaseUrl}/api/v1';  // Update this to your API server URL
 const API_KEY = 'your_api_key_here'; // Replace with your actual API key
 
 const headers = {
@@ -240,6 +249,8 @@ async function extractFromFile(file) {
   formData.append('custom_prompt', '${promptText}');
   formData.append('processing_mode', 'batch');
   formData.append('callback_url', '${callbackUrl}');
+  formData.append('enable_thinking', '${config.enableThinking || false}');
+  formData.append('thinking_budget', '${config.thinkingBudget || 3000}');
 
   const response = await fetch(\`\${API_BASE_URL}/jobs/extract\`, {
     method: 'POST',
@@ -304,7 +315,7 @@ async function extractData(file) {
     curl: `#!/bin/bash
 
 # Configuration
-API_BASE_URL="http://localhost:8000/api/v1"
+API_BASE_URL="${apiBaseUrl}/api/v1"  # Update this to your API server URL
 API_KEY="your_api_key_here"  # Replace with your actual API key
 
 # Step 1: Upload and extract in one call
@@ -319,7 +330,9 @@ EXTRACT_RESPONSE=$(curl -s -X POST \\
   -F "model_name=${config.model}" \\
   -F "custom_prompt=${promptText}" \\
   -F "processing_mode=batch" \\
-  -F "callback_url=${callbackUrl}")
+  -F "callback_url=${callbackUrl}" \\
+  -F "enable_thinking=${config.enableThinking || false}" \\
+  -F "thinking_budget=${config.thinkingBudget || 3000}")
 
 JOB_ID=$(echo $EXTRACT_RESPONSE | jq -r '.extraction_job_id')
 echo "Extraction job started: $JOB_ID"
@@ -384,6 +397,8 @@ export function CodeExamplesModal({
           model: result.model_name,
           provider: result.model_provider,
           callbackUrl: result.callback_url,
+          enableThinking: result.enable_thinking || false,
+          thinkingBudget: result.thinking_budget || 3000,
         });
       } catch (err) {
         console.error('Failed to fetch job config:', err);

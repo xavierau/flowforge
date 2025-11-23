@@ -23,6 +23,7 @@ import {
   Shield,
   Building,
   Users,
+  Workflow,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -56,6 +57,11 @@ const navItems: NavItem[] = [
     name: 'Jobs',
     path: '/jobs',
     icon: Briefcase,
+  },
+  {
+    name: 'Workflows',
+    path: '/workflows',
+    icon: Workflow,
   },
   {
     name: 'API Tokens',

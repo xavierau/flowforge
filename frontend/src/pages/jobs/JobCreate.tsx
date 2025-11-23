@@ -32,9 +32,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { extractFromFile, listSchemas } from '@/lib/api';
 import type { ApiSchema } from '@/types/api-schema';
 import { Badge } from '@/components/ui/badge';
+import { MarkdownPipelineConfig } from '@/components/markdown/MarkdownPipelineConfig';
+import { ProcessingMode, MarkdownConverter, MarkdownFormat } from '@/types/enums';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
@@ -44,8 +47,12 @@ interface FormData {
   schemaId: string;
   customSchema: string;
   customPrompt: string;
-  processingMode: 'batch' | 'per_page';
+  processingMode: ProcessingMode;
+  markdownConverter: MarkdownConverter;
+  markdownFormat: MarkdownFormat;
   callbackUrl: string;
+  enableThinking: boolean;
+  thinkingBudget: number;
 }
 
 export function JobCreate() {
@@ -58,8 +65,12 @@ export function JobCreate() {
     schemaId: '',
     customSchema: '',
     customPrompt: '',
-    processingMode: 'batch',
+    processingMode: ProcessingMode.BATCH,
+    markdownConverter: MarkdownConverter.GEMINI_VISION,
+    markdownFormat: MarkdownFormat.TABLE_HEAVY,
     callbackUrl: '',
+    enableThinking: false,
+    thinkingBudget: 3000,
   });
 
   // UI state
@@ -186,6 +197,12 @@ export function JobCreate() {
         extractRequest.schema_definition_id = formData.schemaId;
       }
 
+      // Add markdown pipeline configuration if markdown mode
+      if (formData.processingMode === ProcessingMode.MARKDOWN) {
+        extractRequest.markdown_converter = formData.markdownConverter;
+        extractRequest.markdown_format = formData.markdownFormat;
+      }
+
       // Add optional fields
       if (formData.customPrompt?.trim()) {
         extractRequest.custom_prompt = formData.customPrompt;
@@ -194,6 +211,10 @@ export function JobCreate() {
       if (formData.callbackUrl?.trim()) {
         extractRequest.callback_url = formData.callbackUrl;
       }
+
+      // Add thinking mode configuration
+      extractRequest.enable_thinking = formData.enableThinking;
+      extractRequest.thinking_budget = formData.thinkingBudget;
 
       // Single API call - upload and create job
       const response = await extractFromFile(extractRequest);
@@ -387,8 +408,8 @@ export function JobCreate() {
                 <Label htmlFor="processing-mode">Processing Mode</Label>
                 <Select
                   value={formData.processingMode}
-                  onValueChange={(value: 'batch' | 'per_page') =>
-                    setFormData(prev => ({ ...prev, processingMode: value }))
+                  onValueChange={(value) =>
+                    setFormData(prev => ({ ...prev, processingMode: value as ProcessingMode }))
                   }
                   disabled={isSubmitting}
                 >
@@ -396,15 +417,38 @@ export function JobCreate() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="batch">
-                      Batch (All pages at once - faster)
+                    <SelectItem value={ProcessingMode.DIRECT}>
+                      Direct (Per-page vision → JSON)
                     </SelectItem>
-                    <SelectItem value="per_page">
-                      Per Page (Individual page processing)
+                    <SelectItem value={ProcessingMode.BATCH}>
+                      Batch (All pages vision → JSON - faster)
+                    </SelectItem>
+                    <SelectItem value={ProcessingMode.MARKDOWN}>
+                      Markdown Pipeline (Vision → Markdown → JSON - reusable)
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.processingMode === ProcessingMode.DIRECT && 'Processes each page individually with vision model'}
+                  {formData.processingMode === ProcessingMode.BATCH && 'Processes all pages together in one API call (recommended for most cases)'}
+                  {formData.processingMode === ProcessingMode.MARKDOWN && 'Two-stage: generates reusable markdown first, then extracts JSON (best for 3+ pages)'}
+                </p>
               </div>
+
+              {/* Show markdown configuration only when markdown mode is selected */}
+              {formData.processingMode === ProcessingMode.MARKDOWN && (
+                <MarkdownPipelineConfig
+                  converter={formData.markdownConverter}
+                  format={formData.markdownFormat}
+                  onConverterChange={(converter) =>
+                    setFormData(prev => ({ ...prev, markdownConverter: converter }))
+                  }
+                  onFormatChange={(format) =>
+                    setFormData(prev => ({ ...prev, markdownFormat: format }))
+                  }
+                  disabled={isSubmitting}
+                />
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="custom-prompt">
@@ -439,6 +483,64 @@ export function JobCreate() {
                 <p className="text-xs text-muted-foreground">
                   Optional webhook URL to receive extraction results when the job completes
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Advanced Options Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Advanced Options</CardTitle>
+              <CardDescription>
+                Configure advanced AI processing features
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="enable-thinking">Enable AI Thinking Mode</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Allows the AI to spend more tokens on reasoning before generating the response. This can improve accuracy for complex documents.
+                    </p>
+                  </div>
+                  <Switch
+                    id="enable-thinking"
+                    checked={formData.enableThinking}
+                    onCheckedChange={(checked) =>
+                      setFormData(prev => ({ ...prev, enableThinking: checked }))
+                    }
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {formData.enableThinking && (
+                  <div className="space-y-2 ml-6 border-l-2 border-muted pl-4">
+                    <Label htmlFor="thinking-budget">
+                      Thinking Budget (Tokens)
+                    </Label>
+                    <Input
+                      id="thinking-budget"
+                      type="number"
+                      min={0}
+                      max={10000}
+                      step={100}
+                      value={formData.thinkingBudget}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        setFormData(prev => ({
+                          ...prev,
+                          thinkingBudget: Math.min(Math.max(value, 0), 10000)
+                        }));
+                      }}
+                      disabled={isSubmitting}
+                      className="max-w-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Number of tokens allocated for AI reasoning (0-10,000). Higher values allow more thorough analysis but consume more tokens.
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

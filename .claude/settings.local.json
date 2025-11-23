@@ -78,7 +78,22 @@
       "Bash(git config:*)",
       "Bash(git fetch:*)",
       "Bash(ssh:*)",
-      "Bash(.venv/bin/python:*)"
+      "Bash(.venv/bin/python:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(PGPASSWORD=password psql:*)",
+      "Bash(python -c:*)",
+      "Bash(/tmp/login_response.json)",
+      "Bash(python -m app.orchestration.start_workers:*)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(kill:*)",
+      "Bash(python test_extract_batch.py:*)",
+      "Bash(xargs:*)",
+      "Bash(alembic history:*)",
+      "Bash(jq:*)",
+      "Bash(awk:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(celery:*)",
+      "Bash(uv pip:*)"
     ],
     "deny": [],
     "ask": []

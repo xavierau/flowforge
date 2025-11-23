@@ -86,3 +86,109 @@ class SubscriptionStatus(str, Enum):
     PAST_DUE = "past_due"
     CANCELED = "canceled"
     EXPIRED = "expired"
+
+
+class NodeType(str, Enum):
+    """
+    Workflow node types.
+
+    These match the frontend NodeType enum exactly:
+    - HTTP_TRIGGER: Entry point for workflow (webhook)
+    - EXTRACTION: VLLM-based document extraction
+    - PYTHON_RUNNER: Execute Python code
+    - HTTP_REQUEST: Make HTTP requests
+    - IF: Conditional branching
+    """
+    HTTP_TRIGGER = "httpTrigger"
+    EXTRACTION = "extraction"
+    PYTHON_RUNNER = "pythonRunner"
+    HTTP_REQUEST = "httpRequest"
+    IF = "if"
+
+
+class HttpMethod(str, Enum):
+    """HTTP methods for HttpRequest nodes"""
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PATCH = "PATCH"
+
+
+class WorkflowExecutionStatus(str, Enum):
+    """
+    Workflow execution status lifecycle.
+
+    State machine:
+    pending → running → completed
+               ↓
+             failed
+
+    Also supports:
+    - paused: Execution paused by user
+    - cancelled: Execution cancelled by user
+    - timeout: Execution exceeded timeout
+    """
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+
+
+class WorkflowNodeExecutionStatus(str, Enum):
+    """
+    Individual node execution status.
+
+    State machine:
+    pending → running → completed
+               ↓
+             failed/skipped
+    """
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"  # For conditional branches not taken
+
+
+class ProcessingMode(str, Enum):
+    """
+    Extraction processing modes.
+
+    Controls how document extraction is performed:
+    - DIRECT: Per-page vision → JSON (legacy, deprecated)
+    - BATCH: All pages vision → JSON in single call (current default)
+    - MARKDOWN: Vision → Markdown → JSON (new two-stage pipeline)
+    """
+    DIRECT = "direct"
+    BATCH = "batch"
+    MARKDOWN = "markdown"
+
+
+class MarkdownConverter(str, Enum):
+    """
+    Markdown converter types for image-to-markdown conversion.
+
+    These converters use vision models to generate markdown from images:
+    - GEMINI_VISION: Google Gemini 2.5 Flash vision model
+    - GPT4V: OpenAI GPT-4 Vision model
+    """
+    GEMINI_VISION = "gemini_vision"
+    GPT4V = "gpt4v"
+
+
+class MarkdownFormat(str, Enum):
+    """
+    Markdown format styles for conversion output.
+
+    Controls how the markdown converter formats the output:
+    - STANDARD: Standard markdown with basic formatting
+    - TABLE_HEAVY: Emphasis on converting tabular data to markdown tables
+    - LAYOUT_PRESERVED: Preserve original document layout structure
+    """
+    STANDARD = "standard"
+    TABLE_HEAVY = "table_heavy"
+    LAYOUT_PRESERVED = "layout_preserved"

@@ -19,10 +19,11 @@ export interface FilterOption {
  * Row action configuration
  */
 export interface RowAction<TData> {
-  label: string;
+  label: string | ((row: TData) => string);
   icon?: React.ComponentType<{ className?: string }>;
   onClick: (row: TData) => void;
   show?: (row: TData) => boolean;
+  disabled?: (row: TData) => boolean;
   variant?: 'default' | 'destructive';
 }
 

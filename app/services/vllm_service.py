@@ -198,9 +198,74 @@ Return ONLY valid JSON matching the schema. Do not include any explanation."""
 class GeminiVLLMProvider(VLLMProvider):
     """Google Gemini Vision provider."""
 
+    @staticmethod
+    def _clean_schema_for_gemini(schema: dict[str, Any]) -> dict[str, Any]:
+        """
+        Clean JSON schema for Gemini API compatibility.
+
+        Removes fields that are not permitted by the Gemini API:
+        - $schema: JSON Schema version identifier
+        - $id: Schema identifier
+        - Other $ prefixed metadata fields
+
+        Args:
+            schema: Input JSON schema
+
+        Returns:
+            Cleaned schema without metadata fields
+        """
+        if not isinstance(schema, dict):
+            return schema
+
+        # Create a copy to avoid mutating the original
+        cleaned = {}
+
+        for key, value in schema.items():
+            # Skip metadata fields that start with $
+            if key.startswith('$'):
+                continue
+
+            # Recursively clean nested objects
+            if isinstance(value, dict):
+                cleaned[key] = GeminiVLLMProvider._clean_schema_for_gemini(value)
+            elif isinstance(value, list):
+                cleaned[key] = [
+                    GeminiVLLMProvider._clean_schema_for_gemini(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
+            else:
+                cleaned[key] = value
+
+        return cleaned
+
     def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
-        """Initialize Gemini provider."""
-        self.client = genai.Client(api_key=api_key)
+        """Initialize Gemini provider with timeout configuration."""
+        # Configure client with longer timeout for large images
+        # Default timeout is often too short for vision models processing large images
+        import httpx
+        from google.genai import types
+
+        # Configure separate timeouts for different operations
+        # Preprocessed RGBA images are large (~2-3MB per page)
+        # Batch mode sends 4 pages at once (~8-12MB total)
+        timeout_config = httpx.Timeout(
+            connect=30.0,   # Connection establishment: 30 seconds
+            read=300.0,     # Reading response: 5 minutes (for processing time)
+            write=300.0,    # Writing request (upload): 5 minutes (for large images)
+            pool=30.0       # Pool timeout: 30 seconds
+        )
+
+        # Pass timeout to underlying httpx client via client_args
+        # Also configure async client with same timeout
+        http_options = types.HttpOptions(
+            client_args={'timeout': timeout_config},
+            async_client_args={'timeout': timeout_config}
+        )
+
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=http_options
+        )
         self.model = model
 
     async def extract(
@@ -208,44 +273,67 @@ class GeminiVLLMProvider(VLLMProvider):
         image_base64: str,
         schema: dict[str, Any],
         prompt: str,
+        thinking_budget: int = 0,
     ) -> tuple[dict[str, Any], int, int]:
-        """Extract using Google Gemini."""
+        """Extract using Google Gemini with structured output.
+
+        Following Gemini API best practices:
+        - Use response_mime_type='application/json' for JSON output
+        - Pass schema via response_schema parameter, not in prompt
+        - This guarantees syntactically valid JSON matching the schema
+
+        Args:
+            image_base64: Base64 encoded image
+            schema: JSON schema for extraction
+            prompt: Custom extraction instructions
+            thinking_budget: Token budget for AI thinking (0=disabled, >0=enabled)
+        """
         start_time = time.time()
 
-        # Build the prompt
-        full_prompt = f"""Extract information from this document image according to this JSON schema:
-
-{json.dumps(schema, indent=2)}
+        # Build the prompt focused on extraction instructions only
+        # Schema is passed separately via config
+        extraction_prompt = f"""Extract information from this document image.
 
 Additional instructions: {prompt}
 
-Return ONLY valid JSON matching the schema. Do not include any explanation or markdown formatting."""
+Extract all relevant information accurately from the document."""
 
         try:
             # Decode base64 image
             image_data = base64.b64decode(image_base64)
 
-            # Generate content using new SDK
+            # Generate content using new SDK with structured output
             # The SDK accepts PIL Image objects directly in contents
             import PIL.Image
             import io
             image_pil = PIL.Image.open(io.BytesIO(image_data))
 
+            # Clean schema for Gemini API (remove $schema and other metadata fields)
+            cleaned_schema = self._clean_schema_for_gemini(schema)
+
+            # Use proper structured output configuration with system instruction
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=[image_pil, full_prompt],
+                contents=[image_pil, extraction_prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type='application/json',
+                    response_schema=cleaned_schema,
+                    system_instruction=[
+                        types.Part.from_text(
+                            text="""You are the most advanced document data extraction system.
+Extract data accurately from the provided document images according to the JSON schema.
+Understand the holistic context of the document and make relevant decisions based on the document type and structure."""
+                        )
+                    ],
+                    thinking_config=types.ThinkingConfig(
+                        thinking_budget=thinking_budget,
+                    ),
+                ),
             )
 
-            # Extract text
-            content = response.text
-
-            # Try to extract JSON from markdown code blocks if present
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-
-            extracted_data = json.loads(content)
+            # With structured output, response.text is guaranteed to be valid JSON
+            # No need to strip markdown code blocks
+            extracted_data = json.loads(response.text)
 
             # Get actual token usage from response metadata
             # Gemini provides: prompt_token_count, candidates_token_count, total_token_count
@@ -270,14 +358,28 @@ Return ONLY valid JSON matching the schema. Do not include any explanation or ma
         images_base64: list[str],
         schema: dict[str, Any],
         prompt: str,
+        thinking_budget: int = 0,
     ) -> tuple[dict[str, Any], int, int, int]:
-        """Extract using Google Gemini with multiple images in one call."""
+        """Extract using Google Gemini with multiple images in one call.
+
+        Following Gemini API best practices:
+        - Use response_mime_type='application/json' for JSON output
+        - Pass schema via response_schema parameter, not in prompt
+        - For multi-image document extraction, place the prompt FIRST
+        - Then include all image parts in sequence
+        - This guarantees syntactically valid JSON matching the schema
+
+        Args:
+            images_base64: List of base64 encoded images (one per page)
+            schema: JSON schema for extraction
+            prompt: Custom extraction instructions
+            thinking_budget: Token budget for AI thinking (0=disabled, >0=enabled)
+        """
         start_time = time.time()
 
-        # Build the prompt
-        full_prompt = f"""Extract information from this multi-page document according to this JSON schema:
-
-{json.dumps(schema, indent=2)}
+        # Build the prompt focused on extraction instructions only
+        # Schema is passed separately via config
+        extraction_prompt = f"""Extract information from this multi-page document.
 
 Additional instructions: {prompt}
 
@@ -287,40 +389,50 @@ For example:
 - If line items span multiple pages, combine them into a single array
 - Do not create separate JSON objects for each page
 
-Return ONLY valid JSON matching the schema. Do not include any explanation or markdown formatting."""
+Extract all relevant information accurately from all pages."""
 
         try:
             # Decode all images and convert to PIL
             import PIL.Image
             import io
 
-            # Build contents list: [image1, image2, image3, ..., prompt]
-            contents = []
+            # Build contents list following Gemini best practices:
+            # For multi-image comparison/extraction: [prompt, image1, image2, image3, ...]
+            # This allows the model to understand the task before processing images
+            contents = [extraction_prompt]
 
             for img_b64 in images_base64:
                 image_data = base64.b64decode(img_b64)
                 image_pil = PIL.Image.open(io.BytesIO(image_data))
                 contents.append(image_pil)
 
-            # Add prompt at the end
-            contents.append(full_prompt)
+            # Clean schema for Gemini API (remove $schema and other metadata fields)
+            cleaned_schema = self._clean_schema_for_gemini(schema)
 
-            # Make single API call with all images
+            # Make single API call with all images using structured output
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type='application/json',
+                    response_schema=cleaned_schema,
+                    system_instruction=[
+                        types.Part.from_text(
+                            text="""You are an advanced document data extraction system.
+Extract data accurately from the provided multi-page document images according to the JSON schema.
+Understand the holistic context of the document and make relevant decisions based on the document type and structure.
+Combine information across all pages into a single coherent result."""
+                        )
+                    ],
+                    thinking_config=types.ThinkingConfig(
+                        thinking_budget=thinking_budget,
+                    ),
+                ),
             )
 
-            # Extract text
-            content = response.text
-
-            # Try to extract JSON from markdown code blocks if present
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-
-            extracted_data = json.loads(content)
+            # With structured output, response.text is guaranteed to be valid JSON
+            # No need to strip markdown code blocks
+            extracted_data = json.loads(response.text)
 
             # Get actual token usage from response metadata
             if hasattr(response, 'usage_metadata'):
@@ -389,6 +501,7 @@ class VLLMService:
         custom_prompt: str = "",
         provider: str = "google",
         model: str = "gemini-pro-vision",
+        thinking_budget: int = 0,
     ) -> dict[str, Any]:
         """
         Extract structured data from an image.
@@ -399,6 +512,7 @@ class VLLMService:
             custom_prompt: Custom extraction instructions
             provider: VLLM provider ('google' or 'openai')
             model: Model name
+            thinking_budget: Token budget for AI thinking (0=disabled, >0=enabled)
 
         Returns:
             Dictionary with extraction results:
@@ -426,6 +540,7 @@ class VLLMService:
             image_base64=image_base64,
             schema=schema,
             prompt=custom_prompt,
+            thinking_budget=thinking_budget,
         )
 
         # Validate extracted data against schema
@@ -454,6 +569,7 @@ class VLLMService:
         custom_prompt: str = "",
         provider: str = "google",
         model: str = "gemini-2.5-flash",
+        thinking_budget: int = 0,
     ) -> dict[str, Any]:
         """
         Extract structured data from multiple images in a single API call.
@@ -467,6 +583,7 @@ class VLLMService:
             custom_prompt: Custom extraction instructions
             provider: VLLM provider ('google' or 'openai')
             model: Model name
+            thinking_budget: Token budget for AI thinking (0=disabled, >0=enabled)
 
         Returns:
             Dictionary with extraction results (same format as extract_from_image)
@@ -483,6 +600,7 @@ class VLLMService:
             images_base64=images_base64,
             schema=schema,
             prompt=custom_prompt,
+            thinking_budget=thinking_budget,
         )
 
         # Validate extracted data against schema

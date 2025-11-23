@@ -1,7 +1,7 @@
 """Extraction-related Pydantic schemas."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -43,7 +43,14 @@ class ParseRequest(BaseModel):
     model_provider_config: ModelConfig = Field(..., description="Model configuration")
     processing_mode: str = Field(
         default="batch",
-        description="Processing mode: 'batch' (all pages in one call) or 'per_page' (individual processing)"
+        description="Processing mode: 'batch' (all pages in one call), 'per_page' (individual processing), or 'markdown' (vision → markdown → JSON pipeline)"
+    )
+    markdown_converter: Optional[str] = Field(
+        None, description="Markdown converter (only for markdown mode): 'gemini_vision' or 'gpt4v'"
+    )
+    markdown_format: Optional[str] = Field(
+        default="table_heavy",
+        description="Markdown format style (only for markdown mode): 'standard', 'table_heavy', or 'layout_preserved'"
     )
     callback_url: Optional[str] = Field(
         None, description="Optional webhook URL to POST results to when job completes"
@@ -130,7 +137,14 @@ class ExtractRequest(BaseModel):
     model_provider_config: ModelConfig = Field(..., description="Model configuration")
     processing_mode: str = Field(
         default="batch",
-        description="Processing mode: 'batch' (all pages in one call) or 'per_page' (individual processing)"
+        description="Processing mode: 'batch' (all pages in one call), 'per_page' (individual processing), or 'markdown' (vision → markdown → JSON pipeline)"
+    )
+    markdown_converter: Optional[str] = Field(
+        None, description="Markdown converter (only for markdown mode): 'gemini_vision' or 'gpt4v'"
+    )
+    markdown_format: Optional[str] = Field(
+        default="table_heavy",
+        description="Markdown format style (only for markdown mode): 'standard', 'table_heavy', or 'layout_preserved'"
     )
     callback_url: Optional[str] = Field(
         None, description="Optional webhook URL to POST results to when job completes"
@@ -177,5 +191,47 @@ class ExtractResponse(BaseModel):
                 "message": "Document uploaded and extraction job queued",
                 "estimated_time_seconds": 30,
                 "created_at": "2025-11-03T10:31:00Z",
+            }
+        }
+
+
+class DocumentPageResponse(BaseModel):
+    """Response model for document page with markdown content."""
+
+    id: UUID = Field(..., description="Page unique identifier")
+    document_id: UUID = Field(..., description="Parent document ID")
+    page_number: int = Field(..., description="Page number (1-indexed)")
+    image_path: str = Field(..., description="Original image storage path")
+    preprocessed_image_path: Optional[str] = Field(
+        None, description="Preprocessed image storage path"
+    )
+    markdown_content: Optional[str] = Field(
+        None, description="Generated markdown content"
+    )
+    markdown_provider: Optional[str] = Field(
+        None, description="Provider used for markdown generation"
+    )
+    markdown_generated_at: Optional[datetime] = Field(
+        None, description="When markdown was generated"
+    )
+    status: str = Field(..., description="Page processing status")
+    created_at: datetime = Field(..., description="Page creation timestamp")
+
+    class Config:
+        """Pydantic config."""
+
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "770e8400-e29b-41d4-a716-446655440000",
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "page_number": 1,
+                "image_path": "documents/example.png",
+                "preprocessed_image_path": "documents/example_preprocessed.png",
+                "markdown_content": "<!-- PAGE 1 -->\n# Invoice\n...",
+                "markdown_provider": "gemini_vision",
+                "markdown_generated_at": "2025-11-17T10:31:00Z",
+                "status": "completed",
+                "created_at": "2025-11-17T10:30:00Z",
             }
         }

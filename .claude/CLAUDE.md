@@ -12,16 +12,22 @@ AI-powered document processing SaaS using Vision Language Models (VLLMs) with st
 - **[Development Commands](../docs/guides/2025-11-02-development-commands.md)** - Complete CLI reference for uv, migrations, testing, Docker
 - **[Auth Implementation Guide](../docs/guides/2025-11-03-auth-implementation-guide.md)** - How to protect routes with JWT authentication and permissions
 - **[API Endpoint Security](../docs/guides/2025-11-04-api-endpoint-security.md)** - Complete security reference for API development (authentication, permissions, API tokens)
+- **[Workflow Builder - User Guide](../docs/guides/2025-11-15-workflow-builder-user-guide.md)** ✨ NEW - Complete guide to visual workflow builder with 5 node types
+- **[Workflow Builder - Quick Reference](../docs/guides/2025-11-15-workflow-builder-quick-reference.md)** ✨ NEW - Cheat sheet for workflow builder
+- **[Workflow Builder - Examples](../docs/guides/2025-11-15-workflow-examples.md)** ✨ NEW - 7 real-world workflow patterns with configurations
 
 ### Architecture
 - **[Stateless Job Processing](../docs/architecture/2025-11-02-stateless-job-processing.md)** - Core design principles, state machines, retry strategies
 - **[VLLM Integration](../docs/architecture/2025-11-02-vllm-integration.md)** - Multi-provider setup, invoice extraction, adding providers
 - **[JWT Authentication & Multi-Tenancy](../docs/architecture/2025-11-03-jwt-authentication-and-multi-tenancy.md)** - Complete auth architecture, security, and patterns
 - **[Astro Public Site Architecture](../docs/architecture/2025-11-03-astro-public-site-architecture.md)** - Multi-site setup with Astro for marketing, nginx config, Cloudflare Pages deployment
+- **[Workflow Builder Architecture](../docs/architecture/2025-11-15-workflow-builder-architecture.md)** ✨ NEW - Technical implementation, state management, expression system
 
 ### Frontend (React + Tailwind)
 - **[Testing Guide](../frontend/TESTING_GUIDE.md)** - Complete testing checklist for JSON Schema Builder
 - **[Implementation Status](../frontend/IMPLEMENTATION_STATUS.md)** - Progress tracker and phase completion
+- **[Expression Syntax](../frontend/EXPRESSION_SYNTAX.md)** ✨ NEW - Complete reference for workflow expression syntax
+- **[Workflow Builder README](../frontend/README.md)** - Frontend setup and API wrapper guide (includes workflow builder)
 
 ### Troubleshooting
 - **[Common Issues & Solutions](../docs/troubleshooting/2025-11-02-common-issues.md)** - All known issues with fixes
