@@ -76,7 +76,7 @@ else
     fi
 
     # Activate virtual environment
-    source venv/bin/activate
+    source .venv/bin/activate
 
     # Install dependencies
     echo -e "${YELLOW}Installing dependencies...${NC}"
@@ -119,15 +119,15 @@ else
     echo "To start the services, run in separate terminals:"
     echo ""
     echo -e "${YELLOW}Terminal 1 - API Server:${NC}"
-    echo "   source venv/bin/activate"
+    echo "   source .venv/bin/activate"
     echo "   uvicorn app.main:app --reload"
     echo ""
     echo -e "${YELLOW}Terminal 2 - Celery Worker:${NC}"
-    echo "   source venv/bin/activate"
+    echo "   source .venv/bin/activate"
     echo "   celery -A app.tasks.celery_app worker --loglevel=info"
     echo ""
     echo -e "${YELLOW}Terminal 3 - Flower (Optional monitoring):${NC}"
-    echo "   source venv/bin/activate"
+    echo "   source .venv/bin/activate"
     echo "   celery -A app.tasks.celery_app flower"
     echo ""
 fi
