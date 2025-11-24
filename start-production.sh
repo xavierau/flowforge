@@ -61,9 +61,47 @@ if ! redis-cli -h localhost -p 6379 ping > /dev/null 2>&1; then
     exit 1
 fi
 
+# Extract database connection info from .env
+echo -e "${YELLOW}Checking database configuration...${NC}"
+source .venv/bin/activate
+
+# Parse DATABASE_URL to extract connection details
+DB_URL=$(grep "^DATABASE_URL=" .env | cut -d '=' -f2-)
+# Extract database name from URL (last part after last /)
+DB_NAME=$(echo "$DB_URL" | sed 's/.*\///')
+# Extract host (after @ and before :port or /)
+DB_HOST=$(echo "$DB_URL" | sed 's/.*@//' | sed 's/:.*//' | sed 's/\/.*//')
+# Extract port (after :port and before /)
+DB_PORT=$(echo "$DB_URL" | sed 's/.*://' | sed 's/\/.*//')
+# Extract user (between :// and : before password)
+DB_USER=$(echo "$DB_URL" | sed 's/.*:\/\///' | sed 's/:.*//')
+# Extract password (between user: and @)
+DB_PASS=$(echo "$DB_URL" | sed 's/.*:\/\/[^:]*://' | sed 's/@.*//')
+
+echo "Database: $DB_NAME"
+echo "Host: $DB_HOST"
+echo "Port: $DB_PORT"
+echo "User: $DB_USER"
+
+# Check if database exists, create if it doesn't
+echo -e "${YELLOW}Checking if database exists...${NC}"
+DB_EXISTS=$(PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME" && echo "yes" || echo "no")
+
+if [ "$DB_EXISTS" = "no" ]; then
+    echo -e "${YELLOW}Database '$DB_NAME' does not exist. Creating it...${NC}"
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -c "CREATE DATABASE $DB_NAME;" postgres
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Database '$DB_NAME' created successfully!${NC}"
+    else
+        echo -e "${RED}Failed to create database '$DB_NAME'${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}Database '$DB_NAME' already exists.${NC}"
+fi
+
 # Run migrations
 echo -e "${YELLOW}Running database migrations...${NC}"
-source .venv/bin/activate
 alembic upgrade head
 
 # Create storage and logs directories
