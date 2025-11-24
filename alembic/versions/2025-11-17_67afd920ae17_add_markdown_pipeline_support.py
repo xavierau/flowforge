@@ -1,7 +1,7 @@
 """add_markdown_pipeline_support
 
 Revision ID: 67afd920ae17
-Revises: 922d747266dd
+Revises: add_constraint_20251117
 Create Date: 2025-11-17 22:54:29.793347
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '67afd920ae17'
-down_revision: Union[str, None] = '922d747266dd'
+down_revision: Union[str, None] = 'add_constraint_20251117'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

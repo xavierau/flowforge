@@ -81,12 +81,28 @@ nano .env
 
 ### 4. Setup Database
 
+**Option A: Automatic (Recommended)**
+
+```bash
+# Run the database setup script
+./setup-database.sh
+
+# This script will:
+# - Parse DATABASE_URL from .env
+# - Check if database exists
+# - Create database if needed
+# - Optionally run migrations
+```
+
+**Option B: Manual**
+
 ```bash
 # Create PostgreSQL database and user
 sudo -u postgres psql << EOF
-CREATE DATABASE ai_document_processing;
-CREATE USER ai_doc_user WITH PASSWORD 'secure_password';
-GRANT ALL PRIVILEGES ON DATABASE ai_document_processing TO ai_doc_user;
+CREATE DATABASE doc_processing;
+CREATE USER postgres WITH PASSWORD 'password';
+GRANT ALL PRIVILEGES ON DATABASE doc_processing TO postgres;
+ALTER USER postgres CREATEDB;
 \q
 EOF
 
@@ -94,6 +110,8 @@ EOF
 source .venv/bin/activate
 alembic upgrade head
 ```
+
+**Note:** The `start-production.sh` script now automatically checks and creates the database if it doesn't exist.
 
 ### 5. Update PM2 Configuration
 
@@ -609,5 +627,192 @@ sudo systemctl restart ai-document-api ai-document-worker  # systemd
 
 ---
 
+## Appendix: Migration Conflict Fix (2025-11-24)
+
+### Problem: Migration Failure on Production
+
+Production migration failed with error:
+```
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column "tenant_id" does not exist
+[SQL: CREATE INDEX idx_extraction_jobs_tenant_id ON extraction_jobs (tenant_id)]
+```
+
+### Root Cause
+
+Migration conflict due to incorrect auto-generated migration:
+
+1. Migration `d8f7226ad686` (2025-11-06) added `tenant_id` column and index
+2. Migration `b61940e9e225` (2025-11-16) **accidentally removed** the column (auto-generated without review)
+3. Migration `922d747266dd` (2025-11-17) tried to recreate the index, but column was gone
+
+### Solution Applied Locally
+
+**Files Modified:**
+
+1. **`alembic/versions/2025-11-16_b61940e9e225_add_preprocessed_image_path_to_document_.py`**
+   - Removed incorrect `drop_column('extraction_jobs', 'tenant_id')`
+   - Removed incorrect `drop_index('idx_extraction_jobs_tenant_id')`
+   - Removed incorrect `drop_constraint('extraction_jobs_tenant_id_fkey')`
+
+2. **`alembic/versions/2025-11-17_922d747266dd_add_index_extraction_jobs_tenant_id.py`**
+   - **DELETED** (duplicate of index in `d8f7226ad686`)
+
+3. **`alembic/versions/2025-11-17_67afd920ae17_add_markdown_pipeline_support.py`**
+   - Updated `down_revision` from `'922d747266dd'` to `'add_constraint_20251117'`
+
+### Production Deployment Steps
+
+#### Step 1: Deploy Fixed Migrations
+
+```bash
+# On local machine (already done)
+git add alembic/versions/
+git commit -m "Fix migration conflict: remove duplicate tenant_id operations"
+git push origin develop
+
+# On production server
+cd /home/forge/flowforge-app.phbsolution.com
+git pull origin develop
+```
+
+#### Step 2: Check Current Migration State
+
+```bash
+# Check alembic_version table
+source .venv/bin/activate
+alembic current
+
+# OR manually check database
+PGPASSWORD=your_password psql -U postgres -d ai_document_processing -c "SELECT * FROM alembic_version;"
+```
+
+#### Step 3: Handle Failed Migration State
+
+**If migration failed BEFORE updating alembic_version (most likely):**
+
+```bash
+# Just run upgrade with fixed migrations
+source .venv/bin/activate
+alembic upgrade head
+```
+
+**If stuck at '922d747266dd' in alembic_version:**
+
+```bash
+# Connect to database
+PGPASSWORD=your_password psql -U postgres -d ai_document_processing
+
+# Manually update version to parent of deleted migration
+UPDATE alembic_version SET version_num = 'add_constraint_20251117';
+
+# Exit and run upgrade
+\q
+alembic upgrade head
+```
+
+#### Step 4: Verify Database Schema
+
+```bash
+# Connect to database
+PGPASSWORD=your_password psql -U postgres -d ai_document_processing
+
+# Check extraction_jobs has tenant_id
+\d extraction_jobs
+
+# Should show:
+# - tenant_id column (UUID, not null)
+# - idx_extraction_jobs_tenant_id index
+# - extraction_jobs_tenant_id_fkey foreign key
+
+# Check final migration state
+\q
+alembic current
+# Should show: 67afd920ae17 (head)
+```
+
+#### Step 5: Start Production Services
+
+```bash
+# Use production start script
+./start-production.sh
+
+# OR manually with PM2
+pm2 restart all
+
+# OR with systemd
+sudo systemctl restart ai-document-api ai-document-worker
+```
+
+#### Step 6: Verify Services
+
+```bash
+# Check API health
+curl http://localhost:8000/health
+
+# Check service status
+pm2 status
+# OR
+sudo systemctl status ai-document-api
+
+# Check logs for errors
+pm2 logs
+# OR
+sudo journalctl -u ai-document-api -f
+```
+
+### Prevention: Migration Best Practices
+
+1. **Always Review Auto-Generated Migrations**
+   ```bash
+   # After generating migration
+   alembic revision --autogenerate -m "description"
+
+   # ALWAYS review before committing
+   git diff alembic/versions/
+   ```
+
+2. **Test Migrations in Staging First**
+   ```bash
+   # Create test database
+   createdb test_migrations
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/test_migrations alembic upgrade head
+   psql -d test_migrations -c "\d extraction_jobs"
+   dropdb test_migrations
+   ```
+
+3. **Document Migration Dependencies**
+   ```python
+   """
+   DEPENDENCIES:
+       - Requires migration xyz (adds tenant_id column)
+
+   CRITICAL:
+       Do not modify without checking migration xyz
+   """
+   ```
+
+### Current Migration Chain (Post-Fix)
+
+```
+<base> → 001 → ... → d8f7226ad686 (adds tenant_id) → b2491e5a4876
+→ b61940e9e225 (fixed) → ... → add_constraint_20251117
+→ 67afd920ae17 (head)
+```
+
+### Verification Commands
+
+```bash
+# Check migration chain
+alembic history | grep -E "(tenant_id|extraction_jobs)"
+
+# Verify current migration
+alembic current
+
+# Check for any pending migrations
+alembic heads
+```
+
+---
+
 **Last Updated:** 2025-11-24
-**Version:** 1.0
+**Version:** 1.1 (Added migration conflict fix appendix)
