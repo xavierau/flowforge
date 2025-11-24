@@ -72,7 +72,7 @@ else
     # Check if virtual environment exists
     if [ ! -d "venv" ]; then
         echo -e "${YELLOW}Creating virtual environment...${NC}"
-        python3.13 -m venv venv
+        python3 -m venv venv
     fi
 
     # Activate virtual environment

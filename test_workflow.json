@@ -1,0 +1,43 @@
+{
+  "name": "Simple Invoice Processing",
+  "description": "Test workflow for invoice extraction",
+  "definition": {
+    "nodes": [
+      {
+        "id": "trigger-1",
+        "type": "httpTrigger",
+        "position": {"x": 100, "y": 100},
+        "data": {
+          "label": "HTTP Trigger",
+          "type": "httpTrigger",
+          "isValid": true,
+          "errors": []
+        }
+      },
+      {
+        "id": "extraction-1",
+        "type": "extraction",
+        "position": {"x": 300, "y": 100},
+        "data": {
+          "label": "Extract Invoice",
+          "type": "extraction",
+          "isValid": true,
+          "errors": [],
+          "config": {
+            "fileSource": "previous_node",
+            "prompt": "Extract invoice data",
+            "schemaId": "00000000-0000-0000-0000-000000000001"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-1",
+        "source": "trigger-1",
+        "target": "extraction-1"
+      }
+    ]
+  },
+  "scheduleEnabled": false
+}

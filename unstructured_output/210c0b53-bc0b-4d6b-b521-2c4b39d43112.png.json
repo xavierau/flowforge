@@ -1,0 +1,105 @@
+[
+  {
+    "type": "Image",
+    "element_id": "a6d0f367e3e5cc309609428c4f806fd7",
+    "text": "@ BEA \u676f \u4e9e \u92a8 \u884c",
+    "metadata": {
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  },
+  {
+    "type": "Header",
+    "element_id": "ded37045007872ea23b4fdde8d3d8d5f",
+    "text": "i-Account",
+    "metadata": {
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  },
+  {
+    "type": "Header",
+    "element_id": "b47ee60e0a242f2efa8e19239f92f45b",
+    "text": "Page \u9875 \u7375 2 9f 3",
+    "metadata": {
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  },
+  {
+    "type": "NarrativeText",
+    "element_id": "d0821e68d494faf62f4be58a85077469",
+    "text": "Account Number \u6236 \u53e3 \u9a5a \u78bc : 015-249-83-02314-4 Statement Period # M \u671f : 21 0CT 2024 \ufe63 20 NOV 2024",
+    "metadata": {
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "parent_id": "b47ee60e0a242f2efa8e19239f92f45b",
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  },
+  {
+    "type": "NarrativeText",
+    "element_id": "9e577485c56ad8efbb5d7a89adb9e885",
+    "text": "| ACTIVITIES",
+    "metadata": {
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "parent_id": "b47ee60e0a242f2efa8e19239f92f45b",
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  },
+  {
+    "type": "UncategorizedText",
+    "element_id": "6467b59f8ae6aa73fc7dfcedd3bceb31",
+    "text": "\u02c9\u02cd",
+    "metadata": {
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "parent_id": "b47ee60e0a242f2efa8e19239f92f45b",
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  },
+  {
+    "type": "Table",
+    "element_id": "5a64df8147f9d17048c328de7a34ebce",
+    "text": "\u53e3 \u95cc 2 HKD 210CT24 Balance B/F \u82d7 \u4e0a \u9477 \u9c32 0.00 Total Transaction Amount \u4ea4 \u6613 \u952d \u4f1f \u989d 0.00 0.00 STATEMENT SAVINGS ACCOUNT HKD \u201c210CT24 Balance B/F \u627f \u4e0a \u7cbe \u5cf0 12.50 270CT24 1005 FFS TRANS DEP \ufe4d \u8f44 \u602f \u8f49 \u92f8 \u5b58 \u8457 5, 000. 00 5,012.50 FRK20241027PAYC0102007756703 Prime Credit Limited 270CT24 1005 12.50 FFS TRANS WDL RRERER 5, 000. 00 TO MOBILE \ufe62852\ufe6351657734 KOON C## He FRN20241027 PAYCO102007758359 (270ct24) 07MO24 1005 FPS TRANS DEP \u8f85 \u6570 \u5feb \u8f85 \u901a \u5b58 \u6566 68,937.50 68, 950. 00 FRN20241107PAYCO302034184409 WORLD FAITH C ENGINEERING LIMITED 07MOV24 1005 FFS TRANS WDL \u02c7 \u8f6c \u6570 \u6012 \u8f85 \u8fd0 \u6452 \u6559 68, 900. 00 50.00 TO MOBILE +852-51657734 KOON C## Nw FRN20241107 PAYCO102034878608 (07Nov24) 1005 FPS TRANS DEP \u8f85 \u6570 \u6012 \u8fa3 \u9014 \u5b58 \u6566 8, 000. 00 8, 050. 00 FRN20241109PAYCO 102040382480 Prime Credit Limited 1005 FPS TRANS WDL 8, 000. 00 50. 00 TO MOBILE +852-51657734 KOON C## Nw FRN20241109 PAYC0102040401638(09Nov24\ufe5a 1005 FPS TRANS DEP \u8f85 \u6570 \u6012 \u7ee2 \u9014 \u5b58 \u6566 25, 000. 00 25, 050. 00 FRK20241120PAYC0102062321340 TELSTAR FINANCE CONPANY LINITED 1005 FPS TRANS WDL 25, 000. 00 50. 00 TO MOBILE +852-51657734 KOON C## Nw FRN20241120 PAYC0102062525921(20Nov24\ufe5a Total Transaction Amount \u4ea4 \u6613 \u7ddd \u5168 \u8c94 106\uff0c 937\ufe5250 106\ufe52 900\ufe52 00",
+    "metadata": {
+      "text_as_html": "<table><thead><tr><th></th><th>8</th><th colspan=\"2\">\u7c03</th><th></th><th></th><th></th></tr></thead><tbody><tr><td>HKD</td><td>\u201c210CT24</td><td>Balance B/F</td><td>\u4e0a</td><td></td><td></td><td>0.00</td></tr><tr><td></td><td></td><td>Total</td><td>\u82d7 \u9477 \u9c32 Transaction Anount \u02c7 \u4ea4 \u6613 \u63a2 \u989d</td><td>0.00</td><td>0.00</td><td></td></tr><tr><td colspan=\"7\">STATEMENT SAVINGS ACCOUNT</td></tr><tr><td>HKD</td><td>\u201c210CT24</td><td>Balance B/F</td><td>\u627f \u4e0a \u7cbe \u5cf0</td><td></td><td></td><td>12.50</td></tr><tr><td></td><td>270CT24</td><td>1005 FFS TRANS</td><td>DEP \ufe4d \u8f44 \u602f \u8f49 \u92f8 \u5b58 \u8457</td><td>5, 000. 00</td><td></td><td>5,012.50</td></tr><tr><td></td><td></td><td>Prime Credit</td><td>FRK20241027PAYC0102007756703 Limited</td><td></td><td></td><td></td></tr><tr><td></td><td>270CT24</td><td>1005 FPS TRANS TO MOBILE</td><td>WDL \u02c7 \u7cb2 \u6570 \u6012 \u7cca \u901a \u63f4 \u6559 \ufe62852\ufe6351657734 KOON C## He FRN20241027</td><td></td><td>5, 000. 00</td><td>12.50</td></tr><tr><td></td><td>07MO24</td><td>1005</td><td>PAYCO102007758359 (270ct24) TRANS</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td>FPS WORLD FAITH SALARY</td><td>DEP \u8f85 \u6570 \u5feb \u8f85 \u901a \u5b58 \u6566 FRN20241107PAYCO302034184409 C ENGINEERING LIMITED</td><td>68,937.50</td><td></td><td>68, 950. 00</td></tr><tr><td></td><td>07MOV24</td><td>1005 FPS TRANS TO MOBILE</td><td>WDL +852-51657734 KOON C## Nw FRN20241107 PAYCO102034878608 (07Nov24)</td><td></td><td>68, 900. 00</td><td>50.00</td></tr><tr><td></td><td></td><td>1005 FPS FRN20241109PAYCO Prime Credit</td><td>TRANS DEP 102040382480 Limited</td><td>8, 000. 00</td><td></td><td>8, 050. 00</td></tr><tr><td></td><td></td><td>1005 FPS TRANS TO MOBILE</td><td>WDL +852-51657734 KOON C## Nw FRN20241109 PAYC0102040401638(09Nov24\ufe5a</td><td></td><td>,000.00</td><td>50. 00</td></tr><tr><td></td><td></td><td>1005 FPS TRANS</td><td>DEP \u8f85 \u6570 \u6012 \u7ee2 \u9014 \u5b58 \u6566 FRK20241120PAYC0102062321340</td><td>25, 000. 00</td><td></td><td>25, 050. 00</td></tr><tr><td rowspan=\"4\"></td><td></td><td>TELSTAR</td><td>FINANCE CONPANY LINITED</td><td></td><td></td><td></td></tr><tr><td></td><td>1005 FPS TRANS TO MOBILE</td><td>WDL +852-51657734 KOON C## Nw FRN20241120</td><td></td><td>25, 000. 00</td><td>50. 00</td></tr><tr><td></td><td></td><td>PAYC0102062525921(20Nov24\ufe5a</td><td></td><td></td><td></td></tr><tr><td></td><td>Total</td><td>Transaction Amount \u4ea4 \u6613 \u7ddd \u5168 \u8c94</td><td>106\uff0c 937\ufe5250</td><td>106\ufe52 900\ufe52 00</td><td></td></tr></tbody></table>",
+      "filetype": "image/png",
+      "languages": [
+        "eng",
+        "chi"
+      ],
+      "page_number": 1,
+      "parent_id": "b47ee60e0a242f2efa8e19239f92f45b",
+      "filename": "210c0b53-bc0b-4d6b-b521-2c4b39d43112.png"
+    }
+  }
+]
