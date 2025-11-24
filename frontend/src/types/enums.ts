@@ -74,6 +74,7 @@ export enum SubscriptionStatus {
  * Processing mode for extraction jobs
  */
 export enum ProcessingMode {
+  DIRECT = "direct",
   PER_PAGE = "per_page",
   BATCH = "batch",
   MARKDOWN = "markdown",
@@ -150,6 +151,7 @@ export function getCreditTransactionTypeLabel(type: CreditTransactionType): stri
 
 export function getProcessingModeLabel(mode: ProcessingMode): string {
   const labels: Record<ProcessingMode, string> = {
+    [ProcessingMode.DIRECT]: "Direct",
     [ProcessingMode.PER_PAGE]: "Per Page",
     [ProcessingMode.BATCH]: "Batch",
     [ProcessingMode.MARKDOWN]: "Markdown Pipeline",
@@ -159,6 +161,7 @@ export function getProcessingModeLabel(mode: ProcessingMode): string {
 
 export function getProcessingModeColor(mode: ProcessingMode): string {
   const colors: Record<ProcessingMode, string> = {
+    [ProcessingMode.DIRECT]: "text-purple-600",
     [ProcessingMode.PER_PAGE]: "text-gray-600",
     [ProcessingMode.BATCH]: "text-blue-600",
     [ProcessingMode.MARKDOWN]: "text-green-600",
