@@ -93,7 +93,8 @@
       "Bash(awk:*)",
       "Bash(npm run type-check:*)",
       "Bash(celery:*)",
-      "Bash(uv pip:*)"
+      "Bash(uv pip:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []
