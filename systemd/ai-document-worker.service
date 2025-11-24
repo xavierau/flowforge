@@ -1,0 +1,35 @@
+[Unit]
+Description=AI Document Processing Celery Worker
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ai_document_processing
+Environment="PATH=/var/www/ai_document_processing/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/var/www/ai_document_processing/.venv"
+EnvironmentFile=/var/www/ai_document_processing/.env
+
+# Start command
+ExecStart=/var/www/ai_document_processing/.venv/bin/celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+
+# Restart policy
+Restart=always
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=4G
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-doc-worker
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,35 @@
+[Unit]
+Description=AI Document Processing API (Uvicorn)
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ai_document_processing
+Environment="PATH=/var/www/ai_document_processing/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/var/www/ai_document_processing/.venv"
+EnvironmentFile=/var/www/ai_document_processing/.env
+
+# Start command
+ExecStart=/var/www/ai_document_processing/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+
+# Restart policy
+Restart=always
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGQUIT
+TimeoutStopSec=5
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=2G
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-doc-api
+
+[Install]
+WantedBy=multi-user.target

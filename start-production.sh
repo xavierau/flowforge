@@ -37,19 +37,27 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
-# Check if PostgreSQL is accessible
+# Check if PostgreSQL is accessible (local installation)
 echo -e "${YELLOW}Checking PostgreSQL connection...${NC}"
-if ! docker ps | grep -q postgres; then
-    echo -e "${RED}Warning: PostgreSQL container not running!${NC}"
-    echo "Start it with: docker start postgre"
+if ! pg_isready -h localhost -p 5432 > /dev/null 2>&1; then
+    echo -e "${RED}Error: PostgreSQL is not running on localhost:5432!${NC}"
+    echo "Start it with:"
+    echo "  sudo systemctl start postgresql"
+    echo ""
+    echo "Enable auto-start on boot:"
+    echo "  sudo systemctl enable postgresql"
     exit 1
 fi
 
-# Check if Redis is accessible
+# Check if Redis is accessible (local installation)
 echo -e "${YELLOW}Checking Redis connection...${NC}"
-if ! docker ps | grep -q redis; then
-    echo -e "${RED}Warning: Redis container not running!${NC}"
-    echo "Start it with: docker start redis"
+if ! redis-cli -h localhost -p 6379 ping > /dev/null 2>&1; then
+    echo -e "${RED}Error: Redis is not running on localhost:6379!${NC}"
+    echo "Start it with:"
+    echo "  sudo systemctl start redis-server"
+    echo ""
+    echo "Enable auto-start on boot:"
+    echo "  sudo systemctl enable redis-server"
     exit 1
 fi
 
