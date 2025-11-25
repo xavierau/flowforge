@@ -90,6 +90,11 @@ class MetricsService:
         Returns:
             CompletedJobsResponse with paginated jobs
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"get_completed_jobs called with tenant_id={tenant_id}, page={page}, page_size={page_size}, start_date={start_date}, end_date={end_date}")
+
         # Build base query - join through Document for tenant filtering
         query = (
             self.db.query(ExtractionJob, Document)
@@ -106,6 +111,7 @@ class MetricsService:
 
         # Get total count
         total = query.count()
+        logger.info(f"Total completed jobs found: {total}")
 
         # Calculate pagination
         total_pages = (total + page_size - 1) // page_size

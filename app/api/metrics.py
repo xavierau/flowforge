@@ -14,6 +14,37 @@ from app.schemas.metrics import DashboardMetricsResponse, CompletedJobsResponse
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 
+@router.get("/debug/current-user")
+async def debug_current_user(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Debug endpoint to check current user and tenant info.
+
+    Returns current user details including tenant_id for troubleshooting.
+    """
+    from sqlalchemy import func
+    from app.models.extraction_job import ExtractionJob
+    from app.models.document import Document
+
+    # Count completed jobs for this tenant
+    completed_jobs_count = (
+        db.query(func.count(ExtractionJob.id))
+        .join(Document, ExtractionJob.document_id == Document.id)
+        .filter(Document.tenant_id == current_user.tenant_id)
+        .filter(ExtractionJob.status == "completed")
+        .scalar()
+    )
+
+    return {
+        "user_id": str(current_user.id),
+        "email": current_user.email,
+        "tenant_id": str(current_user.tenant_id),
+        "completed_jobs_for_tenant": completed_jobs_count,
+    }
+
+
 @router.get("/dashboard", response_model=DashboardMetricsResponse)
 async def get_dashboard_metrics(
     days: int = Query(
