@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 def generate_markdown_from_images(
     self: Task,
     document_id: str,
-    options: Dict,
     converter_name: str = "qwen_vision",
+    options: Dict = None,
 ) -> Dict:
     """Generate markdown from document page images.
 
@@ -37,8 +37,8 @@ def generate_markdown_from_images(
     Args:
         self: Celery task instance
         document_id: Document UUID as string
-        converter_name: Converter to use (gemini_vision, gpt4v)
-        options: Conversion options dict with keys:
+        converter_name: Converter to use (default: qwen_vision)
+        options: Optional conversion options dict with keys:
             - format_style: Markdown format (standard, table_heavy, layout_preserved)
             - mode: Processing mode (single or batch)
 
@@ -58,6 +58,10 @@ def generate_markdown_from_images(
     storage = get_storage_service()
 
     try:
+        # Set default options if None
+        if options is None:
+            options = {}
+
         # Get document
         doc_uuid = UUID(document_id)
         document = db.query(Document).filter(Document.id == doc_uuid).first()
