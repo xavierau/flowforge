@@ -123,8 +123,8 @@ def process_markdown_extraction_pipeline(extraction_job_id: str) -> dict:
             pipeline = chain(
                 generate_markdown_from_images.si(
                     str(document.id),
-                    job.markdown_converter,
                     markdown_options,
+                    job.markdown_converter,
                 ),
                 extract_from_markdown.si(extraction_job_id),
             )
