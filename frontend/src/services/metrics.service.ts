@@ -140,6 +140,23 @@ export async function getDashboardMetrics(
       }
     );
 
+    // Handle 204 No Content - return empty dashboard metrics
+    // This occurs when user has no completed jobs for their tenant
+    if (response.status === 204) {
+      return {
+        stats: {
+          total_jobs: 0,
+          total_pages: 0,
+          total_tokens: 0,
+          estimated_cost: 0,
+        },
+        jobs_over_time: [],
+        pages_over_time: [],
+        tokens_over_time: [],
+        model_distribution: [],
+      };
+    }
+
     return handleApiResponse<DashboardMetrics>(response);
   } catch (error) {
     if (error instanceof MetricsApiError) {
@@ -192,6 +209,19 @@ export async function getCompletedJobs(
         method: 'GET',
       }
     );
+
+    // Handle 204 No Content - return empty jobs list
+    // This occurs when user has no completed jobs for their tenant
+    if (response.status === 204) {
+      return {
+        jobs: [],
+        total: 0,
+        page,
+        page_size: pageSize,
+        total_pages: 0,
+        total_cost: 0,
+      };
+    }
 
     return handleApiResponse<CompletedJobsResponse>(response);
   } catch (error) {
