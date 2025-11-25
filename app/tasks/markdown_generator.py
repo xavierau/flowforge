@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def generate_markdown_from_images(
     self: Task,
     document_id: str,
-    converter_name: str,
+    converter_name: str = "qwen_vision",
     options: Dict,
 ) -> Dict:
     """Generate markdown from document page images.

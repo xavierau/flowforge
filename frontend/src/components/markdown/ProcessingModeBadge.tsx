@@ -24,7 +24,7 @@ interface ProcessingModeBadgeProps {
  */
 function getProcessingModeIcon(mode: ProcessingMode): React.ComponentType<{ className?: string }> {
   switch (mode) {
-    case ProcessingMode.DIRECT:
+    case ProcessingMode.PER_PAGE:
       return FileText;
     case ProcessingMode.BATCH:
       return Files;
@@ -40,7 +40,7 @@ function getProcessingModeIcon(mode: ProcessingMode): React.ComponentType<{ clas
  */
 function getProcessingModeVariant(mode: ProcessingMode): 'default' | 'secondary' | 'outline' {
   switch (mode) {
-    case ProcessingMode.DIRECT:
+    case ProcessingMode.PER_PAGE:
       return 'secondary';
     case ProcessingMode.BATCH:
       return 'default';

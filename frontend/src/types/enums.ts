@@ -72,20 +72,22 @@ export enum SubscriptionStatus {
 
 /**
  * Processing mode for extraction jobs
+ * CRITICAL: Values MUST match backend validation in app/api/jobs.py
  */
 export enum ProcessingMode {
-  DIRECT = "direct",
-  PER_PAGE = "per_page",
-  BATCH = "batch",
-  MARKDOWN = "markdown",
+  PER_PAGE = "per_page",  // Direct: Per-page vision→JSON
+  BATCH = "batch",         // Batch: All pages vision→JSON (faster)
+  MARKDOWN = "markdown",   // Two-stage: Vision→Markdown→JSON (reusable)
 }
 
 /**
  * Markdown converter providers
+ * CRITICAL: Values MUST match backend converter_factory.py keys
  */
 export enum MarkdownConverter {
   GEMINI_VISION = "gemini_vision",
   GPT4V = "gpt4v",
+  QWEN_VISION = "qwen_vision",
 }
 
 /**
@@ -151,8 +153,7 @@ export function getCreditTransactionTypeLabel(type: CreditTransactionType): stri
 
 export function getProcessingModeLabel(mode: ProcessingMode): string {
   const labels: Record<ProcessingMode, string> = {
-    [ProcessingMode.DIRECT]: "Direct",
-    [ProcessingMode.PER_PAGE]: "Per Page",
+    [ProcessingMode.PER_PAGE]: "Direct (Per Page)",
     [ProcessingMode.BATCH]: "Batch",
     [ProcessingMode.MARKDOWN]: "Markdown Pipeline",
   };
@@ -161,8 +162,7 @@ export function getProcessingModeLabel(mode: ProcessingMode): string {
 
 export function getProcessingModeColor(mode: ProcessingMode): string {
   const colors: Record<ProcessingMode, string> = {
-    [ProcessingMode.DIRECT]: "text-purple-600",
-    [ProcessingMode.PER_PAGE]: "text-gray-600",
+    [ProcessingMode.PER_PAGE]: "text-purple-600",
     [ProcessingMode.BATCH]: "text-blue-600",
     [ProcessingMode.MARKDOWN]: "text-green-600",
   };
@@ -173,8 +173,18 @@ export function getMarkdownConverterLabel(converter: MarkdownConverter): string 
   const labels: Record<MarkdownConverter, string> = {
     [MarkdownConverter.GEMINI_VISION]: "Gemini Vision",
     [MarkdownConverter.GPT4V]: "GPT-4 Vision",
+    [MarkdownConverter.QWEN_VISION]: "Qwen Vision",
   };
   return labels[converter];
+}
+
+export function getMarkdownConverterDescription(converter: MarkdownConverter): string {
+  const descriptions: Record<MarkdownConverter, string> = {
+    [MarkdownConverter.GEMINI_VISION]: "Google Gemini 2.5 Flash - Fast, accurate, good for most documents",
+    [MarkdownConverter.GPT4V]: "OpenAI GPT-4 Vision - High quality, higher cost",
+    [MarkdownConverter.QWEN_VISION]: "Qwen3-VL-8B - Cost-effective ($0.72/M tokens), supports special QwenVL formats",
+  };
+  return descriptions[converter];
 }
 
 export function getMarkdownFormatLabel(format: MarkdownFormat): string {

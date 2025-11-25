@@ -24,6 +24,7 @@ import {
   MarkdownConverter,
   MarkdownFormat,
   getMarkdownConverterLabel,
+  getMarkdownConverterDescription,
   getMarkdownFormatLabel,
 } from '@/types/enums';
 
@@ -71,13 +72,15 @@ export function MarkdownPipelineConfig({
             <SelectContent>
               {Object.values(MarkdownConverter).map((conv) => (
                 <SelectItem key={conv} value={conv}>
-                  {getMarkdownConverterLabel(conv)}
+                  <div className="flex flex-col items-start">
+                    <span>{getMarkdownConverterLabel(conv)}</span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Vision model used to generate markdown from images
+            {getMarkdownConverterDescription(converter)}
           </p>
         </div>
 

@@ -417,7 +417,7 @@ export function JobCreate() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ProcessingMode.DIRECT}>
+                    <SelectItem value={ProcessingMode.PER_PAGE}>
                       Direct (Per-page vision → JSON)
                     </SelectItem>
                     <SelectItem value={ProcessingMode.BATCH}>
@@ -429,7 +429,7 @@ export function JobCreate() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {formData.processingMode === ProcessingMode.DIRECT && 'Processes each page individually with vision model'}
+                  {formData.processingMode === ProcessingMode.PER_PAGE && 'Processes each page individually with vision model'}
                   {formData.processingMode === ProcessingMode.BATCH && 'Processes all pages together in one API call (recommended for most cases)'}
                   {formData.processingMode === ProcessingMode.MARKDOWN && 'Two-stage: generates reusable markdown first, then extracts JSON (best for 3+ pages)'}
                 </p>
