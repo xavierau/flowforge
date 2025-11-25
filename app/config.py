@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # VLLM Providers
     google_api_key: str = ""
     openai_api_key: str = ""
+    dashscope_api_key: str = ""
 
     # Default VLLM Configuration
     default_model_provider: str = "google"

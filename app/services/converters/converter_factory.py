@@ -14,6 +14,7 @@ from app.services.converters.base import (
 )
 from app.services.converters.gemini_markdown_converter import GeminiMarkdownConverter
 from app.services.converters.gpt4v_markdown_converter import GPT4VMarkdownConverter
+from app.services.converters.qwen_markdown_converter import QwenMarkdownConverter
 from app.services.converters.markdown_json_extractor import MarkdownJsonExtractor
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class ConverterFactory:
         Markdown Converters:
         - gemini_vision: Requires GOOGLE_API_KEY
         - gpt4v: Requires OPENAI_API_KEY
+        - qwen_vision: Requires DASHSCOPE_API_KEY
 
         JSON Extractors:
         - gemini: Requires GOOGLE_API_KEY (uses Gemini 2.0 Flash text model)
@@ -64,6 +66,15 @@ class ConverterFactory:
                 logger.info("Registered GPT-4V markdown converter")
             except Exception as e:
                 logger.error(f"Failed to register GPT-4V markdown converter: {e}")
+
+        if settings.dashscope_api_key:
+            try:
+                self._markdown_converters["qwen_vision"] = QwenMarkdownConverter(
+                    api_key=settings.dashscope_api_key, model="qwen3-vl-8b-instruct"
+                )
+                logger.info("Registered Qwen vision markdown converter")
+            except Exception as e:
+                logger.error(f"Failed to register Qwen markdown converter: {e}")
 
         # Register JSON extractors (text models)
         if settings.google_api_key:
@@ -99,7 +110,7 @@ class ConverterFactory:
         """Get a markdown converter by name.
 
         Args:
-            name: Converter name (gemini_vision or gpt4v)
+            name: Converter name (gemini_vision, gpt4v, or qwen_vision)
 
         Returns:
             IImageToMarkdownConverter instance
