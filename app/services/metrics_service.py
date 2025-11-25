@@ -95,11 +95,12 @@ class MetricsService:
 
         logger.info(f"get_completed_jobs called with tenant_id={tenant_id}, page={page}, page_size={page_size}, start_date={start_date}, end_date={end_date}")
 
-        # Build base query - join through Document for tenant filtering
+        # Build base query - filter by ExtractionJob.tenant_id directly
+        # Note: We still join Document to get filename for display
         query = (
             self.db.query(ExtractionJob, Document)
             .join(Document, ExtractionJob.document_id == Document.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
         )
 
@@ -193,7 +194,7 @@ class MetricsService:
         self, tenant_id: str, start_date: datetime, end_date: datetime
     ) -> MetricStats:
         """Get summary statistics."""
-        # Query token sums from ExtractionResult, joining through Document for tenant filtering
+        # Query token sums from ExtractionResult, filtering by ExtractionJob.tenant_id
         token_query = (
             self.db.query(
                 func.count(distinct(ExtractionJob.id)).label("total_jobs"),
@@ -203,7 +204,7 @@ class MetricsService:
             .select_from(ExtractionJob)
             .join(Document, ExtractionJob.document_id == Document.id)
             .join(ExtractionResult, ExtractionResult.extraction_job_id == ExtractionJob.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
             .filter(ExtractionJob.completed_at >= start_date)
             .filter(ExtractionJob.completed_at <= end_date)
@@ -222,7 +223,7 @@ class MetricsService:
             .select_from(ExtractionJob)
             .join(Document, ExtractionJob.document_id == Document.id)
             .join(DocumentPage, DocumentPage.document_id == Document.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
             .filter(ExtractionJob.completed_at >= start_date)
             .filter(ExtractionJob.completed_at <= end_date)
@@ -256,7 +257,7 @@ class MetricsService:
                 func.count(distinct(ExtractionJob.id)).label("count"),
             )
             .join(Document, ExtractionJob.document_id == Document.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
             .filter(ExtractionJob.completed_at >= start_date)
             .filter(ExtractionJob.completed_at <= end_date)
@@ -288,7 +289,7 @@ class MetricsService:
             .select_from(ExtractionJob)
             .join(Document, ExtractionJob.document_id == Document.id)
             .join(DocumentPage, DocumentPage.document_id == Document.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
             .filter(ExtractionJob.completed_at >= start_date)
             .filter(ExtractionJob.completed_at <= end_date)
@@ -321,7 +322,7 @@ class MetricsService:
             .select_from(ExtractionJob)
             .join(Document, ExtractionJob.document_id == Document.id)
             .join(ExtractionResult, ExtractionResult.extraction_job_id == ExtractionJob.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
             .filter(ExtractionJob.completed_at >= start_date)
             .filter(ExtractionJob.completed_at <= end_date)
@@ -353,7 +354,7 @@ class MetricsService:
             .select_from(ExtractionJob)
             .join(Document, ExtractionJob.document_id == Document.id)
             .join(ExtractionResult, ExtractionResult.extraction_job_id == ExtractionJob.id)
-            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.tenant_id == tenant_id)  # Changed from Document.tenant_id
             .filter(ExtractionJob.status == "completed")
             .filter(ExtractionJob.completed_at >= start_date)
             .filter(ExtractionJob.completed_at <= end_date)
