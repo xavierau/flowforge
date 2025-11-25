@@ -51,6 +51,8 @@ class MetricsService:
         # Get summary stats
         stats = self._get_summary_stats(tenant_id, start_date, end_date)
 
+        print("stats", stats)
+
         # Get time series data
         jobs_over_time = self._get_jobs_over_time(tenant_id, start_date, end_date)
         pages_over_time = self._get_pages_over_time(tenant_id, start_date, end_date)
