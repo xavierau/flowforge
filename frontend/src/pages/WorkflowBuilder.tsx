@@ -131,7 +131,8 @@ export function WorkflowBuilder() {
       <PageHeader
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Workflow Builder' },
+          { label: 'Workflows', href: '/workflows' },
+          { label: 'New Workflow' },
         ]}
         title="Workflow Builder"
         subtitle="Create and manage n8n-style document processing workflows"

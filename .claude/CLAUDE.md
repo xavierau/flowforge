@@ -548,6 +548,31 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 
 ## 🎯 Best Practices
 
+### ⚠️ MANDATORY: Test Suite Verification (CRITICAL)
+
+**After EVERY implementation, you MUST run and pass the test suite before considering the work complete.**
+
+```bash
+# Backend: Run full test suite
+uv run python -m pytest tests/ -v
+
+# Frontend: Run type checking and tests
+cd frontend && npm run type-check && npm run test
+```
+
+**Rules:**
+- ❌ NEVER commit code that fails tests
+- ❌ NEVER skip tests "to save time"
+- ❌ NEVER mark a task as complete if tests are failing
+- ✅ Fix all failing tests before moving to the next task
+- ✅ If existing tests fail due to intentional changes, update the tests
+- ✅ Add new tests for new functionality
+
+**Test Coverage Requirements:**
+- All new API endpoints must have corresponding tests
+- All new services/business logic must have unit tests
+- All bug fixes must include a regression test
+
 ### Backend Development
 1. **Always use uv** - Not pip, for package management
 2. **Query current state** - Never trust state passed as parameters in tasks
@@ -555,7 +580,7 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 4. **Update before work** - Set status to "processing" before starting work
 5. **Use context7** - Verify API usage against latest documentation
 6. **Use agents** - @agent-solution-architect, @agent-bug-hunter, @agent-code-review-analyzer
-7. **Test thoroughly** - Run pytest before commits
+7. **Run test suite after implementation** - `uv run python -m pytest tests/ -v` must pass
 8. **Use enums for constants** - NEVER use magic strings, always use type-safe enums
 
 #### Type Safety: Enums and Constants (CRITICAL)
@@ -703,6 +728,7 @@ document = (
 6. **Component patterns** - Prefer composition over complexity, keep components focused
 7. **CSS variables** - Use direct properties in Tailwind 4, not @apply directives
 8. **TypeScript strict mode** - Ensure type safety throughout components
+9. **Run test suite after implementation** - `cd frontend && npm run type-check && npm run test` must pass
 
 ---
 
@@ -717,5 +743,5 @@ document = (
 
 ---
 
-**Last Updated:** 2025-11-06
-**Version:** 1.6 (Added mandatory enum/constants guidelines; Fixed credit transaction type bug; Added type safety best practices)
+**Last Updated:** 2025-12-03
+**Version:** 1.7 (Added mandatory test suite verification after every implementation; Tests must pass before work is considered complete)

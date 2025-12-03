@@ -34,6 +34,7 @@ class Workflow(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+    is_archived = Column(Boolean, nullable=False, default=False)
 
     # Current active version (for quick access)
     current_version_number = Column(Integer, nullable=False, default=1)
@@ -57,6 +58,7 @@ class Workflow(Base):
     __table_args__ = (
         Index("idx_workflows_tenant_id", "tenant_id"),
         Index("idx_workflows_is_active", "is_active"),
+        Index("idx_workflows_is_archived", "is_archived"),
         Index("idx_workflows_created_at", "created_at"),
     )
 

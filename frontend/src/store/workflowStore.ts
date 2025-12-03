@@ -29,6 +29,7 @@ import {
   HttpMethod,
   ExecutionStatus,
   NodeExecutionStatus,
+  WorkflowExecutionStatus,
   isExtractionNode,
   isPythonRunnerNode,
   isHttpRequestNode,
@@ -70,6 +71,7 @@ interface WorkflowStore {
   saveWorkflow: () => void;
   saveWorkflowToBackend: () => Promise<void>;
   loadWorkflow: (workflowId: string) => void;
+  loadWorkflowFromApi: (workflowId: string) => Promise<void>;
   getSavedWorkflows: () => Workflow[];
   clearWorkflow: () => void;
   exportWorkflow: () => string;
@@ -83,7 +85,7 @@ interface WorkflowStore {
   handleExecutionUpdate: (update: WorkflowExecutionUpdate) => void;
   loadExecutionHistory: () => void;
   setNodeExecutionData: (nodeId: string, data: Record<string, unknown>) => void;
-  getExecutionStatus: () => ExecutionStatus;
+  getExecutionStatus: () => WorkflowExecutionStatus;
 }
 
 /**
@@ -689,6 +691,23 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     }
   },
 
+  // Load workflow from backend API
+  loadWorkflowFromApi: async (workflowId) => {
+    const workflow = await workflowService.getWorkflow(workflowId);
+    const definition = workflow.currentVersion?.definition;
+
+    set({
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      nodes: definition?.nodes || [],
+      edges: definition?.edges || [],
+      selectedNodeId: null,
+      currentExecution: null,
+      nodeExecutionStates: new Map(),
+      executionHistory: [],
+    });
+  },
+
   // Get all saved workflows
   getSavedWorkflows: () => {
     const workflows = loadSavedWorkflows();
@@ -937,7 +956,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
             return {
               currentExecution: {
                 ...state.currentExecution,
-                logs: [...state.currentExecution.logs, newLog],
+                logs: [...(state.currentExecution.logs ?? []), newLog],
               },
             };
           });

@@ -98,12 +98,14 @@ class NodeType(str, Enum):
     - PYTHON_RUNNER: Execute Python code
     - HTTP_REQUEST: Make HTTP requests
     - IF: Conditional branching
+    - JOIN: Synchronization barrier for parallel branches
     """
     HTTP_TRIGGER = "httpTrigger"
     EXTRACTION = "extraction"
     PYTHON_RUNNER = "pythonRunner"
     HTTP_REQUEST = "httpRequest"
     IF = "if"
+    JOIN = "join"
 
 
 class HttpMethod(str, Enum):

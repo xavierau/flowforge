@@ -155,6 +155,8 @@ class WorkflowService:
                 workflow.description = request.description
             if request.is_active is not None:
                 workflow.is_active = request.is_active
+            if request.is_archived is not None:
+                workflow.is_archived = request.is_archived
 
             workflow.updated_at = datetime.utcnow()
 
@@ -223,6 +225,7 @@ class WorkflowService:
         page: int = 1,
         page_size: int = 20,
         is_active: Optional[bool] = None,
+        is_archived: Optional[bool] = None,
     ) -> Tuple[List[Workflow], int]:
         """
         List workflows for a tenant with pagination.
@@ -232,6 +235,10 @@ class WorkflowService:
             page: Page number (1-indexed)
             page_size: Items per page
             is_active: Filter by active status (optional)
+            is_archived: Filter by archived status (optional).
+                         None = show all workflows,
+                         False = show non-archived only,
+                         True = show archived only
 
         Returns:
             Tuple of (workflows list, total count)
@@ -240,6 +247,9 @@ class WorkflowService:
 
         if is_active is not None:
             query = query.filter(Workflow.is_active == is_active)
+
+        if is_archived is not None:
+            query = query.filter(Workflow.is_archived == is_archived)
 
         # Get total count
         total = query.count()

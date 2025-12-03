@@ -115,6 +115,19 @@ class IfNodeData(BaseNodeData):
     config: IfNodeConfig
 
 
+class JoinNodeData(BaseNodeData):
+    """
+    Join node configuration.
+
+    Synchronization barrier that waits for ALL incoming branches to complete.
+    Maps to Netflix Conductor's JOIN task type.
+    No configuration needed - automatically waits for all incoming edges.
+    """
+
+    type: Literal[NodeType.JOIN] = NodeType.JOIN
+    # No config required - Join just waits for all incoming branches
+
+
 # Union type for all node data types
 WorkflowNodeData = Union[
     HttpTriggerNodeData,
@@ -122,6 +135,7 @@ WorkflowNodeData = Union[
     PythonRunnerNodeData,
     HttpRequestNodeData,
     IfNodeData,
+    JoinNodeData,
 ]
 
 
@@ -200,6 +214,7 @@ class WorkflowUpdateRequest(BaseModel):
     description: Optional[str] = None
     definition: Optional[WorkflowDefinition] = None
     is_active: Optional[bool] = Field(None, alias="isActive")
+    is_archived: Optional[bool] = Field(None, alias="isArchived")
 
 
 class WorkflowVersionResponse(BaseModel):
@@ -225,6 +240,7 @@ class WorkflowResponse(BaseModel):
     name: str
     description: Optional[str]
     is_active: bool = Field(alias="isActive")
+    is_archived: bool = Field(alias="isArchived")
     current_version_number: int = Field(alias="currentVersionNumber")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

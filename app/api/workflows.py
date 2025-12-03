@@ -94,25 +94,43 @@ async def list_workflows(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    is_archived: Optional[bool] = Query(
+        False,
+        description="Filter by archived status. Default: False (show non-archived). "
+        "Set to True to show only archived workflows. Set to None to show all.",
+    ),
+    include_all: bool = Query(
+        False,
+        description="If True, ignores is_archived filter and returns all workflows",
+    ),
     current_user: User = Depends(require_permission_flexible("workflows:read")),
     db: Session = Depends(get_db),
 ):
     """
     List workflows for the current tenant.
 
-    Supports pagination and filtering by active status.
+    Supports pagination and filtering by active and archived status.
+
+    **Filtering Behavior:**
+    - By default (`is_archived=False`): Shows only non-archived workflows
+    - `is_archived=True`: Shows only archived workflows
+    - `include_all=True`: Shows all workflows regardless of archived status
 
     **Required Permission:** `workflows:read`
 
     **Supports:** JWT + API tokens
     """
     try:
+        # If include_all is True, ignore is_archived filter
+        archived_filter = None if include_all else is_archived
+
         service = WorkflowService(db)
         workflows, total = service.list_workflows(
             tenant_id=current_user.tenant_id,
             page=page,
             page_size=page_size,
             is_active=is_active,
+            is_archived=archived_filter,
         )
 
         # Load current versions for each workflow

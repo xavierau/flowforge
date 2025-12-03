@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { ExecutionStatus, NodeExecutionStatus } from '@/types/workflow';
+import { ExecutionStatus, NodeExecutionStatus, WorkflowExecutionStatus } from '@/types/workflow';
 import { NodeResultViewer } from './NodeResultViewer';
 
 const PANEL_COLLAPSED_KEY = 'workflow-execution-panel-collapsed';
@@ -43,7 +43,7 @@ export function ExecutionPanel() {
   }, [nodes.length, nodeExecutionStates, currentExecution]);
 
   // Get status icon
-  const getStatusIcon = (status: ExecutionStatus) => {
+  const getStatusIcon = (status: WorkflowExecutionStatus) => {
     switch (status) {
       case ExecutionStatus.Running:
         return <Clock className="h-4 w-4 animate-spin" style={{ color: 'hsl(var(--primary))' }} />;
@@ -125,7 +125,7 @@ export function ExecutionPanel() {
                 History ({executionHistory.length})
               </TabsTrigger>
               <TabsTrigger value="console">
-                Console {currentExecution && `(${currentExecution.logs.length})`}
+                Console {currentExecution && `(${currentExecution.logs?.length ?? 0})`}
               </TabsTrigger>
             </TabsList>
 
@@ -145,7 +145,7 @@ export function ExecutionPanel() {
                       <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
                         Started
                       </div>
-                      <div className="text-sm">{new Date(currentExecution.startedAt).toLocaleTimeString()}</div>
+                      <div className="text-sm">{currentExecution.startedAt ? new Date(currentExecution.startedAt).toLocaleTimeString() : '--'}</div>
                     </div>
                     <div>
                       <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
@@ -258,7 +258,7 @@ export function ExecutionPanel() {
                         </span>
                       </div>
                       <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                        {new Date(execution.startedAt).toLocaleString()}
+                        {execution.startedAt ? new Date(execution.startedAt).toLocaleString() : '--'}
                       </div>
                       {execution.error && (
                         <div className="text-xs mt-2" style={{ color: 'hsl(var(--destructive))' }}>
@@ -280,9 +280,9 @@ export function ExecutionPanel() {
 
             {/* Console Tab */}
             <TabsContent value="console" className="flex-1 overflow-y-auto p-4 m-0 font-mono text-xs">
-              {currentExecution && currentExecution.logs.length > 0 ? (
+              {currentExecution && (currentExecution.logs?.length ?? 0) > 0 ? (
                 <div className="space-y-1">
-                  {currentExecution.logs.map((log, index) => (
+                  {(currentExecution.logs ?? []).map((log, index) => (
                     <div
                       key={index}
                       className="flex gap-2 p-1"

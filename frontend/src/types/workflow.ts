@@ -178,53 +178,74 @@ export interface SavedWorkflows {
 }
 
 /**
- * Workflow execution status
+ * Workflow execution status (matches backend WorkflowExecutionStatus enum)
+ * 7 statuses matching the backend state machine
  */
-export enum ExecutionStatus {
-  Idle = 'idle',
+export enum WorkflowExecutionStatus {
+  Pending = 'pending',
   Running = 'running',
   Completed = 'completed',
   Failed = 'failed',
+  Paused = 'paused',
   Cancelled = 'cancelled',
+  Timeout = 'timeout',
+  // Legacy aliases for backward compatibility
+  Idle = 'pending',
 }
 
 /**
- * Node execution status within a workflow execution
+ * Legacy alias for backward compatibility
+ * @deprecated Use WorkflowExecutionStatus instead
  */
-export enum NodeExecutionStatus {
+export const ExecutionStatus = WorkflowExecutionStatus;
+
+/**
+ * Node execution status within a workflow execution (matches backend WorkflowNodeExecutionStatus)
+ * 5 statuses matching the backend state machine
+ */
+export enum WorkflowNodeExecutionStatus {
   Pending = 'pending',
   Running = 'running',
-  Success = 'success',
-  Error = 'error',
+  Completed = 'completed',
+  Failed = 'failed',
   Skipped = 'skipped',
+  // Legacy aliases for backward compatibility
+  Success = 'completed',
+  Error = 'failed',
 }
 
 /**
- * Individual node execution state
+ * Legacy alias for backward compatibility
+ * @deprecated Use WorkflowNodeExecutionStatus instead
+ */
+export const NodeExecutionStatus = WorkflowNodeExecutionStatus;
+
+/**
+ * Individual node execution state (legacy local interface)
  */
 export interface NodeExecutionState {
   nodeId: string;
-  status: NodeExecutionStatus;
-  startedAt?: string;
-  completedAt?: string;
+  status: WorkflowNodeExecutionStatus;
+  startedAt?: string | null;
+  completedAt?: string | null;
   executionTime?: number; // milliseconds
-  outputData?: Record<string, unknown>;
+  outputData?: Record<string, unknown> | null;
   error?: string;
 }
 
 /**
- * Workflow execution instance
+ * Workflow execution instance (legacy local interface)
  */
 export interface WorkflowExecution {
   id: string;
   workflowId: string;
-  status: ExecutionStatus;
-  startedAt: string;
-  completedAt?: string;
+  status: WorkflowExecutionStatus;
+  startedAt?: string | null; // Made optional for API compatibility
+  completedAt?: string | null;
   totalDuration?: number; // milliseconds
-  nodeExecutions: NodeExecutionState[];
+  nodeExecutions?: NodeExecutionState[]; // Made optional for API compatibility
   error?: string;
-  logs: ExecutionLog[];
+  logs?: ExecutionLog[]; // Made optional for API compatibility
 }
 
 /**
@@ -245,7 +266,7 @@ export interface WorkflowExecutionUpdate {
   executionId: string;
   nodeId?: string;
   data?: Record<string, unknown>;
-  status?: NodeExecutionStatus | ExecutionStatus;
+  status?: WorkflowNodeExecutionStatus | WorkflowExecutionStatus;
   error?: string;
   log?: ExecutionLog;
 }
@@ -283,4 +304,133 @@ export function isIfNode(data: WorkflowNodeData): data is IfNodeData {
 
 export function isJoinNode(data: WorkflowNodeData): data is JoinNodeData {
   return data.type === NodeType.Join;
+}
+
+// ============================================================================
+// API Response Types (match backend Pydantic schemas in app/schemas/workflow.py)
+// ============================================================================
+
+/**
+ * Workflow definition structure (nodes and edges)
+ * Used in WorkflowVersionResponse
+ */
+export interface WorkflowDefinition {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
+
+/**
+ * Workflow version response (matches backend WorkflowVersionResponse)
+ */
+export interface WorkflowVersionResponse {
+  id: string;
+  workflowId: string;
+  versionNumber: number;
+  definition: WorkflowDefinition;
+  conductorWorkflowName: string | null;
+  createdAt: string;
+}
+
+/**
+ * Workflow response with current version (matches backend WorkflowResponse)
+ */
+export interface WorkflowResponse {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  isArchived: boolean;
+  currentVersionNumber: number;
+  createdAt: string;
+  updatedAt: string;
+  currentVersion?: WorkflowVersionResponse;
+}
+
+/**
+ * Paginated list of workflows (matches backend WorkflowListResponse)
+ */
+export interface WorkflowListResponse {
+  workflows: WorkflowResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Individual node execution response (matches backend WorkflowNodeExecutionResponse)
+ */
+export interface WorkflowNodeExecutionResponse {
+  id: string;
+  nodeId: string;
+  nodeType: string;
+  nodeLabel: string;
+  status: WorkflowNodeExecutionStatus;
+  executionOrder: number | null;
+  inputData: Record<string, unknown> | null;
+  outputData: Record<string, unknown> | null;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+/**
+ * Workflow execution response (matches backend WorkflowExecutionResponse)
+ */
+export interface WorkflowExecutionResponse {
+  id: string;
+  workflowId: string;
+  workflowVersionId: string;
+  status: WorkflowExecutionStatus;
+  conductorWorkflowId: string | null;
+  inputData: Record<string, unknown>;
+  outputData: Record<string, unknown> | null;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  nodeExecutions?: WorkflowNodeExecutionResponse[];
+  // For compatibility with local WorkflowExecution interface
+  logs?: ExecutionLog[];
+  totalDuration?: number;
+  error?: string;
+}
+
+/**
+ * Paginated list of workflow executions (matches backend WorkflowExecutionListResponse)
+ */
+export interface WorkflowExecutionListResponse {
+  executions: WorkflowExecutionResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Request to create a new workflow
+ */
+export interface WorkflowCreateRequest {
+  name: string;
+  description?: string;
+  definition: WorkflowDefinition;
+}
+
+/**
+ * Request to update an existing workflow
+ */
+export interface WorkflowUpdateRequest {
+  name?: string;
+  description?: string;
+  definition?: WorkflowDefinition;
+  isActive?: boolean;
+  isArchived?: boolean;
+}
+
+/**
+ * Request to execute a workflow
+ */
+export interface ExecuteWorkflowRequest {
+  inputData?: Record<string, unknown>;
+  versionNumber?: number;
 }

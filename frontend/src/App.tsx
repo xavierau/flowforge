@@ -30,6 +30,11 @@ const ApiTokens = lazy(() => import('@/pages/ApiTokens').then(m => ({ default: m
 const Profile = lazy(() => import('@/pages/Profile').then(m => ({ default: m.Profile })));
 const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
 const WorkflowBuilder = lazy(() => import('@/pages/WorkflowBuilder').then(m => ({ default: m.WorkflowBuilder })));
+const WorkflowList = lazy(() => import('@/pages/workflows/WorkflowList').then(m => ({ default: m.WorkflowList })));
+const WorkflowView = lazy(() => import('@/pages/workflows/WorkflowView').then(m => ({ default: m.WorkflowView })));
+const WorkflowEdit = lazy(() => import('@/pages/workflows/WorkflowEdit').then(m => ({ default: m.WorkflowEdit })));
+const ExecutionList = lazy(() => import('@/pages/workflows/ExecutionList').then(m => ({ default: m.ExecutionList })));
+const ExecutionDetail = lazy(() => import('@/pages/workflows/ExecutionDetail').then(m => ({ default: m.ExecutionDetail })));
 const ReviewQueue = lazy(() => import('@/pages/ReviewQueue').then(m => ({ default: m.ReviewQueue })));
 const ReviewDetail = lazy(() => import('@/pages/ReviewDetail').then(m => ({ default: m.ReviewDetail })));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
@@ -179,12 +184,63 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Workflow Routes */}
         <Route
           path="/workflows"
           element={
             <ProtectedRoute>
               <AuthenticatedLayout>
+                <WorkflowList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows/new"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
                 <WorkflowBuilder />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows/:id"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <WorkflowView />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows/:id/edit"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <WorkflowEdit />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows/:id/executions"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <ExecutionList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workflows/executions/:id"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <ExecutionDetail />
               </AuthenticatedLayout>
             </ProtectedRoute>
           }

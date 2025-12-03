@@ -3,6 +3,8 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   Webhook,
   FileText,
@@ -19,6 +21,8 @@ import {
   Upload,
   Play,
   Square,
+  ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +36,7 @@ import {
 import { NodeType, ExecutionStatus } from '@/types/workflow';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { Badge } from '@/components/ui/badge';
+import * as workflowService from '@/services/workflow.service';
 
 const NODE_TYPES = [
   {
@@ -72,13 +77,27 @@ const NODE_TYPES = [
   },
 ];
 
+/**
+ * Check if the workflow ID is from the backend (UUID format)
+ * vs. a local/new workflow (starts with 'workflow_' or 'default')
+ */
+function isBackendWorkflowId(workflowId: string): boolean {
+  // UUID regex pattern
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidPattern.test(workflowId);
+}
+
 export function WorkflowToolbar() {
+  const navigate = useNavigate();
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const {
+    workflowId,
     workflowName,
     nodes,
+    edges,
     setWorkflowName,
     addNode,
     saveWorkflow,
@@ -106,10 +125,40 @@ export function WorkflowToolbar() {
     addNode(type, position);
   };
 
-  const handleSaveWorkflow = () => {
-    saveWorkflow();
-    // Show success feedback (could add toast notification)
-    console.log('Workflow saved successfully');
+  const handleSaveWorkflow = async () => {
+    if (isSaving) return;
+
+    setIsSaving(true);
+    try {
+      const isExistingWorkflow = isBackendWorkflowId(workflowId);
+
+      if (isExistingWorkflow) {
+        // Update existing workflow
+        await workflowService.updateWorkflow(workflowId, {
+          name: workflowName,
+          definition: { nodes, edges },
+        });
+        toast.success('Workflow saved successfully');
+      } else {
+        // Create new workflow
+        const response = await workflowService.createWorkflow({
+          name: workflowName,
+          definition: { nodes, edges },
+        });
+        toast.success('Workflow created successfully');
+        // Navigate to the edit page of the newly created workflow
+        navigate(`/workflows/${response.id}/edit`);
+      }
+
+      // Also save to localStorage as backup
+      saveWorkflow();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save workflow';
+      toast.error(message);
+      console.error('Save workflow error:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleLoadWorkflow = (workflowId: string) => {
@@ -347,14 +396,29 @@ export function WorkflowToolbar() {
 
       {/* Actions */}
       <div className="p-4 space-y-2 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
+        {/* Back to Workflows */}
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          onClick={() => navigate('/workflows')}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Workflows
+        </Button>
+
         {/* Save */}
         <Button
           variant="default"
           className="w-full justify-start gap-2"
           onClick={handleSaveWorkflow}
+          disabled={isSaving}
         >
-          <Save className="h-4 w-4" />
-          Save Workflow
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          {isSaving ? 'Saving...' : 'Save Workflow'}
         </Button>
 
         {/* Load */}
