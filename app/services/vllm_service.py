@@ -546,9 +546,12 @@ class VLLMService:
         # Validate extracted data against schema
         is_valid, validation_errors = self.validator.validate(extracted_data, schema)
 
-        # Calculate confidence score (simplified)
-        # In production, this could be based on VLLM response confidence
-        confidence_score = 1.0 if is_valid else 0.5
+        # Calculate confidence score based on schema coverage and data completeness
+        confidence_score = self._calculate_confidence_score(
+            extracted_data=extracted_data,
+            schema=schema,
+            is_valid=is_valid
+        )
 
         return {
             "extracted_data": extracted_data,
@@ -606,8 +609,12 @@ class VLLMService:
         # Validate extracted data against schema
         is_valid, validation_errors = self.validator.validate(extracted_data, schema)
 
-        # Calculate confidence score
-        confidence_score = 1.0 if is_valid else 0.5
+        # Calculate confidence score based on schema coverage and data completeness
+        confidence_score = self._calculate_confidence_score(
+            extracted_data=extracted_data,
+            schema=schema,
+            is_valid=is_valid
+        )
 
         return {
             "extracted_data": extracted_data,
@@ -620,6 +627,142 @@ class VLLMService:
             "processing_time_ms": processing_time_ms,
             "model_used": f"{provider}/{model}",
         }
+
+    def _calculate_confidence_score(
+        self,
+        extracted_data: dict[str, Any],
+        schema: dict[str, Any],
+        is_valid: bool
+    ) -> float:
+        """
+        Calculate confidence score for extraction based on multiple factors.
+
+        Factors:
+        1. Schema validity: Does the data pass schema validation?
+        2. Schema coverage: What percentage of required fields are present?
+        3. Data completeness: What percentage of fields have non-null/non-empty values?
+
+        The final score is a weighted average of these factors.
+
+        Args:
+            extracted_data: Extracted JSON data
+            schema: JSON schema
+            is_valid: Whether data passed schema validation
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        scores = []
+        weights = []
+
+        # Factor 1: Schema validity (weight: 0.3)
+        # If invalid, heavily penalize the score
+        validity_score = 1.0 if is_valid else 0.3
+        scores.append(validity_score)
+        weights.append(0.3)
+
+        # Factor 2: Required fields coverage (weight: 0.4)
+        coverage_score = self._calculate_coverage_score(extracted_data, schema)
+        scores.append(coverage_score)
+        weights.append(0.4)
+
+        # Factor 3: Data completeness (weight: 0.3)
+        completeness_score = self._calculate_completeness_score(extracted_data, schema)
+        scores.append(completeness_score)
+        weights.append(0.3)
+
+        # Weighted average
+        total_weight = sum(weights)
+        weighted_sum = sum(s * w for s, w in zip(scores, weights))
+        final_score = weighted_sum / total_weight if total_weight > 0 else 0.5
+
+        return round(final_score, 3)
+
+    def _calculate_coverage_score(
+        self,
+        extracted_data: dict[str, Any],
+        schema: dict[str, Any]
+    ) -> float:
+        """
+        Calculate what percentage of required fields are present in the extracted data.
+
+        Args:
+            extracted_data: Extracted data
+            schema: JSON schema with 'required' field
+
+        Returns:
+            Coverage score between 0.0 and 1.0
+        """
+        required_fields = schema.get("required", [])
+        if not required_fields:
+            # If no required fields specified, check top-level properties
+            properties = schema.get("properties", {})
+            if not properties:
+                return 1.0  # No fields to check
+            required_fields = list(properties.keys())
+
+        if not required_fields:
+            return 1.0
+
+        present_count = 0
+        for field in required_fields:
+            if field in extracted_data and extracted_data[field] is not None:
+                present_count += 1
+
+        return present_count / len(required_fields)
+
+    def _calculate_completeness_score(
+        self,
+        extracted_data: dict[str, Any],
+        schema: dict[str, Any]
+    ) -> float:
+        """
+        Calculate what percentage of fields have meaningful (non-null/non-empty) values.
+
+        Args:
+            extracted_data: Extracted data
+            schema: JSON schema
+
+        Returns:
+            Completeness score between 0.0 and 1.0
+        """
+        properties = schema.get("properties", {})
+        if not properties:
+            # Use actual extracted data keys if no schema properties
+            if not extracted_data:
+                return 0.5
+            properties = {k: {} for k in extracted_data.keys()}
+
+        if not properties:
+            return 1.0
+
+        total_fields = len(properties)
+        non_empty_count = 0
+
+        for field in properties.keys():
+            value = extracted_data.get(field)
+            if self._is_value_meaningful(value):
+                non_empty_count += 1
+
+        return non_empty_count / total_fields if total_fields > 0 else 1.0
+
+    def _is_value_meaningful(self, value: Any) -> bool:
+        """
+        Check if a value is meaningful (non-null, non-empty).
+
+        Args:
+            value: Value to check
+
+        Returns:
+            True if value is meaningful
+        """
+        if value is None:
+            return False
+        if isinstance(value, str) and value.strip() == "":
+            return False
+        if isinstance(value, (list, dict)) and len(value) == 0:
+            return False
+        return True
 
 
 def get_vllm_service() -> VLLMService:

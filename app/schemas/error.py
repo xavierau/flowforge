@@ -25,7 +25,7 @@ Usage:
 
 from enum import Enum
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ErrorCode(str, Enum):
@@ -105,10 +105,9 @@ class ErrorDetail(BaseModel):
         description="Optional structured data providing additional error context"
     )
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True  # Serialize enums as strings
-        json_schema_extra = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_schema_extra={
             "example": {
                 "error_code": "insufficient_credits",
                 "message": "Insufficient credits to process document. Required: 5, Available: 3",
@@ -119,6 +118,7 @@ class ErrorDetail(BaseModel):
                 }
             }
         }
+    )
 
 
 # Convenience factory functions for common errors

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ============================================================================
@@ -47,9 +47,7 @@ class PlatformStatistics(BaseModel):
     # API Token metrics
     total_api_tokens: int = Field(..., description="Total active API tokens")
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -81,10 +79,7 @@ class TenantListItem(BaseModel):
     created_at: datetime
     last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
-        populate_by_name = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class TenantListResponse(BaseModel):
@@ -109,9 +104,7 @@ class TenantSubscriptionInfo(BaseModel):
     cancel_at_period_end: bool = False
     features: Dict[str, Any] = {}
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TenantMetrics(BaseModel):
@@ -179,9 +172,7 @@ class UserListItem(BaseModel):
     # API tokens
     api_token_count: int = Field(0, description="Number of active API tokens")
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserListResponse(BaseModel):
@@ -225,9 +216,7 @@ class ApiTokenListItem(BaseModel):
     tenant_id: UUID
     tenant_name: str
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApiTokenListResponse(BaseModel):
@@ -259,9 +248,7 @@ class AuditLogEntry(BaseModel):
     metadata: Dict[str, Any] = {}
     created_at: datetime
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AuditLogListResponse(BaseModel):
@@ -281,63 +268,63 @@ class AuditLogListResponse(BaseModel):
 class UpdateTenantStatusRequest(BaseModel):
     """Request to update tenant status."""
 
-    status: str = Field(..., description="New status (active, suspended, cancelled)")
-    reason: Optional[str] = Field(None, description="Reason for status change")
-
-    class Config:
-        """Pydantic config."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "suspended",
                 "reason": "Payment overdue"
             }
         }
+    )
+
+    status: str = Field(..., description="New status (active, suspended, cancelled)")
+    reason: Optional[str] = Field(None, description="Reason for status change")
 
 
 class UpdateUserStatusRequest(BaseModel):
     """Request to update user status."""
 
-    is_active: bool = Field(..., description="Active status")
-    reason: Optional[str] = Field(None, description="Reason for status change")
-
-    class Config:
-        """Pydantic config."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "is_active": False,
                 "reason": "Terms of service violation"
             }
         }
+    )
+
+    is_active: bool = Field(..., description="Active status")
+    reason: Optional[str] = Field(None, description="Reason for status change")
 
 
 class RevokeApiTokenRequest(BaseModel):
     """Request to revoke an API token."""
 
-    reason: Optional[str] = Field(None, description="Reason for revocation")
-
-    class Config:
-        """Pydantic config."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "reason": "Security incident - potential compromise"
             }
         }
+    )
+
+    reason: Optional[str] = Field(None, description="Reason for revocation")
 
 
 class AddTenantCreditsRequest(BaseModel):
     """Request to manually add credits to a tenant."""
 
-    amount: int = Field(..., gt=0, description="Number of credits to add (must be positive)")
-    reason: str = Field(..., min_length=1, max_length=500, description="Reason for credit addition")
-
-    class Config:
-        """Pydantic config."""
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "amount": 1000,
                 "reason": "Compensation for service downtime"
             }
         }
+    )
+
+    amount: int = Field(..., gt=0, description="Number of credits to add (must be positive)")
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for credit addition")
 
 
 # ============================================================================
@@ -354,9 +341,7 @@ class PlatformSettingResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlatformSettingsListResponse(BaseModel):
@@ -369,10 +354,20 @@ class PlatformSettingsListResponse(BaseModel):
 class UpdatePlatformSettingRequest(BaseModel):
     """Request to update a platform setting with validation."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "value": 50,
+                "description": "Trial credits amount for new tenants"
+            }
+        }
+    )
+
     value: Any = Field(..., description="New setting value")
     description: Optional[str] = Field(None, max_length=1000, description="Optional description update")
 
-    @validator('value')
+    @field_validator('value')
+    @classmethod
     def validate_value(cls, v):
         """
         Defense-in-depth: validate common value types.
@@ -389,15 +384,6 @@ class UpdatePlatformSettingRequest(BaseModel):
             raise ValueError("String values cannot exceed 10,000 characters")
 
         return v
-
-    class Config:
-        """Pydantic config."""
-        schema_extra = {
-            "example": {
-                "value": 50,
-                "description": "Trial credits amount for new tenants"
-            }
-        }
 
 
 # ============================================================================
@@ -422,9 +408,7 @@ class TopTenantItem(BaseModel):
     created_at: datetime
     last_activity: Optional[datetime] = None
 
-    class Config:
-        """Pydantic config."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TopTenantsResponse(BaseModel):

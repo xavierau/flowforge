@@ -5,22 +5,23 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CreditBalanceResponse(BaseModel):
     """Response model for credit balance."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     tenant_id: UUID
     balance: int = Field(..., ge=0, description="Current credit balance")
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class CreditTransactionResponse(BaseModel):
     """Response model for a single transaction."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     transaction_type: str
@@ -30,9 +31,6 @@ class CreditTransactionResponse(BaseModel):
     description: str
     created_at: datetime
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-    class Config:
-        from_attributes = True
 
 
 class CreditTransactionListResponse(BaseModel):
@@ -62,13 +60,12 @@ class CreditTopUpRequest(BaseModel):
 class CreditTopUpResponse(BaseModel):
     """Response model for credit top-up."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     transaction_id: UUID
     credits_added: int
     new_balance: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class CreditAdjustmentRequest(BaseModel):

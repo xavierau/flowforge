@@ -1,7 +1,7 @@
 """ExtractionJob model."""
 
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, Index
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, Index, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -56,6 +56,9 @@ class ExtractionJob(Base):
         nullable=True
     )
 
+    # HITL (Human-in-the-Loop) tracking
+    confidence_score = Column(Float, nullable=True)  # AI confidence score (0.0-1.0)
+
     # Relationships
     document = relationship("Document", back_populates="extraction_jobs")
     schema_definition = relationship("SchemaDefinition", backref="extraction_jobs")
@@ -63,6 +66,12 @@ class ExtractionJob(Base):
         "ExtractionResult", back_populates="extraction_job", cascade="all, delete-orphan"
     )
     credit_transaction = relationship("CreditTransaction")
+    review_request = relationship(
+        "ReviewRequest",
+        back_populates="extraction_job",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (

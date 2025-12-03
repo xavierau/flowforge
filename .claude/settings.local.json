@@ -97,7 +97,11 @@
       "Bash(test:*)",
       "Bash(python:*)",
       "Bash(identify:*)",
-      "mcp__chrome-devtools__fill_form"
+      "mcp__chrome-devtools__fill_form",
+      "Bash(uv add:*)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(uv run python -m pytest:*)"
     ],
     "deny": [],
     "ask": []

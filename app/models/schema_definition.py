@@ -1,7 +1,7 @@
 """SchemaDefinition model."""
 
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, DateTime, ForeignKey, Index, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -23,6 +23,14 @@ class SchemaDefinition(Base):
     )
     name = Column(String(255), nullable=False)
     definitions = Column(JSONB, nullable=False)
+
+    # HITL (Human-in-the-Loop) configuration
+    # Schema-specific confidence threshold override (nullable - falls back to tenant settings)
+    hitl_threshold = Column(
+        Float,
+        nullable=True
+    )  # If set, overrides tenant default for this schema type
+
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow

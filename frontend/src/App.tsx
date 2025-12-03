@@ -30,6 +30,8 @@ const ApiTokens = lazy(() => import('@/pages/ApiTokens').then(m => ({ default: m
 const Profile = lazy(() => import('@/pages/Profile').then(m => ({ default: m.Profile })));
 const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
 const WorkflowBuilder = lazy(() => import('@/pages/WorkflowBuilder').then(m => ({ default: m.WorkflowBuilder })));
+const ReviewQueue = lazy(() => import('@/pages/ReviewQueue').then(m => ({ default: m.ReviewQueue })));
+const ReviewDetail = lazy(() => import('@/pages/ReviewDetail').then(m => ({ default: m.ReviewDetail })));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const TenantList = lazy(() => import('@/pages/admin/TenantList').then(m => ({ default: m.TenantList })));
 const TenantDetail = lazy(() => import('@/pages/admin/TenantDetail').then(m => ({ default: m.TenantDetail })));
@@ -183,6 +185,27 @@ function App() {
             <ProtectedRoute>
               <AuthenticatedLayout>
                 <WorkflowBuilder />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        {/* Review Routes - HITL System */}
+        <Route
+          path="/reviews"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <ReviewQueue />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reviews/:reviewId"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <ReviewDetail />
               </AuthenticatedLayout>
             </ProtectedRoute>
           }

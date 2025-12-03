@@ -309,7 +309,7 @@ class TestSinglePageConversion:
             page_number=1,
         )
 
-        assert result.processing_time_ms > 0
+        assert result.processing_time_ms >= 0  # Mock executes instantly, so time may be 0
         assert result.processing_time_ms < 60000  # Should be less than 1 minute
 
 

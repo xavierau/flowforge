@@ -195,3 +195,27 @@ export function getMarkdownFormatLabel(format: MarkdownFormat): string {
   };
   return labels[format];
 }
+
+/**
+ * Review request status (HITL system)
+ * CRITICAL: Values MUST match backend app/models/enums.py
+ */
+export enum ReviewRequestStatus {
+  PENDING = "pending",
+  ASSIGNED = "assigned",
+  IN_REVIEW = "in_review",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+  ESCALATED = "escalated",
+}
+
+/**
+ * Review priority levels (HITL system)
+ * CRITICAL: Values MUST match backend app/models/enums.py
+ */
+export enum ReviewPriority {
+  CRITICAL = "critical",
+  HIGH = "high",
+  NORMAL = "normal",
+  LOW = "low",
+}

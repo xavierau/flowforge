@@ -1,0 +1,94 @@
+{
+  "name": "test_confidence_routing",
+  "description": "Workflow with confidence-based routing for testing branching logic",
+  "version": 1,
+  "schemaVersion": 2,
+  "inputParameters": ["document_id", "schema", "tenant_id", "confidence_threshold"],
+  "outputParameters": {
+    "extracted_data": "${finalize.output.final_data}",
+    "review_required": "${check_confidence.output.needs_review}",
+    "final_confidence": "${finalize.output.confidence}"
+  },
+  "tasks": [
+    {
+      "name": "extract_document",
+      "taskReferenceName": "extract_document",
+      "type": "SIMPLE",
+      "inputParameters": {
+        "document_id": "${workflow.input.document_id}",
+        "schema": "${workflow.input.schema}",
+        "tenant_id": "${workflow.input.tenant_id}",
+        "provider": "google",
+        "model": "gemini-2.5-flash"
+      }
+    },
+    {
+      "name": "check_confidence",
+      "taskReferenceName": "check_confidence",
+      "type": "SWITCH",
+      "evaluatorType": "javascript",
+      "expression": "$.confidence_score < $.threshold ? 'needs_review' : 'auto_approve'",
+      "inputParameters": {
+        "confidence_score": "${extract_document.output.confidence_score}",
+        "threshold": "${workflow.input.confidence_threshold}"
+      },
+      "decisionCases": {
+        "needs_review": [
+          {
+            "name": "human_review",
+            "taskReferenceName": "human_review",
+            "type": "SIMPLE",
+            "inputParameters": {
+              "extraction_job_id": "${workflow.input.extraction_job_id}",
+              "extracted_data": "${extract_document.output.extracted_data}",
+              "confidence_score": "${extract_document.output.confidence_score}",
+              "tenant_id": "${workflow.input.tenant_id}",
+              "priority": "NORMAL",
+              "timeout_seconds": 14400
+            }
+          }
+        ],
+        "auto_approve": [
+          {
+            "name": "auto_approve",
+            "taskReferenceName": "auto_approve",
+            "type": "SIMPLE",
+            "inputParameters": {
+              "extracted_data": "${extract_document.output.extracted_data}",
+              "confidence_score": "${extract_document.output.confidence_score}",
+              "approval_reason": "auto_approved_high_confidence"
+            }
+          }
+        ]
+      },
+      "defaultCase": [
+        {
+          "name": "default_review",
+          "taskReferenceName": "default_review",
+          "type": "SIMPLE",
+          "inputParameters": {
+            "extraction_job_id": "${workflow.input.extraction_job_id}",
+            "extracted_data": "${extract_document.output.extracted_data}",
+            "confidence_score": "${extract_document.output.confidence_score}",
+            "tenant_id": "${workflow.input.tenant_id}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "finalize",
+      "taskReferenceName": "finalize",
+      "type": "SIMPLE",
+      "inputParameters": {
+        "extracted_data": "${extract_document.output.extracted_data}",
+        "corrected_data": "${human_review.output.corrected_data}",
+        "auto_approved_data": "${auto_approve.output.extracted_data}",
+        "confidence_score": "${extract_document.output.confidence_score}"
+      }
+    }
+  ],
+  "restartable": true,
+  "workflowStatusListenerEnabled": true,
+  "timeoutPolicy": "ALERT_ONLY",
+  "timeoutSeconds": 21600
+}

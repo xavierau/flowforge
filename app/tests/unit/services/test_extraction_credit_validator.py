@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.services.extraction_service import ExtractionCreditValidator
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.models.role import Role
 from app.models.credit_transaction import CreditTransaction
 from app.models.enums import CreditTransactionType, ReferenceType
 from app.exceptions.credits import InsufficientCreditsError
@@ -22,16 +23,21 @@ class TestExtractionCreditValidator:
         WHEN validate_and_deduct_credits is called for 5-page document
         THEN credits are deducted and transaction is created
         """
-        # Arrange
-        tenant = Tenant(id=uuid4(), name="Test Tenant", cached_balance=100)
+        # Arrange - commit tenant first due to foreign key constraint
+        tenant = Tenant(id=uuid4(), name="Test Tenant", slug="test-tenant-1", cached_balance=100)
         db_session.add(tenant)
+        db_session.commit()
+
+        role = Role(id=uuid4(), name="member", display_name="Member")
+        db_session.add(role)
+        db_session.commit()
 
         user = User(
             id=uuid4(),
             tenant_id=tenant.id,
             email="test@example.com",
             hashed_password="test",
-            role="member"
+            role_id=role.id
         )
         db_session.add(user)
         db_session.commit()
@@ -69,16 +75,21 @@ class TestExtractionCreditValidator:
         WHEN validate_and_deduct_credits is called for 5-page document
         THEN HTTPException(402) is raised with error details
         """
-        # Arrange
-        tenant = Tenant(id=uuid4(), name="Test Tenant", cached_balance=3)
+        # Arrange - commit tenant first due to foreign key constraint
+        tenant = Tenant(id=uuid4(), name="Test Tenant", slug="test-tenant-2", cached_balance=3)
         db_session.add(tenant)
+        db_session.commit()
+
+        role = Role(id=uuid4(), name="member2", display_name="Member")
+        db_session.add(role)
+        db_session.commit()
 
         user = User(
             id=uuid4(),
             tenant_id=tenant.id,
-            email="test@example.com",
+            email="test2@example.com",
             hashed_password="test",
-            role="member"
+            role_id=role.id
         )
         db_session.add(user)
         db_session.commit()
@@ -99,10 +110,10 @@ class TestExtractionCreditValidator:
 
         assert exc_info.value.status_code == 402
         detail = exc_info.value.detail
-        assert detail["error"] == "insufficient_credits"
-        assert detail["required_credits"] == 5
-        assert detail["available_credits"] == 3
-        assert detail["credits_needed"] == 2
+        assert detail["error_code"] == "insufficient_credits"
+        assert detail["details"]["required_credits"] == 5
+        assert detail["details"]["available_credits"] == 3
+        assert detail["details"]["credits_needed"] == 2
 
         # Verify balance unchanged
         db_session.refresh(tenant)
@@ -136,15 +147,21 @@ class TestExtractionCreditValidator:
         WHEN validate_and_deduct_credits is called
         THEN transaction metadata contains all required fields
         """
-        tenant = Tenant(id=uuid4(), name="Test Tenant", cached_balance=100)
+        # Arrange - commit tenant first due to foreign key constraint
+        tenant = Tenant(id=uuid4(), name="Test Tenant", slug="test-tenant-3", cached_balance=100)
         db_session.add(tenant)
+        db_session.commit()
+
+        role = Role(id=uuid4(), name="member3", display_name="Member")
+        db_session.add(role)
+        db_session.commit()
 
         user = User(
             id=uuid4(),
             tenant_id=tenant.id,
-            email="test@example.com",
+            email="test3@example.com",
             hashed_password="test",
-            role="member"
+            role_id=role.id
         )
         db_session.add(user)
         db_session.commit()
@@ -176,15 +193,21 @@ class TestExtractionCreditValidator:
         WHEN validate_and_deduct_credits is called
         THEN defaults to 1 credit minimum
         """
-        tenant = Tenant(id=uuid4(), name="Test Tenant", cached_balance=100)
+        # Arrange - commit tenant first due to foreign key constraint
+        tenant = Tenant(id=uuid4(), name="Test Tenant", slug="test-tenant-4", cached_balance=100)
         db_session.add(tenant)
+        db_session.commit()
+
+        role = Role(id=uuid4(), name="member4", display_name="Member")
+        db_session.add(role)
+        db_session.commit()
 
         user = User(
             id=uuid4(),
             tenant_id=tenant.id,
-            email="test@example.com",
+            email="test4@example.com",
             hashed_password="test",
-            role="member"
+            role_id=role.id
         )
         db_session.add(user)
         db_session.commit()
@@ -209,15 +232,21 @@ class TestExtractionCreditValidator:
         WHEN transaction is created
         THEN transaction_type is DEDUCTION and reference_type is EXTRACTION_JOB
         """
-        tenant = Tenant(id=uuid4(), name="Test Tenant", cached_balance=100)
+        # Arrange - commit tenant first due to foreign key constraint
+        tenant = Tenant(id=uuid4(), name="Test Tenant", slug="test-tenant-5", cached_balance=100)
         db_session.add(tenant)
+        db_session.commit()
+
+        role = Role(id=uuid4(), name="member5", display_name="Member")
+        db_session.add(role)
+        db_session.commit()
 
         user = User(
             id=uuid4(),
             tenant_id=tenant.id,
-            email="test@example.com",
+            email="test5@example.com",
             hashed_password="test",
-            role="member"
+            role_id=role.id
         )
         db_session.add(user)
         db_session.commit()

@@ -35,6 +35,7 @@ dependencies = [
     "unstructured-client>=0.42.4",
     "transformers>=4.57.1",
     "accelerate>=1.12.0",
+    "jsonpath-ng>=1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -70,6 +71,15 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=app --cov-report=term-missing"
+filterwarnings = [
+    # Ignore deprecation warnings from third-party packages we can't control
+    "ignore::pydantic.PydanticDeprecatedSince20:litellm.*",
+    "ignore::pydantic.PydanticDeprecatedSince212:google.genai.*",
+    "ignore::DeprecationWarning:litellm.*",
+    "ignore::DeprecationWarning:importlib_resources.*",
+    # Convert our own deprecation warnings to errors so we catch them early
+    "error::DeprecationWarning:app.*",
+]
 
 [tool.mypy]
 python_version = "3.13"

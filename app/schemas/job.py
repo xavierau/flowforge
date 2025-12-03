@@ -4,42 +4,31 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class JobProgress(BaseModel):
     """Job progress information."""
 
-    total_pages: int = Field(..., description="Total number of pages")
-    completed_pages: int = Field(..., description="Completed pages")
-
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total_pages": 3,
                 "completed_pages": 1,
             }
         }
+    )
+
+    total_pages: int = Field(..., description="Total number of pages")
+    completed_pages: int = Field(..., description="Completed pages")
 
 
 class JobStatusResponse(BaseModel):
     """Response model for job status."""
 
-    job_id: UUID = Field(..., description="Job identifier")
-    document_id: UUID = Field(..., description="Document identifier")
-    status: str = Field(..., description="Job status")
-    progress: Optional[JobProgress] = Field(None, description="Progress information")
-    started_at: Optional[datetime] = Field(None, description="Job start time")
-    updated_at: datetime = Field(..., description="Last update time")
-    error: Optional[str] = Field(None, description="Error message if failed")
-
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "job_id": "660e8400-e29b-41d4-a716-446655440000",
                 "document_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -53,22 +42,22 @@ class JobStatusResponse(BaseModel):
                 "error": None,
             }
         }
+    )
+
+    job_id: UUID = Field(..., description="Job identifier")
+    document_id: UUID = Field(..., description="Document identifier")
+    status: str = Field(..., description="Job status")
+    progress: Optional[JobProgress] = Field(None, description="Progress information")
+    started_at: Optional[datetime] = Field(None, description="Job start time")
+    updated_at: datetime = Field(..., description="Last update time")
+    error: Optional[str] = Field(None, description="Error message if failed")
 
 
 class ExtractionMetadata(BaseModel):
     """Metadata about the extraction process."""
 
-    model_used: str = Field(..., description="Model that performed extraction")
-    input_tokens: int = Field(..., description="Input tokens (image + prompt)")
-    output_tokens: int = Field(..., description="Output tokens (generated response)")
-    tokens_used: int = Field(..., description="Total tokens consumed (input + output)")
-    processing_time_ms: int = Field(..., description="Processing time in milliseconds")
-    confidence_score: float = Field(..., description="Confidence score (0-1)")
-
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "model_used": "google/gemini-2.5-flash",
                 "input_tokens": 1050,
@@ -78,30 +67,22 @@ class ExtractionMetadata(BaseModel):
                 "confidence_score": 0.95,
             }
         }
+    )
+
+    model_used: str = Field(..., description="Model that performed extraction")
+    input_tokens: int = Field(..., description="Input tokens (image + prompt)")
+    output_tokens: int = Field(..., description="Output tokens (generated response)")
+    tokens_used: int = Field(..., description="Total tokens consumed (input + output)")
+    processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+    confidence_score: float = Field(..., description="Confidence score (0-1)")
 
 
 class JobResultResponse(BaseModel):
     """Response model for job results."""
 
-    job_id: UUID = Field(..., description="Job identifier")
-    document_id: UUID = Field(..., description="Document identifier")
-    schema_definition_id: Optional[UUID] = Field(None, description="ID of saved schema definition used (null if custom schema)")
-    status: str = Field(..., description="Job status")
-    extracted_data: dict[str, Any] = Field(..., description="Extracted structured data")
-    metadata: ExtractionMetadata = Field(..., description="Extraction metadata")
-    completed_at: datetime = Field(..., description="Completion timestamp")
-    # Job configuration used for this extraction
-    extraction_schema: dict[str, Any] = Field(..., description="JSON Schema used for extraction")
-    custom_prompt: Optional[str] = Field(None, description="Custom extraction prompt")
-    model_provider: str = Field(..., description="Model provider (google, openai, deepseek)")
-    model_name: str = Field(..., description="Model name")
-    callback_url: Optional[str] = Field(None, description="Webhook callback URL")
-
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "job_id": "660e8400-e29b-41d4-a716-446655440000",
                 "document_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -127,10 +108,27 @@ class JobResultResponse(BaseModel):
                 "completed_at": "2025-11-02T10:31:20Z",
             }
         }
+    )
+
+    job_id: UUID = Field(..., description="Job identifier")
+    document_id: UUID = Field(..., description="Document identifier")
+    schema_definition_id: Optional[UUID] = Field(None, description="ID of saved schema definition used (null if custom schema)")
+    status: str = Field(..., description="Job status")
+    extracted_data: dict[str, Any] = Field(..., description="Extracted structured data")
+    metadata: ExtractionMetadata = Field(..., description="Extraction metadata")
+    completed_at: datetime = Field(..., description="Completion timestamp")
+    # Job configuration used for this extraction
+    extraction_schema: dict[str, Any] = Field(..., description="JSON Schema used for extraction")
+    custom_prompt: Optional[str] = Field(None, description="Custom extraction prompt")
+    model_provider: str = Field(..., description="Model provider (google, openai, deepseek)")
+    model_name: str = Field(..., description="Model name")
+    callback_url: Optional[str] = Field(None, description="Webhook callback URL")
 
 
 class JobListItem(BaseModel):
     """Individual job item in list response."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(..., description="Job identifier")
     document_id: UUID = Field(..., description="Document identifier")
@@ -145,24 +143,12 @@ class JobListItem(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
     model_used: Optional[str] = Field(None, description="Model used for extraction")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-
 
 class JobListResponse(BaseModel):
     """Response model for paginated job list."""
 
-    jobs: list[JobListItem] = Field(..., description="List of jobs")
-    total: int = Field(..., description="Total number of jobs")
-    limit: int = Field(..., description="Results per page")
-    offset: int = Field(..., description="Pagination offset")
-
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "jobs": [
                     {
@@ -181,3 +167,9 @@ class JobListResponse(BaseModel):
                 "offset": 0,
             }
         }
+    )
+
+    jobs: list[JobListItem] = Field(..., description="List of jobs")
+    total: int = Field(..., description="Total number of jobs")
+    limit: int = Field(..., description="Results per page")
+    offset: int = Field(..., description="Pagination offset")

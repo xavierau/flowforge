@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.workflow import WorkflowExecution, WorkflowNodeExecution
-from app.models.enums import WorkflowExecutionStatus, WorkflowNodeStatus
+from app.models.enums import WorkflowExecutionStatus, WorkflowNodeExecutionStatus
 
 
 class ExecutionTracker:
@@ -117,7 +117,7 @@ class ExecutionTracker:
             execution_id=execution_id,
             node_id=node_id,
             conductor_task_id=conductor_task_id,
-            status=WorkflowNodeStatus.RUNNING,
+            status=WorkflowNodeExecutionStatus.RUNNING,
             started_at=datetime.utcnow(),
             input_data=input_data or {},
         )
@@ -131,7 +131,7 @@ class ExecutionTracker:
     def update_node_status(
         self,
         conductor_task_id: str,
-        status: WorkflowNodeStatus
+        status: WorkflowNodeExecutionStatus
     ):
         """
         Update node execution status.
@@ -155,7 +155,7 @@ class ExecutionTracker:
     def complete_node_execution(
         self,
         conductor_task_id: str,
-        status: WorkflowNodeStatus,
+        status: WorkflowNodeExecutionStatus,
         output_data: Optional[Dict[str, Any]] = None,
         error: Optional[str] = None
     ):
@@ -247,7 +247,7 @@ class ExecutionTracker:
 
         node_outputs = {}
         for node_exec in execution.node_executions:
-            if node_exec.status == WorkflowNodeStatus.COMPLETED and node_exec.output_data:
+            if node_exec.status == WorkflowNodeExecutionStatus.COMPLETED and node_exec.output_data:
                 node_outputs[node_exec.node_id] = node_exec.output_data
 
         return node_outputs

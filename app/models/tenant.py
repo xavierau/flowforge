@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import Column, String, Integer, DateTime, Numeric, Index
+from sqlalchemy import Column, String, Integer, DateTime, Numeric, Index, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -30,6 +30,34 @@ class Tenant(Base):
     balance_last_updated = Column(DateTime, nullable=True)  # Timestamp of last cache update
     credit_unit_cost = Column(Numeric(10, 4), nullable=True)  # Cost per credit (tier-based)
 
+    # HITL (Human-in-the-Loop) configuration
+    # These thresholds control when extractions require human review
+    hitl_auto_approve_threshold = Column(
+        Float,
+        nullable=False,
+        default=0.70
+    )  # Confidence above this: auto-approve (default: 0.70)
+    hitl_critical_threshold = Column(
+        Float,
+        nullable=False,
+        default=0.30
+    )  # Below this: critical priority (1 hour SLA)
+    hitl_high_threshold = Column(
+        Float,
+        nullable=False,
+        default=0.50
+    )  # 0.30-0.50: high priority (2 hour SLA)
+    hitl_normal_threshold = Column(
+        Float,
+        nullable=False,
+        default=0.60
+    )  # 0.50-0.60: normal priority (4 hour SLA)
+    hitl_low_threshold = Column(
+        Float,
+        nullable=False,
+        default=0.70
+    )  # 0.60-0.70: low priority (8 hour SLA)
+
     # Metadata for flexible storage (renamed to avoid SQLAlchemy reserved word)
     tenant_metadata = Column(JSONB, nullable=False, default=dict)
 
@@ -45,6 +73,7 @@ class Tenant(Base):
     subscription = relationship("Subscription", back_populates="tenant", uselist=False)
     workflows = relationship("Workflow", back_populates="tenant")
     workflow_executions = relationship("WorkflowExecution", back_populates="tenant")
+    review_requests = relationship("ReviewRequest", back_populates="tenant")
 
     # Indexes
     __table_args__ = (

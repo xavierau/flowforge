@@ -1,7 +1,7 @@
 """
 Worker Startup Script
 
-Starts all Conductor workers for workflow execution.
+Starts all Conductor workers for workflow execution including HITL workers.
 
 Usage:
     python -m app.orchestration.start_workers
@@ -10,6 +10,14 @@ Environment Variables:
     CONDUCTOR_SERVER_URL: Conductor server URL (default: http://localhost:8080/api)
     WORKER_THREADS: Number of worker threads (default: 4)
     WORKER_POLL_INTERVAL: Polling interval in ms (default: 1000)
+    ENABLE_HITL_WORKER: Enable HITL worker (default: true)
+
+Workers Started:
+    - ExtractionWorker: VLLM-based document extraction
+    - PythonWorker: Python code execution
+    - HttpRequestWorker: HTTP requests
+    - ConditionWorker: Conditional evaluation
+    - HumanReviewWorker: Human-in-the-loop review (HITL)
 """
 
 import os
@@ -23,6 +31,7 @@ from app.orchestration.workers import (
     PythonWorker,
     HttpRequestWorker,
     ConditionWorker,
+    HumanReviewWorker,
 )
 
 # Configure logging
@@ -39,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    """Start all Conductor workers."""
+    """Start all Conductor workers including HITL workers."""
 
     # Load configuration from environment
     conductor_url = os.getenv(
@@ -48,6 +57,7 @@ def main():
     )
     thread_count = int(os.getenv("WORKER_THREADS", "4"))
     poll_interval = int(os.getenv("WORKER_POLL_INTERVAL", "1000"))
+    enable_hitl = os.getenv("ENABLE_HITL_WORKER", "true").lower() == "true"
 
     logger.info("=" * 80)
     logger.info("Starting Conductor Workers")
@@ -55,6 +65,7 @@ def main():
     logger.info(f"Conductor Server: {conductor_url}")
     logger.info(f"Worker Threads: {thread_count}")
     logger.info(f"Poll Interval: {poll_interval}ms")
+    logger.info(f"HITL Worker Enabled: {enable_hitl}")
     logger.info("-" * 80)
 
     # Configure Conductor client
@@ -64,13 +75,18 @@ def main():
         authentication_settings=None,
     )
 
-    # Initialize all workers
+    # Initialize core workers
     workers = [
         ExtractionWorker(),
         PythonWorker(),
         HttpRequestWorker(),
         ConditionWorker(),
     ]
+
+    # Add HITL worker if enabled
+    if enable_hitl:
+        workers.append(HumanReviewWorker())
+        logger.info("HITL Worker enabled - HumanReviewWorker will handle HUMAN_REVIEW tasks")
 
     logger.info("Initialized workers:")
     for worker in workers:

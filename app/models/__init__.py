@@ -36,6 +36,10 @@ from app.models.workflow import (
     WorkflowNodeExecution,
 )
 
+# HITL (Human-in-the-Loop) models
+from app.models.review_request import ReviewRequest
+from app.models.review_correction import ReviewCorrection
+
 __all__ = [
     "Document",
     "DocumentPage",
@@ -65,4 +69,7 @@ __all__ = [
     "WorkflowVersion",
     "WorkflowExecution",
     "WorkflowNodeExecution",
+    # HITL (Human-in-the-Loop)
+    "ReviewRequest",
+    "ReviewCorrection",
 ]

@@ -4,11 +4,29 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DocumentResponse(BaseModel):
     """Response model for a single document."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        ser_json_by_alias=False,
+        json_schema_extra={
+            "example": {
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "filename": "invoice.pdf",
+                "mime_type": "application/pdf",
+                "size_bytes": 245678,
+                "status": "ready_for_extraction",
+                "page_count": 3,
+                "metadata": {},
+                "created_at": "2025-11-02T10:30:00Z",
+            }
+        }
+    )
 
     document_id: UUID = Field(..., description="Unique document identifier")
     filename: str = Field(..., description="Original filename")
@@ -23,28 +41,11 @@ class DocumentResponse(BaseModel):
     )
     created_at: datetime = Field(..., description="Upload timestamp")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        populate_by_name = True  # Allow populating by both field name and alias
-        by_alias = False  # Serialize using field name, not alias
-        json_schema_extra = {
-            "example": {
-                "document_id": "550e8400-e29b-41d4-a716-446655440000",
-                "filename": "invoice.pdf",
-                "mime_type": "application/pdf",
-                "size_bytes": 245678,
-                "status": "ready_for_extraction",
-                "page_count": 3,
-                "metadata": {},
-                "created_at": "2025-11-02T10:30:00Z",
-            }
-        }
-
 
 class DocumentUploadResponse(BaseModel):
     """Response model for document upload."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     document_id: UUID = Field(..., description="Unique document identifier")
     filename: str = Field(..., description="Uploaded filename")
@@ -54,24 +55,12 @@ class DocumentUploadResponse(BaseModel):
     page_count: Optional[int] = Field(None, description="Number of pages (for PDFs)")
     created_at: datetime = Field(..., description="Upload timestamp")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-
 
 class DocumentListResponse(BaseModel):
     """Response model for listing documents."""
 
-    documents: list[DocumentResponse] = Field(..., description="List of documents")
-    total: int = Field(..., description="Total number of documents")
-    limit: int = Field(..., description="Results per page")
-    offset: int = Field(..., description="Offset for pagination")
-
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "documents": [
                     {
@@ -90,3 +79,9 @@ class DocumentListResponse(BaseModel):
                 "offset": 0,
             }
         }
+    )
+
+    documents: list[DocumentResponse] = Field(..., description="List of documents")
+    total: int = Field(..., description="Total number of documents")
+    limit: int = Field(..., description="Results per page")
+    offset: int = Field(..., description="Offset for pagination")

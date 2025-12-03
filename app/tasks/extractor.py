@@ -13,6 +13,7 @@ from app.database import SessionLocal
 from app.models import ExtractionJob, ExtractionResult, DocumentPage, Document
 from app.services.storage import get_storage_service
 from app.services.vllm_service import get_vllm_service
+from app.services.hitl_service import HITLService
 
 logger = logging.getLogger(__name__)
 
@@ -248,14 +249,53 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
             db.add(extraction_result)
             results = [result]
 
-        # Update job status
+        # Get overall confidence score from results
+        if results:
+            avg_confidence = sum(r.get("confidence_score", 1.0) for r in results) / len(results)
+        else:
+            avg_confidence = 1.0
+
+        # Update job status with confidence score
         job.status = "completed"
         job.completed_at = datetime.utcnow()
+        job.confidence_score = avg_confidence
 
         # Update document status
         document.status = "completed"
 
         db.commit()
+
+        # --- HITL AUTO-ROUTING ---
+        # Check if human review is needed based on confidence threshold
+        try:
+            hitl_service = HITLService(db)
+            needs_review = hitl_service.should_request_review(
+                extraction_job=job,
+                workflow_config=None  # No workflow-specific config in standard extraction
+            )
+
+            if needs_review:
+                # Create review request (priority is calculated internally)
+                review_request = hitl_service.create_review_request(
+                    extraction_job_id=job.id,
+                    trigger_reason=f"auto_low_confidence:{avg_confidence:.3f}"
+                )
+                logger.info(
+                    f"Created HITL review request {review_request.id} for job {job.id} "
+                    f"(confidence: {avg_confidence:.3f}, priority: {review_request.priority})"
+                )
+        except ValueError as e:
+            # Review might already exist (re-processing) - log and continue
+            logger.warning(
+                f"Could not create HITL review request for job {job.id}: {str(e)}"
+            )
+        except Exception as e:
+            # Log but don't fail the extraction if HITL routing fails
+            logger.error(
+                f"Failed to create HITL review request for job {job.id}: {str(e)}",
+                exc_info=True
+            )
+        # --- END HITL AUTO-ROUTING ---
 
         # --- CREDIT BILLING NOTE ---
         # Credits are now deducted SYNCHRONOUSLY in the API endpoint (app/api/documents.py)

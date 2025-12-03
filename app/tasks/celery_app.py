@@ -26,6 +26,17 @@ celery_app.conf.update(
     task_soft_time_limit=540,  # 9 minutes soft limit
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
+    # Beat schedule for periodic tasks (HITL SLA monitoring)
+    beat_schedule={
+        'check-sla-breaches-every-5-minutes': {
+            'task': 'app.tasks.sla_monitor.check_sla_breaches',
+            'schedule': 300.0,  # Every 5 minutes (300 seconds)
+            'options': {
+                'queue': 'default',
+                'expires': 290,  # Expire before next scheduled run
+            }
+        },
+    },
 )
 
 # Auto-discover tasks

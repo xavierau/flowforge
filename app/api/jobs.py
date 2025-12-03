@@ -1,11 +1,14 @@
 """Job status and results endpoints."""
 
 from uuid import UUID
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import json
+
+logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.database import get_db
@@ -196,7 +199,27 @@ async def extract_from_file(
     # Determine initial status and page count
     is_pdf = file.content_type == settings.allowed_pdf_type
     status = "uploaded"  # Always start as uploaded for combined flow
-    page_count = None  # Will be set by PDF processor
+    page_count = None  # Default for non-PDF files
+
+    # CRITICAL FIX: For PDFs, extract page count BEFORE credit deduction
+    # This ensures accurate credit calculation for per_page mode
+    if is_pdf:
+        try:
+            from app.utils.pdf_utils import get_pdf_page_count
+
+            # Download the uploaded file to count pages
+            pdf_bytes = storage.download_file_sync(file_path)
+            page_count = get_pdf_page_count(pdf_bytes)
+
+            logger.info(f"PDF page count extracted: {page_count} pages for {file.filename}")
+        except Exception as e:
+            logger.error(f"Failed to extract PDF page count: {str(e)}", exc_info=True)
+            # Clean up uploaded file
+            storage.delete_file_sync(file_path)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to process PDF: {str(e)}"
+            )
 
     # Create document record with tenant isolation
     document = Document(
@@ -206,7 +229,7 @@ async def extract_from_file(
         size_bytes=size,
         file_path=file_path,
         status=status,
-        page_count=page_count,
+        page_count=page_count,  # Now set for PDFs
         metadata={},
     )
 
@@ -238,7 +261,7 @@ async def extract_from_file(
             enable_thinking=enable_thinking,
             thinking_budget=thinking_budget if enable_thinking else 0,
             status="queued",
-            credits_cost=page_count or 1,  # Set cost upfront
+            credits_cost=page_count or 1,  # Now accurate for PDFs (extracted above)
         )
 
         db.add(job)
@@ -246,9 +269,10 @@ async def extract_from_file(
 
         # Atomically validate and deduct credits
         # This acquires SELECT FOR UPDATE lock on tenant row
+        # page_count is now accurate for PDFs (extracted synchronously above)
         credit_transaction, required_credits = credit_validator.validate_and_deduct_credits(
             tenant_id=current_user.tenant_id,
-            page_count=page_count or 1,
+            page_count=page_count or 1,  # Accurate page count for PDFs
             job_id=job.id,
             document_id=document.id,
             user_id=current_user.id,

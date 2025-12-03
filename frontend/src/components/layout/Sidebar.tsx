@@ -24,6 +24,7 @@ import {
   Building,
   Users,
   Workflow,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,11 @@ const navItems: NavItem[] = [
     name: 'Jobs',
     path: '/jobs',
     icon: Briefcase,
+  },
+  {
+    name: 'Reviews',
+    path: '/reviews',
+    icon: ClipboardCheck,
   },
   {
     name: 'Workflows',

@@ -1,0 +1,107 @@
+# Docker Compose configuration for workflow engine integration tests
+# Uses different ports to avoid conflicts with development environment
+
+services:
+  # Test PostgreSQL Database
+  test-postgres:
+    image: postgres:16-alpine
+    container_name: test_workflow_db
+    environment:
+      POSTGRES_DB: test_workflow_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-network
+
+  # Test Redis for Celery
+  test-redis:
+    image: redis:7-alpine
+    container_name: test_workflow_redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-network
+
+  # Conductor Server for workflow orchestration tests
+  conductor-server:
+    image: conductoross/conductor:latest
+    container_name: test_conductor_server
+    environment:
+      - CONFIG_PROP=config-redis.properties
+      - CONDUCTOR_ELASTICSEARCH_URL=http://conductor-elasticsearch:9200
+      - CONDUCTOR_REDIS_HOSTS=conductor-redis:6379:us-east-1-1:0
+    ports:
+      - "8090:8080"
+      - "5001:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      conductor-elasticsearch:
+        condition: service_healthy
+      conductor-redis:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  # Elasticsearch for Conductor indexing
+  conductor-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.11
+    container_name: test_conductor_es
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1024m"
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+    volumes:
+      - test_esdata:/usr/share/elasticsearch/data
+    ports:
+      - "9202:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - test-network
+
+  # Redis for Conductor
+  conductor-redis:
+    image: redis:7-alpine
+    container_name: test_conductor_redis
+    ports:
+      - "7380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-network
+
+volumes:
+  test_postgres_data:
+    driver: local
+  test_esdata:
+    driver: local
+
+networks:
+  test-network:
+    driver: bridge

@@ -1,9 +1,12 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, invitations, subscriptions, admin, credits, workflows
+from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, invitations, subscriptions, admin, credits, workflows, reviews
 from app.config import settings
 from app.middleware.tenant_context import TenantContextMiddleware
 from app.middleware.admin_audit import AdminAuditMiddleware
@@ -12,6 +15,28 @@ from app.logging_config import setup_logging
 # Initialize logging
 setup_logging(log_dir=settings.log_dir, log_level=settings.log_level)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    print("🚀 AI Document Processing API starting...")
+    print(f"📊 Database: {settings.database_url.split('@')[-1]}")  # Hide credentials
+    print(f"💾 Storage: {settings.storage_type}")
+    print(f"🤖 VLLM Providers configured: ", end="")
+    providers = []
+    if settings.google_api_key:
+        providers.append("Google Gemini")
+    if settings.openai_api_key:
+        providers.append("OpenAI GPT-4V")
+    print(", ".join(providers) if providers else "None")
+
+    yield  # Application runs here
+
+    # Shutdown
+    print("👋 AI Document Processing API shutting down...")
+
+
 # Create FastAPI app
 app = FastAPI(
     title="AI Document Processing API",
@@ -19,6 +44,7 @@ app = FastAPI(
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS - Allow all origins
@@ -52,27 +78,7 @@ app.include_router(metrics.router, prefix="/api/v1", tags=["Metrics"])
 app.include_router(logging.router, prefix="/api/v1", tags=["Logging"])
 app.include_router(admin.router, prefix="/api/v1", tags=["Admin"])
 app.include_router(workflows.router, prefix="/api/v1", tags=["Workflows"])
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Run on application startup."""
-    print("🚀 AI Document Processing API starting...")
-    print(f"📊 Database: {settings.database_url.split('@')[-1]}")  # Hide credentials
-    print(f"💾 Storage: {settings.storage_type}")
-    print(f"🤖 VLLM Providers configured: ", end="")
-    providers = []
-    if settings.google_api_key:
-        providers.append("Google Gemini")
-    if settings.openai_api_key:
-        providers.append("OpenAI GPT-4V")
-    print(", ".join(providers) if providers else "None")
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    """Run on application shutdown."""
-    print("👋 AI Document Processing API shutting down...")
+app.include_router(reviews.router, prefix="/api/v1", tags=["Reviews"])
 
 
 if __name__ == "__main__":

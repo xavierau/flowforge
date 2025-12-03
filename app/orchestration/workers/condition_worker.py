@@ -37,14 +37,14 @@ class ConditionWorker(BaseWorker):
     - condition: The evaluated condition
     """
 
-    # Safe comparison operators
+    # Safe comparison operators (ordered by length - longer operators first)
     OPERATORS = {
-        "==": operator.eq,
-        "!=": operator.ne,
-        "<": operator.lt,
         "<=": operator.le,
-        ">": operator.gt,
         ">=": operator.ge,
+        "!=": operator.ne,
+        "==": operator.eq,
+        "<": operator.lt,
+        ">": operator.gt,
     }
 
     def __init__(self):
@@ -148,8 +148,20 @@ class ConditionWorker(BaseWorker):
         if len(parts) != 2:
             raise ValueError(f"Invalid comparison: {condition}")
 
-        left = self._resolve_value(parts[0].strip(), context)
-        right = self._resolve_value(parts[1].strip(), context)
+        left_str = parts[0].strip()
+        right_str = parts[1].strip()
+
+        # Check for invalid syntax (e.g., "a == == b")
+        if not left_str or not right_str:
+            raise ValueError(f"Invalid comparison: {condition}")
+
+        # Check if right side starts with another operator
+        for op in self.OPERATORS.keys():
+            if right_str.startswith(op):
+                raise ValueError(f"Invalid comparison syntax: {condition}")
+
+        left = self._resolve_value(left_str, context)
+        right = self._resolve_value(right_str, context)
 
         return op_func(left, right)
 

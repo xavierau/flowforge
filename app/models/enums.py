@@ -192,3 +192,51 @@ class MarkdownFormat(str, Enum):
     STANDARD = "standard"
     TABLE_HEAVY = "table_heavy"
     LAYOUT_PRESERVED = "layout_preserved"
+
+
+class ReviewRequestStatus(str, Enum):
+    """
+    Review request status lifecycle.
+
+    State machine:
+    pending → assigned → in_review → completed
+                ↓
+            cancelled/escalated
+    """
+    PENDING = "pending"
+    ASSIGNED = "assigned"
+    IN_REVIEW = "in_review"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    ESCALATED = "escalated"
+
+
+class ReviewPriority(str, Enum):
+    """
+    Review priority levels based on confidence scores.
+
+    Priority determines SLA deadlines:
+    - CRITICAL: < 0.30 confidence (1 hour SLA)
+    - HIGH: 0.30-0.50 confidence (2 hour SLA)
+    - NORMAL: 0.50-0.60 confidence (4 hour SLA)
+    - LOW: 0.60-0.70 confidence (8 hour SLA)
+    """
+    CRITICAL = "critical"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+
+
+class CorrectionType(str, Enum):
+    """
+    Types of corrections made during human review.
+
+    - VALUE_CHANGE: Field value was corrected
+    - FIELD_ADDITION: New field was added
+    - FIELD_REMOVAL: Field was removed (incorrect extraction)
+    - TYPE_CORRECTION: Data type was corrected
+    """
+    VALUE_CHANGE = "value_change"
+    FIELD_ADDITION = "field_addition"
+    FIELD_REMOVAL = "field_removal"
+    TYPE_CORRECTION = "type_correction"

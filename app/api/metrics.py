@@ -1,6 +1,7 @@
 """API endpoints for metrics and billing."""
 from datetime import datetime
 from typing import Optional
+import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.models.user import User
 from app.services.metrics_service import MetricsService
 from app.schemas.metrics import DashboardMetricsResponse, CompletedJobsResponse
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -111,6 +113,8 @@ async def get_completed_jobs(
     - total_pages: Total number of pages
     - total_cost: Sum of estimated costs for all jobs
     """
+    logger.info(f"[ENDPOINT] get_completed_jobs called - user: {current_user.email}, tenant: {current_user.tenant_id}, page: {page}, page_size: {page_size}")
+
     service = MetricsService(db)
     return service.get_completed_jobs(
         tenant_id=str(current_user.tenant_id),

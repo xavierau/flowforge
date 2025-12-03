@@ -4,24 +4,23 @@ from datetime import datetime
 from typing import Any, Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ModelConfig(BaseModel):
     """Model configuration for extraction."""
 
-    provider: str = Field(..., description="VLLM provider (google or openai)")
-    model: str = Field(..., description="Model name")
-
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "provider": "google",
                 "model": "gemini-2.5-flash",
             }
         }
+    )
+
+    provider: str = Field(..., description="VLLM provider (google or openai)")
+    model: str = Field(..., description="Model name")
 
 
 class ParseRequest(BaseModel):
@@ -56,10 +55,8 @@ class ParseRequest(BaseModel):
         None, description="Optional webhook URL to POST results to when job completes"
     )
 
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "extraction_schema": {
                     "type": "object",
@@ -90,24 +87,15 @@ class ParseRequest(BaseModel):
                 "callback_url": "https://example.com/webhooks/extraction-complete",
             }
         }
+    )
 
 
 class ParseResponse(BaseModel):
     """Response model for parse request."""
 
-    extraction_job_id: UUID = Field(..., description="Unique job identifier")
-    document_id: UUID = Field(..., description="Document being processed")
-    status: str = Field(..., description="Job status")
-    estimated_time_seconds: int = Field(
-        ..., description="Estimated processing time"
-    )
-    created_at: datetime = Field(..., description="Job creation timestamp")
-
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "extraction_job_id": "660e8400-e29b-41d4-a716-446655440000",
                 "document_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -116,6 +104,15 @@ class ParseResponse(BaseModel):
                 "created_at": "2025-11-02T10:31:00Z",
             }
         }
+    )
+
+    extraction_job_id: UUID = Field(..., description="Unique job identifier")
+    document_id: UUID = Field(..., description="Document being processed")
+    status: str = Field(..., description="Job status")
+    estimated_time_seconds: int = Field(
+        ..., description="Estimated processing time"
+    )
+    created_at: datetime = Field(..., description="Job creation timestamp")
 
 
 class ExtractRequest(BaseModel):
@@ -150,10 +147,8 @@ class ExtractRequest(BaseModel):
         None, description="Optional webhook URL to POST results to when job completes"
     )
 
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "schema_definition_id": "550e8400-e29b-41d4-a716-446655440000",
                 "custom_prompt": "Extract invoice details accurately",
@@ -165,10 +160,25 @@ class ExtractRequest(BaseModel):
                 "callback_url": "https://example.com/webhooks/extraction-complete",
             }
         }
+    )
 
 
 class ExtractResponse(BaseModel):
     """Response model for combined extract request."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "extraction_job_id": "660e8400-e29b-41d4-a716-446655440000",
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "queued",
+                "message": "Document uploaded and extraction job queued",
+                "estimated_time_seconds": 30,
+                "created_at": "2025-11-03T10:31:00Z",
+            }
+        }
+    )
 
     extraction_job_id: UUID = Field(..., description="Unique job identifier")
     document_id: UUID = Field(..., description="Document being processed")
@@ -179,24 +189,27 @@ class ExtractResponse(BaseModel):
     )
     created_at: datetime = Field(..., description="Job creation timestamp")
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "extraction_job_id": "660e8400-e29b-41d4-a716-446655440000",
-                "document_id": "550e8400-e29b-41d4-a716-446655440000",
-                "status": "queued",
-                "message": "Document uploaded and extraction job queued",
-                "estimated_time_seconds": 30,
-                "created_at": "2025-11-03T10:31:00Z",
-            }
-        }
-
 
 class DocumentPageResponse(BaseModel):
     """Response model for document page with markdown content."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "770e8400-e29b-41d4-a716-446655440000",
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "page_number": 1,
+                "image_path": "documents/example.png",
+                "preprocessed_image_path": "documents/example_preprocessed.png",
+                "markdown_content": "<!-- PAGE 1 -->\n# Invoice\n...",
+                "markdown_provider": "gemini_vision",
+                "markdown_generated_at": "2025-11-17T10:31:00Z",
+                "status": "completed",
+                "created_at": "2025-11-17T10:30:00Z",
+            }
+        }
+    )
 
     id: UUID = Field(..., description="Page unique identifier")
     document_id: UUID = Field(..., description="Parent document ID")
@@ -216,22 +229,3 @@ class DocumentPageResponse(BaseModel):
     )
     status: str = Field(..., description="Page processing status")
     created_at: datetime = Field(..., description="Page creation timestamp")
-
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "id": "770e8400-e29b-41d4-a716-446655440000",
-                "document_id": "550e8400-e29b-41d4-a716-446655440000",
-                "page_number": 1,
-                "image_path": "documents/example.png",
-                "preprocessed_image_path": "documents/example_preprocessed.png",
-                "markdown_content": "<!-- PAGE 1 -->\n# Invoice\n...",
-                "markdown_provider": "gemini_vision",
-                "markdown_generated_at": "2025-11-17T10:31:00Z",
-                "status": "completed",
-                "created_at": "2025-11-17T10:30:00Z",
-            }
-        }

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, List, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import (
     NodeType,
@@ -32,15 +32,13 @@ class ValidationError(BaseModel):
 class BaseNodeData(BaseModel):
     """Base node data interface with common properties."""
 
+    model_config = ConfigDict(populate_by_name=True, use_enum_values=True)
+
     label: str
     type: NodeType
     is_valid: bool = Field(default=True, alias="isValid")
     errors: List[ValidationError] = Field(default_factory=list)
     output_data: Optional[dict[str, Any]] = Field(None, alias="outputData")
-
-    class Config:
-        populate_by_name = True
-        use_enum_values = True
 
 
 class HttpTriggerNodeData(BaseNodeData):
@@ -52,12 +50,11 @@ class HttpTriggerNodeData(BaseNodeData):
 class ExtractionNodeConfig(BaseModel):
     """Extraction node configuration."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     file_source: Literal["previous_node", "url", "base64"] = Field(alias="fileSource")
     prompt: str
     schema_id: str = Field(alias="schemaId")
-
-    class Config:
-        populate_by_name = True
 
 
 class ExtractionNodeData(BaseNodeData):
@@ -91,12 +88,11 @@ class HttpHeader(BaseModel):
 class HttpRequestNodeConfig(BaseModel):
     """HttpRequest node configuration."""
 
+    model_config = ConfigDict(use_enum_values=True)
+
     url: str
     method: HttpMethod
     headers: List[HttpHeader] = Field(default_factory=list)
-
-    class Config:
-        use_enum_values = True
 
 
 class HttpRequestNodeData(BaseNodeData):
@@ -144,17 +140,18 @@ class Position(BaseModel):
 class WorkflowNode(BaseModel):
     """Workflow node with typed data (matches @xyflow/react Node)."""
 
+    model_config = ConfigDict(use_enum_values=True)
+
     id: str
     type: str
     position: Position
     data: WorkflowNodeData
 
-    class Config:
-        use_enum_values = True
-
 
 class WorkflowEdge(BaseModel):
     """Workflow edge (connection between nodes)."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     source: str
@@ -164,9 +161,6 @@ class WorkflowEdge(BaseModel):
     target_handle: Optional[str] = Field(None, alias="targetHandle")
     label: Optional[str] = None
     type: Optional[str] = None
-
-    class Config:
-        populate_by_name = True
 
 
 class WorkflowDefinition(BaseModel):
@@ -200,17 +194,18 @@ class WorkflowCreateRequest(BaseModel):
 class WorkflowUpdateRequest(BaseModel):
     """Request to update an existing workflow."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     definition: Optional[WorkflowDefinition] = None
     is_active: Optional[bool] = Field(None, alias="isActive")
 
-    class Config:
-        populate_by_name = True
-
 
 class WorkflowVersionResponse(BaseModel):
     """Workflow version response."""
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
     id: UUID
     workflow_id: UUID = Field(alias="workflowId")
@@ -219,13 +214,11 @@ class WorkflowVersionResponse(BaseModel):
     conductor_workflow_name: Optional[str] = Field(None, alias="conductorWorkflowName")
     created_at: datetime = Field(alias="createdAt")
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
-
 
 class WorkflowResponse(BaseModel):
     """Workflow response with current version."""
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
     id: UUID
     tenant_id: UUID = Field(alias="tenantId")
@@ -238,21 +231,16 @@ class WorkflowResponse(BaseModel):
     # Include current version details
     current_version: Optional[WorkflowVersionResponse] = Field(None, alias="currentVersion")
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
-
 
 class WorkflowListResponse(BaseModel):
     """Paginated list of workflows."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     workflows: List[WorkflowResponse]
     total: int
     page: int
     page_size: int = Field(alias="pageSize")
-
-    class Config:
-        populate_by_name = True
 
 
 # ============================================================================
@@ -263,16 +251,17 @@ class WorkflowListResponse(BaseModel):
 class ExecuteWorkflowRequest(BaseModel):
     """Request to execute a workflow."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     input_data: dict[str, Any] = Field(default_factory=dict, alias="inputData")
     # Optional: specify version to execute (defaults to current version)
     version_number: Optional[int] = Field(None, alias="versionNumber")
 
-    class Config:
-        populate_by_name = True
-
 
 class WorkflowNodeExecutionResponse(BaseModel):
     """Individual node execution response."""
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, use_enum_values=True)
 
     id: UUID
     node_id: str = Field(alias="nodeId")
@@ -287,14 +276,11 @@ class WorkflowNodeExecutionResponse(BaseModel):
     started_at: Optional[datetime] = Field(None, alias="startedAt")
     completed_at: Optional[datetime] = Field(None, alias="completedAt")
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
-        use_enum_values = True
-
 
 class WorkflowExecutionResponse(BaseModel):
     """Workflow execution response."""
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, use_enum_values=True)
 
     id: UUID
     workflow_id: UUID = Field(alias="workflowId")
@@ -312,22 +298,16 @@ class WorkflowExecutionResponse(BaseModel):
         None, alias="nodeExecutions"
     )
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
-        use_enum_values = True
-
 
 class WorkflowExecutionListResponse(BaseModel):
     """Paginated list of workflow executions."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     executions: List[WorkflowExecutionResponse]
     total: int
     page: int
     page_size: int = Field(alias="pageSize")
-
-    class Config:
-        populate_by_name = True
 
 
 # ============================================================================
@@ -342,12 +322,11 @@ class WorkflowWebhookRequest(BaseModel):
     This matches the runtime data structure expected by HttpTrigger nodes.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     prompt: str
     file_url: Optional[str] = Field(None, alias="fileUrl")
     base64: Optional[str] = None
     callback_url: Optional[str] = Field(None, alias="callbackUrl")
     # Additional arbitrary data
     data: dict[str, Any] = Field(default_factory=dict)
-
-    class Config:
-        populate_by_name = True

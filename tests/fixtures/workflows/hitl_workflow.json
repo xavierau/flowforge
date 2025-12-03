@@ -1,0 +1,69 @@
+{
+  "name": "test_hitl_workflow",
+  "description": "Human-in-the-loop workflow for testing review functionality",
+  "version": 1,
+  "schemaVersion": 2,
+  "inputParameters": [
+    "document_id",
+    "extraction_job_id",
+    "schema",
+    "tenant_id",
+    "force_review"
+  ],
+  "outputParameters": {
+    "final_data": "${finalize_with_corrections.output.final_data}",
+    "review_completed": "${finalize_with_corrections.output.review_completed}",
+    "corrections_count": "${finalize_with_corrections.output.corrections_count}",
+    "quality_score": "${finalize_with_corrections.output.quality_score}"
+  },
+  "tasks": [
+    {
+      "name": "extract_document",
+      "taskReferenceName": "extract_document",
+      "type": "SIMPLE",
+      "inputParameters": {
+        "document_id": "${workflow.input.document_id}",
+        "schema": "${workflow.input.schema}",
+        "tenant_id": "${workflow.input.tenant_id}",
+        "provider": "google",
+        "model": "gemini-2.5-flash"
+      }
+    },
+    {
+      "name": "human_review",
+      "taskReferenceName": "human_review",
+      "type": "SIMPLE",
+      "inputParameters": {
+        "extraction_job_id": "${workflow.input.extraction_job_id}",
+        "extracted_data": "${extract_document.output.extracted_data}",
+        "confidence_score": "${extract_document.output.confidence_score}",
+        "tenant_id": "${workflow.input.tenant_id}",
+        "priority": "NORMAL",
+        "assignment_strategy": "round_robin",
+        "reviewer_pool": [],
+        "timeout_seconds": 14400,
+        "conductor_workflow_id": "${workflow.workflowId}",
+        "conductor_task_id": "${task.taskId}"
+      },
+      "asyncComplete": true
+    },
+    {
+      "name": "finalize_with_corrections",
+      "taskReferenceName": "finalize_with_corrections",
+      "type": "SIMPLE",
+      "inputParameters": {
+        "extraction_job_id": "${workflow.input.extraction_job_id}",
+        "original_data": "${extract_document.output.extracted_data}",
+        "corrected_data": "${human_review.output.corrected_data}",
+        "review_status": "${human_review.output.review_status}",
+        "corrections": "${human_review.output.corrections}",
+        "quality_score": "${human_review.output.quality_score}",
+        "tenant_id": "${workflow.input.tenant_id}"
+      }
+    }
+  ],
+  "restartable": true,
+  "workflowStatusListenerEnabled": true,
+  "timeoutPolicy": "ALERT_ONLY",
+  "timeoutSeconds": 86400
+}

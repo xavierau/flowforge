@@ -14,9 +14,8 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
@@ -42,15 +41,29 @@ from app.models.enums import (
 
 @pytest.fixture(scope="function")
 def db_engine():
-    """Create in-memory SQLite database engine for testing."""
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
+    """Create PostgreSQL database engine for testing.
+
+    Uses PostgreSQL to ensure tests accurately reflect production behavior,
+    especially for JSONB columns and PostgreSQL-specific features.
+    """
+    postgres_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        "postgresql://postgres:password@localhost:5432/ai_document_processing_test"
     )
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
+
+    try:
+        engine = create_engine(postgres_url)
+        # Verify connection works
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+
+        # Clean slate for each test
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        yield engine
+        Base.metadata.drop_all(bind=engine)
+    except Exception as e:
+        pytest.skip(f"PostgreSQL required for tests with JSONB columns: {e}")
 
 
 @pytest.fixture(scope="function")
@@ -391,9 +404,11 @@ def sample_extracted_invoice_data() -> Dict[str, Any]:
 def mock_google_api_key(monkeypatch):
     """Mock Google API key in settings."""
     monkeypatch.setenv("GOOGLE_API_KEY", "test_google_api_key")
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     from app.config import settings
 
     settings.google_api_key = "test_google_api_key"
+    settings.dashscope_api_key = ""
     return settings
 
 
@@ -401,9 +416,11 @@ def mock_google_api_key(monkeypatch):
 def mock_openai_api_key(monkeypatch):
     """Mock OpenAI API key in settings."""
     monkeypatch.setenv("OPENAI_API_KEY", "test_openai_api_key")
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     from app.config import settings
 
     settings.openai_api_key = "test_openai_api_key"
+    settings.dashscope_api_key = ""
     return settings
 
 
@@ -412,10 +429,12 @@ def mock_both_api_keys(monkeypatch):
     """Mock both Google and OpenAI API keys."""
     monkeypatch.setenv("GOOGLE_API_KEY", "test_google_api_key")
     monkeypatch.setenv("OPENAI_API_KEY", "test_openai_api_key")
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     from app.config import settings
 
     settings.google_api_key = "test_google_api_key"
     settings.openai_api_key = "test_openai_api_key"
+    settings.dashscope_api_key = ""
     return settings
 
 
