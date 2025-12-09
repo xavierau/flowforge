@@ -54,8 +54,9 @@ if ! command_exists docker; then
     exit 1
 fi
 
-if ! command_exists docker-compose; then
-    print_error "docker-compose is not installed. Please install docker-compose first."
+# Check for docker compose (v2 plugin) or docker-compose (standalone)
+if ! docker compose version >/dev/null 2>&1 && ! command_exists docker-compose; then
+    print_error "Docker Compose is not installed. Please install Docker Compose first."
     exit 1
 fi
 
@@ -87,7 +88,7 @@ SERVICE=${1:-all}
 case $SERVICE in
     backend|api)
         print_info "Starting backend services (FastAPI + PostgreSQL + Redis)..."
-        docker-compose up
+        docker compose up
         ;;
 
     frontend|react)
@@ -117,7 +118,7 @@ tell application "Terminal"
     activate
 
     -- Backend
-    do script "cd \"$PWD\" && docker-compose up"
+    do script "cd \"$PWD\" && docker compose up"
 
     -- Frontend
     set frontendTab to do script "cd \"$PWD/frontend\" && npm run dev"
@@ -130,18 +131,18 @@ EOF
         else
             # Linux - try various terminal emulators
             if command_exists gnome-terminal; then
-                gnome-terminal --tab -- bash -c "docker-compose up; exec bash"
+                gnome-terminal --tab -- bash -c "docker compose up; exec bash"
                 gnome-terminal --tab -- bash -c "cd frontend && npm run dev; exec bash"
                 gnome-terminal --tab -- bash -c "cd marketing && npm run dev; exec bash"
             elif command_exists konsole; then
-                konsole --new-tab -e bash -c "docker-compose up; exec bash"
+                konsole --new-tab -e bash -c "docker compose up; exec bash"
                 konsole --new-tab -e bash -c "cd frontend && npm run dev; exec bash"
                 konsole --new-tab -e bash -c "cd marketing && npm run dev; exec bash"
             else
                 print_warning "Automatic terminal tab opening not supported on this system."
                 print_info "Please manually run these commands in separate terminals:"
                 echo ""
-                echo "  Terminal 1: docker-compose up"
+                echo "  Terminal 1: docker compose up"
                 echo "  Terminal 2: cd frontend && npm run dev"
                 echo "  Terminal 3: cd marketing && npm run dev"
             fi

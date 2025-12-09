@@ -34,10 +34,10 @@ if [ "$1" == "docker" ]; then
 
     # Build and start containers
     echo -e "${YELLOW}Building containers...${NC}"
-    docker-compose build
+    docker compose build
 
     echo -e "${YELLOW}Starting services...${NC}"
-    docker-compose up -d
+    docker compose up -d
 
     # Wait for services to be healthy
     echo -e "${YELLOW}Waiting for services to be ready...${NC}"
@@ -45,9 +45,9 @@ if [ "$1" == "docker" ]; then
 
     # Check if migrations need to be run
     echo -e "${YELLOW}Checking database migrations...${NC}"
-    if ! docker-compose exec -T api alembic current > /dev/null 2>&1; then
+    if ! docker compose exec -T api alembic current > /dev/null 2>&1; then
         echo -e "${YELLOW}Running database migrations...${NC}"
-        docker-compose exec -T api alembic upgrade head
+        docker compose exec -T api alembic upgrade head
     fi
 
     echo ""
@@ -59,28 +59,36 @@ if [ "$1" == "docker" ]; then
     echo "   Health:  http://localhost:8000/health"
     echo ""
     echo "📝 View logs:"
-    echo "   docker-compose logs -f api"
-    echo "   docker-compose logs -f worker"
+    echo "   docker compose logs -f api"
+    echo "   docker compose logs -f worker"
     echo ""
     echo "🛑 Stop services:"
-    echo "   docker-compose down"
+    echo "   docker compose down"
 
 else
     echo -e "${GREEN}Starting in local development mode...${NC}"
     echo ""
 
+    # Check if uv is installed
+    if ! command -v uv &> /dev/null; then
+        echo -e "${RED}Error: uv is not installed!${NC}"
+        echo "Install uv with:"
+        echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+        exit 1
+    fi
+
     # Check if virtual environment exists
-    if [ ! -d "venv" ]; then
+    if [ ! -d ".venv" ]; then
         echo -e "${YELLOW}Creating virtual environment...${NC}"
-        python3 -m venv venv
+        uv venv
     fi
 
     # Activate virtual environment
     source .venv/bin/activate
 
-    # Install dependencies
+    # Install dependencies using uv
     echo -e "${YELLOW}Installing dependencies...${NC}"
-    pip install -q -e ".[dev]"
+    uv sync
 
     # Check if PostgreSQL is running
     echo -e "${YELLOW}Checking PostgreSQL connection...${NC}"
