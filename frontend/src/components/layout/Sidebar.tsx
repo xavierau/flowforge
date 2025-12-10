@@ -20,6 +20,7 @@ import {
   Briefcase,
   CreditCard,
   Key,
+  KeyRound,
   Shield,
   Building,
   Users,
@@ -68,6 +69,11 @@ const navItems: NavItem[] = [
     name: 'Workflows',
     path: '/workflows',
     icon: Workflow,
+  },
+  {
+    name: 'Credentials',
+    path: '/credentials',
+    icon: KeyRound,
   },
   {
     name: 'API Tokens',

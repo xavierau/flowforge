@@ -13,7 +13,7 @@ Tests cover:
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, MagicMock, patch
 from uuid import uuid4
 
@@ -343,7 +343,7 @@ class TestHumanReviewWorkerExecuteTask:
         existing_review = Mock()
         existing_review.id = uuid4()
         existing_review.priority = "high"
-        existing_review.sla_deadline = datetime.utcnow() + timedelta(hours=2)
+        existing_review.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=2)
         existing_review.conductor_task_id = None
 
         mock_session.query.return_value.filter.return_value.first.side_effect = [
@@ -420,7 +420,7 @@ class TestHumanReviewWorkerExecute:
             mock_create.return_value = {
                 "review_request_id": str(uuid4()),
                 "priority": "normal",
-                "sla_deadline": datetime.utcnow().isoformat(),
+                "sla_deadline": datetime.now(timezone.utc).isoformat(),
                 "message": "Created"
             }
 
@@ -452,7 +452,7 @@ class TestHumanReviewWorkerExecute:
             mock_create.return_value = {
                 "review_request_id": str(uuid4()),
                 "priority": "normal",
-                "sla_deadline": datetime.utcnow().isoformat(),
+                "sla_deadline": datetime.now(timezone.utc).isoformat(),
                 "message": "Created"
             }
 
@@ -483,7 +483,7 @@ class TestHumanReviewWorkerExecute:
             mock_create.return_value = {
                 "review_request_id": str(uuid4()),
                 "priority": "normal",
-                "sla_deadline": datetime.utcnow().isoformat(),
+                "sla_deadline": datetime.now(timezone.utc).isoformat(),
                 "message": "Created"
             }
 
@@ -622,7 +622,7 @@ class TestHumanReviewWorkerSLADeadline:
             None
         ]
 
-        expected_deadline = datetime.utcnow() + timedelta(hours=2)
+        expected_deadline = datetime.now(timezone.utc) + timedelta(hours=2)
         mock_review_class.calculate_sla_deadline.return_value = expected_deadline
 
         task_input = {

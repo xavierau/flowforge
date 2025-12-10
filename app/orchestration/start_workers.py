@@ -18,6 +18,8 @@ Workers Started:
     - HttpRequestWorker: HTTP requests
     - ConditionWorker: Conditional evaluation
     - HumanReviewWorker: Human-in-the-loop review (HITL)
+    - LoopWorker: Array iteration with n8n-style context
+    - LLMWorker: General-purpose LLM completions
 """
 
 import os
@@ -32,6 +34,8 @@ from app.orchestration.workers import (
     HttpRequestWorker,
     ConditionWorker,
     HumanReviewWorker,
+    LoopWorker,
+    LLMWorker,
 )
 
 # Configure logging
@@ -81,6 +85,8 @@ def main():
         PythonWorker(),
         HttpRequestWorker(),
         ConditionWorker(),
+        LoopWorker(),
+        LLMWorker(),
     ]
 
     # Add HITL worker if enabled

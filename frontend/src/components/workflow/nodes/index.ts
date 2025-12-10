@@ -8,3 +8,6 @@ export { PythonRunnerNode } from './PythonRunnerNode';
 export { HttpRequestNode } from './HttpRequestNode';
 export { IfNode } from './IfNode';
 export { JoinNode } from './JoinNode';
+export { LoopNode } from './LoopNode';
+export { LLMNode } from './LLMNode';
+export { HumanReviewNode } from './HumanReviewNode';

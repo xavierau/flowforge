@@ -15,6 +15,9 @@ export enum NodeType {
   HttpRequest = 'httpRequest',
   If = 'if',
   Join = 'join',
+  Loop = 'loop',
+  LLM = 'llm',
+  HumanReview = 'humanReview',
 }
 
 /**
@@ -128,6 +131,72 @@ export interface JoinNodeData extends BaseNodeData {
 }
 
 /**
+ * Loop node configuration
+ * Iterates over an array expression and executes child workflow for each item
+ */
+export interface LoopNodeData extends BaseNodeData {
+  type: NodeType.Loop;
+  config: {
+    /** Expression that evaluates to an array, e.g., "{{$('Extraction').data.line_items}}" */
+    arrayExpression: string;
+    /** Maximum iterations to prevent infinite loops (default: 1000) */
+    maxIterations?: number;
+    /** Whether to continue processing remaining items if one fails */
+    continueOnError?: boolean;
+  };
+}
+
+/**
+ * LLM provider options
+ */
+export type LLMProvider = 'google' | 'openai';
+
+/**
+ * LLM node configuration
+ * Executes an LLM prompt with data from previous nodes
+ */
+export interface LLMNodeData extends BaseNodeData {
+  type: NodeType.LLM;
+  config: {
+    /** LLM provider to use */
+    provider: LLMProvider;
+    /** Model name (e.g., 'gemini-2.5-flash', 'gpt-4o') */
+    model: string;
+    /** Main prompt template (supports expressions) */
+    prompt: string;
+    /** System prompt for context setting */
+    systemPrompt?: string;
+    /** Temperature for response randomness (0.0-2.0, default: 0.7) */
+    temperature?: number;
+    /** Maximum tokens in response (default: 1024) */
+    maxTokens?: number;
+  };
+}
+
+/**
+ * Human review priority levels
+ */
+export type HumanReviewPriority = 'critical' | 'high' | 'normal' | 'low';
+
+/**
+ * HumanReview node configuration
+ * Pauses workflow execution for human review/approval (Human-in-the-Loop)
+ */
+export interface HumanReviewNodeData extends BaseNodeData {
+  type: NodeType.HumanReview;
+  config: {
+    /** Instructions for the human reviewer */
+    instructions: string;
+    /** Priority level for the review task */
+    priority?: HumanReviewPriority;
+    /** Timeout in hours before escalation (default: 4) */
+    timeoutHours?: number;
+    /** Fields that must be reviewed/validated */
+    requiredFields?: string[];
+  };
+}
+
+/**
  * Union type for all node data types
  */
 export type WorkflowNodeData =
@@ -136,7 +205,10 @@ export type WorkflowNodeData =
   | PythonRunnerNodeData
   | HttpRequestNodeData
   | IfNodeData
-  | JoinNodeData;
+  | JoinNodeData
+  | LoopNodeData
+  | LLMNodeData
+  | HumanReviewNodeData;
 
 /**
  * Workflow node with typed data
@@ -304,6 +376,18 @@ export function isIfNode(data: WorkflowNodeData): data is IfNodeData {
 
 export function isJoinNode(data: WorkflowNodeData): data is JoinNodeData {
   return data.type === NodeType.Join;
+}
+
+export function isLoopNode(data: WorkflowNodeData): data is LoopNodeData {
+  return data.type === NodeType.Loop;
+}
+
+export function isLLMNode(data: WorkflowNodeData): data is LLMNodeData {
+  return data.type === NodeType.LLM;
+}
+
+export function isHumanReviewNode(data: WorkflowNodeData): data is HumanReviewNodeData {
+  return data.type === NodeType.HumanReview;
 }
 
 // ============================================================================

@@ -99,6 +99,9 @@ class NodeType(str, Enum):
     - HTTP_REQUEST: Make HTTP requests
     - IF: Conditional branching
     - JOIN: Synchronization barrier for parallel branches
+    - LOOP: n8n-style array iteration (for each item)
+    - LLM: General-purpose LLM prompt/response
+    - HUMAN_REVIEW: Human-in-the-loop review node
     """
     HTTP_TRIGGER = "httpTrigger"
     EXTRACTION = "extraction"
@@ -106,6 +109,9 @@ class NodeType(str, Enum):
     HTTP_REQUEST = "httpRequest"
     IF = "if"
     JOIN = "join"
+    LOOP = "loop"
+    LLM = "llm"
+    HUMAN_REVIEW = "humanReview"
 
 
 class HttpMethod(str, Enum):

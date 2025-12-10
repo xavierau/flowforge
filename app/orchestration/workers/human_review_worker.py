@@ -23,7 +23,7 @@ Conductor HUMAN Task Documentation:
 """
 
 from typing import Any, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from conductor.client.worker.worker_task import WorkerTask
@@ -115,7 +115,7 @@ class HumanReviewWorker(BaseWorker):
         task_result = self.get_task_result_from_task(task)
         task_id = task.task_id
         workflow_id = task.workflow_instance_id
-        execution_start = datetime.utcnow()
+        execution_start = datetime.now(timezone.utc)
 
         try:
             self._logger.info(
@@ -150,14 +150,14 @@ class HumanReviewWorker(BaseWorker):
             task_result.add_output_data("message", output["message"])
             task_result.add_output_data("callback_after_seconds", self.DEFAULT_TIMEOUT_SECONDS)
 
-            execution_time = (datetime.utcnow() - execution_start).total_seconds()
+            execution_time = (datetime.now(timezone.utc) - execution_start).total_seconds()
             self._logger.info(
                 f"HUMAN_REVIEW task initialized in {execution_time:.2f}s "
                 f"(task_id: {task_id}, review_request_id: {output['review_request_id']})"
             )
 
         except Exception as e:
-            execution_time = (datetime.utcnow() - execution_start).total_seconds()
+            execution_time = (datetime.now(timezone.utc) - execution_start).total_seconds()
             error_msg = f"HUMAN_REVIEW task failed: {str(e)}"
             self._logger.error(
                 f"HUMAN_REVIEW task failed after {execution_time:.2f}s "
@@ -236,7 +236,7 @@ class HumanReviewWorker(BaseWorker):
                 if not existing_review.conductor_task_id and conductor_task_id:
                     existing_review.conductor_task_id = conductor_task_id
                     existing_review.conductor_workflow_id = conductor_workflow_id
-                    existing_review.updated_at = datetime.utcnow()
+                    existing_review.updated_at = datetime.now(timezone.utc)
                     db.commit()
                     db.refresh(existing_review)
 
@@ -264,8 +264,8 @@ class HumanReviewWorker(BaseWorker):
                 conductor_task_id=conductor_task_id,
                 conductor_workflow_id=conductor_workflow_id,
                 sla_deadline=sla_deadline,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             )
 
             db.add(review_request)

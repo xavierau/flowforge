@@ -37,6 +37,7 @@ const ExecutionList = lazy(() => import('@/pages/workflows/ExecutionList').then(
 const ExecutionDetail = lazy(() => import('@/pages/workflows/ExecutionDetail').then(m => ({ default: m.ExecutionDetail })));
 const ReviewQueue = lazy(() => import('@/pages/ReviewQueue').then(m => ({ default: m.ReviewQueue })));
 const ReviewDetail = lazy(() => import('@/pages/ReviewDetail').then(m => ({ default: m.ReviewDetail })));
+const Credentials = lazy(() => import('@/pages/Credentials').then(m => ({ default: m.Credentials })));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const TenantList = lazy(() => import('@/pages/admin/TenantList').then(m => ({ default: m.TenantList })));
 const TenantDetail = lazy(() => import('@/pages/admin/TenantDetail').then(m => ({ default: m.TenantDetail })));
@@ -160,6 +161,16 @@ function App() {
             <ProtectedRoute>
               <AuthenticatedLayout>
                 <ApiTokens />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/credentials"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <Credentials />
               </AuthenticatedLayout>
             </ProtectedRoute>
           }

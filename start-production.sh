@@ -34,6 +34,10 @@ if [ ! -d ".venv" ]; then
     echo -e "${RED}Error: Virtual environment not found!${NC}"
     echo "Create it with:"
     echo "  uv venv"
+    echo "  uv sync"
+    echo ""
+    echo "Note: This project uses opencv-python-headless for server environments."
+    echo "If you encounter cv2 import errors, ensure you've run 'uv sync' after pulling latest changes."
     exit 1
 fi
 

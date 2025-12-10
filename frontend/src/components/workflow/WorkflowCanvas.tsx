@@ -31,6 +31,9 @@ import {
   HttpRequestNode,
   IfNode,
   JoinNode,
+  LoopNode,
+  LLMNode,
+  HumanReviewNode,
 } from '@/components/workflow/nodes';
 import {
   NodeType,
@@ -77,6 +80,9 @@ const nodeTypes: NodeTypes = {
   [NodeType.HttpRequest]: HttpRequestNode,
   [NodeType.If]: IfNode,
   [NodeType.Join]: JoinNode,
+  [NodeType.Loop]: LoopNode,
+  [NodeType.LLM]: LLMNode,
+  [NodeType.HumanReview]: HumanReviewNode,
 };
 
 /**

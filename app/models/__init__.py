@@ -35,6 +35,7 @@ from app.models.workflow import (
     WorkflowExecution,
     WorkflowNodeExecution,
 )
+from app.models.workflow_credential import WorkflowCredential
 
 # HITL (Human-in-the-Loop) models
 from app.models.review_request import ReviewRequest
@@ -69,6 +70,7 @@ __all__ = [
     "WorkflowVersion",
     "WorkflowExecution",
     "WorkflowNodeExecution",
+    "WorkflowCredential",
     # HITL (Human-in-the-Loop)
     "ReviewRequest",
     "ReviewCorrection",

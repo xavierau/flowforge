@@ -41,8 +41,15 @@ import {
   isHttpRequestNode,
   isIfNode,
   isJoinNode,
+  isLoopNode,
+  isLLMNode,
+  isHumanReviewNode,
   type HttpHeader,
+  type LLMProvider,
+  type HumanReviewPriority,
 } from '@/types/workflow';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
 import { ExpressionBuilder } from '@/components/workflow/ExpressionBuilder';
 import {
   getAvailableNodes,
@@ -159,6 +166,28 @@ export function NodeConfigPanel() {
             nodeId={selectedNode.id}
             edges={edges}
             allNodes={nodes}
+          />
+        )}
+        {isLoopNode(selectedNode.data) && (
+          <LoopConfig
+            nodeId={selectedNode.id}
+            data={selectedNode.data}
+            allNodes={nodes}
+            edges={edges}
+          />
+        )}
+        {isLLMNode(selectedNode.data) && (
+          <LLMConfig
+            nodeId={selectedNode.id}
+            data={selectedNode.data}
+            allNodes={nodes}
+            edges={edges}
+          />
+        )}
+        {isHumanReviewNode(selectedNode.data) && (
+          <HumanReviewConfig
+            nodeId={selectedNode.id}
+            data={selectedNode.data}
           />
         )}
 
@@ -967,6 +996,596 @@ function JoinConfig({
   }
 }`}
         </pre>
+      </div>
+    </div>
+  );
+}
+
+// Loop Config
+function LoopConfig({
+  nodeId,
+  data,
+  allNodes,
+  edges,
+}: {
+  nodeId: string;
+  data: import('@/types/workflow').LoopNodeData;
+  allNodes: import('@/types/workflow').WorkflowNode[];
+  edges: import('@/types/workflow').WorkflowEdge[];
+}) {
+  const { updateNodeData } = useWorkflowStore();
+
+  const availableNodes = useMemo(
+    () => getAvailableNodes(nodeId, allNodes, edges),
+    [nodeId, allNodes, edges]
+  );
+
+  const resolvedExpression = useMemo(
+    () =>
+      hasExpressions(data.config?.arrayExpression || '')
+        ? resolveExpressions(data.config.arrayExpression, allNodes)
+        : null,
+    [data.config?.arrayExpression, allNodes]
+  );
+
+  const handleConfigChange = (key: string, value: unknown) => {
+    updateNodeData(nodeId, {
+      config: { ...data.config, [key]: value },
+    });
+  };
+
+  const handleExpressionInsert = (expression: string) => {
+    const currentExpression = data.config?.arrayExpression || '';
+    handleConfigChange('arrayExpression', currentExpression + expression);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Info Section */}
+      <div
+        className="p-3 rounded-lg border"
+        style={{
+          backgroundColor: 'hsl(var(--muted))',
+          borderColor: 'hsl(var(--border))',
+        }}
+      >
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <p className="font-medium mb-1">Loop Node</p>
+            <p>
+              Iterates over an array and executes downstream nodes for each item.
+              Access current item with <code className="text-xs">{`{{$loop.item}}`}</code>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Array Expression */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="array-expression">Array Expression</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs max-w-xs">
+                  Expression that evaluates to an array:
+                  <br />
+                  <code className="text-xs">{`{{$("Extraction").data.line_items}}`}</code>
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Textarea
+          id="array-expression"
+          value={data.config?.arrayExpression || ''}
+          onChange={(e) => handleConfigChange('arrayExpression', e.target.value)}
+          placeholder='{{$("Extraction").data.items}}'
+          rows={2}
+          className="font-mono text-sm"
+        />
+        {availableNodes.length > 0 && (
+          <ExpressionBuilder
+            nodes={availableNodes}
+            onInsert={handleExpressionInsert}
+            variant="outline"
+            size="sm"
+          />
+        )}
+        {resolvedExpression && (
+          <div
+            className="p-2 rounded border text-xs"
+            style={{
+              backgroundColor: 'hsl(var(--muted))',
+              borderColor: 'hsl(var(--border))',
+            }}
+          >
+            <div className="font-medium mb-1">Preview:</div>
+            <div style={{ color: 'hsl(var(--muted-foreground))' }}>
+              {resolvedExpression}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Max Iterations */}
+      <div className="space-y-2">
+        <Label htmlFor="max-iterations">Max Iterations</Label>
+        <Input
+          id="max-iterations"
+          type="number"
+          value={data.config?.maxIterations || ''}
+          onChange={(e) => handleConfigChange('maxIterations', e.target.value ? parseInt(e.target.value, 10) : undefined)}
+          placeholder="1000 (default)"
+          min={1}
+          max={10000}
+        />
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Safety limit to prevent infinite loops
+        </p>
+      </div>
+
+      {/* Continue on Error */}
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="continue-on-error"
+          checked={data.config?.continueOnError || false}
+          onCheckedChange={(checked) => handleConfigChange('continueOnError', checked)}
+        />
+        <Label htmlFor="continue-on-error" className="text-sm font-normal cursor-pointer">
+          Continue on error
+        </Label>
+      </div>
+      <p className="text-xs -mt-2" style={{ color: 'hsl(var(--muted-foreground))' }}>
+        If enabled, continues processing remaining items even if one fails
+      </p>
+
+      {/* Loop Context Variables */}
+      <div
+        className="rounded-lg border p-3"
+        style={{
+          backgroundColor: 'hsl(var(--muted))',
+          borderColor: 'hsl(var(--border))',
+        }}
+      >
+        <p className="text-xs font-medium mb-2" style={{ color: 'hsl(var(--foreground))' }}>
+          Loop Context Variables:
+        </p>
+        <div className="grid grid-cols-2 gap-2 text-xs font-mono" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          <div>{`{{$loop.item}}`}</div>
+          <div>Current item</div>
+          <div>{`{{$loop.index}}`}</div>
+          <div>Current index (0-based)</div>
+          <div>{`{{$loop.first}}`}</div>
+          <div>Is first item</div>
+          <div>{`{{$loop.last}}`}</div>
+          <div>Is last item</div>
+          <div>{`{{$loop.length}}`}</div>
+          <div>Total array length</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// LLM Config
+function LLMConfig({
+  nodeId,
+  data,
+  allNodes,
+  edges,
+}: {
+  nodeId: string;
+  data: import('@/types/workflow').LLMNodeData;
+  allNodes: import('@/types/workflow').WorkflowNode[];
+  edges: import('@/types/workflow').WorkflowEdge[];
+}) {
+  const { updateNodeData } = useWorkflowStore();
+
+  const availableNodes = useMemo(
+    () => getAvailableNodes(nodeId, allNodes, edges),
+    [nodeId, allNodes, edges]
+  );
+
+  const resolvedPrompt = useMemo(
+    () =>
+      hasExpressions(data.config?.prompt || '')
+        ? resolveExpressions(data.config.prompt, allNodes)
+        : null,
+    [data.config?.prompt, allNodes]
+  );
+
+  const handleConfigChange = (key: string, value: unknown) => {
+    updateNodeData(nodeId, {
+      config: { ...data.config, [key]: value },
+    });
+  };
+
+  const handlePromptExpressionInsert = (expression: string) => {
+    const currentPrompt = data.config?.prompt || '';
+    handleConfigChange('prompt', currentPrompt + expression);
+  };
+
+  // Available models per provider
+  const modelOptions: Record<LLMProvider, string[]> = {
+    google: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+    openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  };
+
+  const currentModels = data.config?.provider
+    ? modelOptions[data.config.provider as LLMProvider] || []
+    : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Provider Selection */}
+      <div className="space-y-2">
+        <Label htmlFor="llm-provider">Provider</Label>
+        <Select
+          value={data.config?.provider || ''}
+          onValueChange={(value) => {
+            handleConfigChange('provider', value);
+            // Reset model when provider changes
+            handleConfigChange('model', '');
+          }}
+        >
+          <SelectTrigger id="llm-provider">
+            <SelectValue placeholder="Select provider..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="google">Google (Gemini)</SelectItem>
+            <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Model Selection */}
+      <div className="space-y-2">
+        <Label htmlFor="llm-model">Model</Label>
+        <Select
+          value={data.config?.model || ''}
+          onValueChange={(value) => handleConfigChange('model', value)}
+          disabled={!data.config?.provider}
+        >
+          <SelectTrigger id="llm-model">
+            <SelectValue placeholder={data.config?.provider ? "Select model..." : "Select provider first"} />
+          </SelectTrigger>
+          <SelectContent>
+            {currentModels.map((model) => (
+              <SelectItem key={model} value={model}>
+                {model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* System Prompt */}
+      <div className="space-y-2">
+        <Label htmlFor="system-prompt">System Prompt (Optional)</Label>
+        <Textarea
+          id="system-prompt"
+          value={data.config?.systemPrompt || ''}
+          onChange={(e) => handleConfigChange('systemPrompt', e.target.value)}
+          placeholder="You are a helpful assistant..."
+          rows={3}
+        />
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Sets the context and behavior for the LLM
+        </p>
+      </div>
+
+      {/* Main Prompt */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="llm-prompt">Prompt</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs max-w-xs">
+                  Use expressions to include data from previous nodes:
+                  <br />
+                  <code className="text-xs">{`{{$("NodeName").data.field}}`}</code>
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Textarea
+          id="llm-prompt"
+          value={data.config?.prompt || ''}
+          onChange={(e) => handleConfigChange('prompt', e.target.value)}
+          placeholder="Analyze the following data and provide a summary..."
+          rows={4}
+        />
+        {availableNodes.length > 0 && (
+          <ExpressionBuilder
+            nodes={availableNodes}
+            onInsert={handlePromptExpressionInsert}
+            variant="outline"
+            size="sm"
+          />
+        )}
+        {resolvedPrompt && (
+          <div
+            className="p-2 rounded border text-xs"
+            style={{
+              backgroundColor: 'hsl(var(--muted))',
+              borderColor: 'hsl(var(--border))',
+            }}
+          >
+            <div className="font-medium mb-1">Preview:</div>
+            <div style={{ color: 'hsl(var(--muted-foreground))' }}>
+              {resolvedPrompt}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Temperature Slider */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Temperature</Label>
+          <span className="text-sm" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            {data.config?.temperature ?? 0.7}
+          </span>
+        </div>
+        <Slider
+          value={[data.config?.temperature ?? 0.7]}
+          onValueChange={(values: number[]) => handleConfigChange('temperature', values[0])}
+          min={0}
+          max={2}
+          step={0.1}
+          className="w-full"
+        />
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Lower = more focused, Higher = more creative
+        </p>
+      </div>
+
+      {/* Max Tokens */}
+      <div className="space-y-2">
+        <Label htmlFor="max-tokens">Max Tokens</Label>
+        <Input
+          id="max-tokens"
+          type="number"
+          value={data.config?.maxTokens || ''}
+          onChange={(e) => handleConfigChange('maxTokens', e.target.value ? parseInt(e.target.value, 10) : undefined)}
+          placeholder="1024 (default)"
+          min={1}
+          max={8192}
+        />
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Maximum length of the generated response
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// HumanReview Config
+function HumanReviewConfig({
+  nodeId,
+  data,
+}: {
+  nodeId: string;
+  data: import('@/types/workflow').HumanReviewNodeData;
+}) {
+  const { updateNodeData } = useWorkflowStore();
+  const [newField, setNewField] = useState('');
+
+  const handleConfigChange = (key: string, value: unknown) => {
+    updateNodeData(nodeId, {
+      config: { ...data.config, [key]: value },
+    });
+  };
+
+  const addRequiredField = () => {
+    if (newField.trim()) {
+      const currentFields = data.config?.requiredFields || [];
+      handleConfigChange('requiredFields', [...currentFields, newField.trim()]);
+      setNewField('');
+    }
+  };
+
+  const removeRequiredField = (index: number) => {
+    const currentFields = data.config?.requiredFields || [];
+    handleConfigChange('requiredFields', currentFields.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Info Section */}
+      <div
+        className="p-3 rounded-lg border"
+        style={{
+          backgroundColor: 'hsl(var(--muted))',
+          borderColor: 'hsl(var(--border))',
+        }}
+      >
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <p className="font-medium mb-1">Human Review (HITL)</p>
+            <p>
+              Pauses workflow execution for human review and approval.
+              The reviewer can approve or reject to continue different paths.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="space-y-2">
+        <Label htmlFor="instructions">Review Instructions</Label>
+        <Textarea
+          id="instructions"
+          value={data.config?.instructions || ''}
+          onChange={(e) => handleConfigChange('instructions', e.target.value)}
+          placeholder="Please review the extracted data and verify accuracy..."
+          rows={4}
+        />
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Instructions displayed to the human reviewer
+        </p>
+      </div>
+
+      {/* Priority */}
+      <div className="space-y-2">
+        <Label htmlFor="priority">Priority</Label>
+        <Select
+          value={data.config?.priority || 'normal'}
+          onValueChange={(value) => handleConfigChange('priority', value as HumanReviewPriority)}
+        >
+          <SelectTrigger id="priority">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="critical">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-600" />
+                Critical
+              </span>
+            </SelectItem>
+            <SelectItem value="high">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-orange-500" />
+                High
+              </span>
+            </SelectItem>
+            <SelectItem value="normal">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                Normal
+              </span>
+            </SelectItem>
+            <SelectItem value="low">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-gray-500" />
+                Low
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Timeout Hours */}
+      <div className="space-y-2">
+        <Label htmlFor="timeout-hours">Timeout (Hours)</Label>
+        <Input
+          id="timeout-hours"
+          type="number"
+          value={data.config?.timeoutHours || ''}
+          onChange={(e) => handleConfigChange('timeoutHours', e.target.value ? parseInt(e.target.value, 10) : undefined)}
+          placeholder="4 (default)"
+          min={1}
+          max={168}
+        />
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Hours before the review task escalates or times out
+        </p>
+      </div>
+
+      {/* Required Fields */}
+      <div className="space-y-2">
+        <Label>Required Fields (Optional)</Label>
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Fields that must be reviewed before approval
+        </p>
+
+        {/* Existing Fields */}
+        {(data.config?.requiredFields || []).length > 0 && (
+          <div className="space-y-2 mb-2">
+            {(data.config?.requiredFields || []).map((field, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-2 p-2 rounded border"
+                style={{
+                  backgroundColor: 'hsl(var(--muted))',
+                  borderColor: 'hsl(var(--border))',
+                }}
+              >
+                <span className="text-xs flex-1" style={{ color: 'hsl(var(--foreground))' }}>
+                  {field}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeRequiredField(idx)}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add New Field */}
+        <div className="flex gap-2">
+          <Input
+            placeholder="Field name (e.g., total_amount)"
+            value={newField}
+            onChange={(e) => setNewField(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addRequiredField();
+              }
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addRequiredField}
+            disabled={!newField.trim()}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Output Info */}
+      <div
+        className="rounded-lg border p-3 space-y-3"
+        style={{
+          backgroundColor: 'hsl(var(--muted))',
+          borderColor: 'hsl(var(--border))',
+        }}
+      >
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            <p className="font-medium mb-2">Output Paths:</p>
+          </div>
+        </div>
+        <div className="space-y-2 pl-6">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+            <span className="text-xs font-semibold" style={{ color: '#22c55e' }}>
+              Approved
+            </span>
+            <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              - Reviewer approved the data
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: '#ef4444' }} />
+            <span className="text-xs font-semibold" style={{ color: '#ef4444' }}>
+              Rejected
+            </span>
+            <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+              - Reviewer rejected the data
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

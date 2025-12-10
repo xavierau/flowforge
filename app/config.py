@@ -90,6 +90,12 @@ class Settings(BaseSettings):
     conductor_url: str = "http://localhost:8080"
     conductor_timeout: int = 30
 
+    # Credential Encryption
+    # Master key for encrypting workflow credentials (API keys, secrets)
+    # Must be 32 bytes (256 bits), base64 encoded
+    # Generate with: python -c "import base64, os; print(base64.b64encode(os.urandom(32)).decode())"
+    credential_encryption_key: str = ""
+
     # Markdown Pipeline Configuration
     default_markdown_converter: str = "gemini_vision"
     default_markdown_format: str = "table_heavy"

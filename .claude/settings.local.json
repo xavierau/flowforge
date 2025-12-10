@@ -104,7 +104,9 @@
       "Bash(uv run python -m pytest:*)",
       "Bash(uv run alembic revision:*)",
       "Bash(uv run alembic:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(uv run python:*)",
+      "Bash(ssh-add:*)"
     ],
     "deny": [],
     "ask": []

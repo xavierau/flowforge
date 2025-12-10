@@ -1,6 +1,6 @@
 """ReviewRequest model for Human-in-the-Loop review system."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import Column, String, DateTime, Float, ForeignKey, Index, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
@@ -78,15 +78,15 @@ class ReviewRequest(Base):
 
     # SLA tracking
     sla_deadline = Column(DateTime, nullable=False, index=True)  # Calculated based on priority
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     assigned_at = Column(DateTime, nullable=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
     )
 
     # Relationships
@@ -151,7 +151,7 @@ class ReviewRequest(Base):
             ReviewPriority.LOW: 8,
         }
         hours = sla_hours.get(priority, 4)
-        return datetime.utcnow() + timedelta(hours=hours)
+        return datetime.now(timezone.utc) + timedelta(hours=hours)
 
     def is_sla_breached(self) -> bool:
         """Check if SLA deadline has been breached."""
@@ -160,7 +160,7 @@ class ReviewRequest(Base):
                 ReviewRequestStatus.COMPLETED.value,
                 ReviewRequestStatus.CANCELLED.value
             ]
-            and datetime.utcnow() > self.sla_deadline
+            and datetime.now(timezone.utc) > self.sla_deadline
         )
 
     def __repr__(self):
