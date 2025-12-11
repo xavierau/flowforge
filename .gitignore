@@ -74,3 +74,25 @@ marketing/.astro/
 frontend/node_modules/
 frontend/.vite/
 !/frontend/dist/
+
+# Documents and Images (sample/test files)
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.svg
+
+# Exception: Keep frontend assets that are part of the app
+!frontend/public/favicon.png
+!frontend/public/logo.png
+!frontend/public/logo-dark.png
+!frontend/public/vite.svg
+!frontend/src/assets/*.svg
+!shared-assets/logos/*.png
+
+# External/Unrelated directories
+robotics-spatial-understanding/
