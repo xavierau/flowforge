@@ -34,7 +34,6 @@ import {
   ReviewRequestStatus,
 } from '@/types/review';
 import type { ReviewCorrection } from '@/types/review';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export function ReviewDetail() {

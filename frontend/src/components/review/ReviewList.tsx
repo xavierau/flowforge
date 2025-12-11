@@ -19,7 +19,6 @@ import {
   getReviewPriorityLabel,
   getReviewPriorityColor,
   getSLAStatus,
-  getSLAStatusColor,
 } from '@/types/review';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { Badge } from '@/components/ui/badge';
