@@ -4,7 +4,7 @@ import asyncio
 import base64
 from datetime import datetime
 from uuid import UUID
-from celery import Task
+from celery import Task, chord, group
 import logging
 
 from app.tasks.celery_app import celery_app
@@ -18,7 +18,7 @@ from app.services.hitl_service import HITLService
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=False)
 def extract_from_page(
     self: Task,
     extraction_job_id: str,
@@ -105,6 +105,200 @@ def extract_from_page(
         # Retry on failure
         raise self.retry(exc=e)
 
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=False)
+def finalize_extraction_job(
+    self: Task,
+    page_results: list,
+    extraction_job_id: str,
+) -> dict:
+    """
+    Finalize an extraction job after all per-page extractions complete.
+
+    This is the chord callback that runs after all extract_from_page tasks finish.
+    It aggregates results, updates job status, triggers HITL if needed, and sends callback.
+
+    Args:
+        page_results: List of results from each extract_from_page task
+        extraction_job_id: Extraction job UUID as string
+
+    Returns:
+        Dictionary with finalization status
+    """
+    db = SessionLocal()
+
+    try:
+        job_uuid = UUID(extraction_job_id)
+        job = db.query(ExtractionJob).filter(ExtractionJob.id == job_uuid).first()
+
+        if not job:
+            raise ValueError(f"Job {extraction_job_id} not found")
+
+        document = job.document
+
+        # Query all extraction results for this job
+        extraction_results = (
+            db.query(ExtractionResult)
+            .filter(ExtractionResult.extraction_job_id == job.id)
+            .all()
+        )
+
+        # Calculate average confidence score
+        if extraction_results:
+            avg_confidence = sum(
+                r.confidence_score or 1.0 for r in extraction_results
+            ) / len(extraction_results)
+        else:
+            avg_confidence = 1.0
+
+        # Count successful pages from task results
+        successful_pages = sum(
+            1 for r in page_results
+            if r and r.get("status") == "success"
+        )
+        failed_pages = len(page_results) - successful_pages
+
+        logger.info(
+            f"Finalizing job {extraction_job_id}: "
+            f"{successful_pages} successful, {failed_pages} failed pages"
+        )
+
+        # Update job status
+        job.status = "completed"
+        job.completed_at = datetime.utcnow()
+        job.confidence_score = avg_confidence
+
+        # Update document status
+        document.status = "completed"
+
+        db.commit()
+
+        # --- HITL AUTO-ROUTING ---
+        try:
+            hitl_service = HITLService(db)
+            needs_review = hitl_service.should_request_review(
+                extraction_job=job,
+                workflow_config=None
+            )
+
+            if needs_review:
+                review_request = hitl_service.create_review_request(
+                    extraction_job_id=job.id,
+                    trigger_reason=f"auto_low_confidence:{avg_confidence:.3f}"
+                )
+                logger.info(
+                    f"Created HITL review request {review_request.id} for job {job.id} "
+                    f"(confidence: {avg_confidence:.3f}, priority: {review_request.priority})"
+                )
+        except ValueError as e:
+            logger.warning(
+                f"Could not create HITL review request for job {job.id}: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create HITL review request for job {job.id}: {str(e)}",
+                exc_info=True
+            )
+        # --- END HITL AUTO-ROUTING ---
+
+        # --- SEND CALLBACK ---
+        if job.callback_url:
+            # Aggregate extracted data from all pages
+            all_extracted_data = [
+                {
+                    "page_number": r.document_page.page_number if r.document_page else None,
+                    "extracted_data": r.extracted_data,
+                    "confidence_score": r.confidence_score,
+                }
+                for r in extraction_results
+            ]
+
+            callback_data = {
+                "job_id": str(job.id),
+                "document_id": str(document.id),
+                "status": "completed",
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "pages_count": len(extraction_results),
+                "results": all_extracted_data,
+            }
+            # Fire and forget
+            send_extraction_callback.delay(job.callback_url, callback_data)
+            logger.info(f"Queued callback task for job {job.id} to {job.callback_url}")
+        # --- END SEND CALLBACK ---
+
+        return {
+            "extraction_job_id": extraction_job_id,
+            "status": "completed",
+            "pages_processed": len(extraction_results),
+            "avg_confidence": avg_confidence,
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to finalize extraction job {extraction_job_id}: {str(e)}")
+
+        # Mark job as failed if finalization fails
+        try:
+            job = db.query(ExtractionJob).filter(
+                ExtractionJob.id == UUID(extraction_job_id)
+            ).first()
+            if job:
+                job.status = "failed"
+                job.error_message = f"Finalization failed: {str(e)}"
+                job.completed_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            pass
+
+        raise self.retry(exc=e)
+
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def on_chord_error(self: Task, request, exc, traceback, extraction_job_id: str):
+    """
+    Handle chord errors when any page extraction fails.
+
+    This task is called when any task in the chord group fails.
+    """
+    db = SessionLocal()
+
+    try:
+        job_uuid = UUID(extraction_job_id)
+        job = db.query(ExtractionJob).filter(ExtractionJob.id == job_uuid).first()
+
+        if job:
+            logger.error(
+                f"Chord failed for job {extraction_job_id}: {exc}"
+            )
+
+            # Check if we have any successful results
+            successful_results = (
+                db.query(ExtractionResult)
+                .filter(ExtractionResult.extraction_job_id == job.id)
+                .count()
+            )
+
+            if successful_results > 0:
+                # Partial success - mark as completed with note
+                job.status = "completed"
+                job.error_message = f"Partial completion: {successful_results} pages extracted, some failed"
+            else:
+                # Complete failure
+                job.status = "failed"
+                job.error_message = f"All page extractions failed: {str(exc)}"
+
+            job.completed_at = datetime.utcnow()
+            db.commit()
+
+    except Exception as e:
+        logger.error(f"Failed to handle chord error for job {extraction_job_id}: {str(e)}")
+        db.rollback()
     finally:
         db.close()
 
@@ -203,17 +397,48 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
                 results = [result]
 
             else:
-                # PER-PAGE MODE: Process each page separately
-                results = []
-                for page in pages:
-                    # Queue the extraction task
-                    extract_from_page.apply_async(
-                        args=(extraction_job_id, str(page.id))
-                    )
+                # PER-PAGE MODE: Process each page separately using Celery chord
+                # This ensures all pages are processed before finalization
 
-                # Since we're using async tasks, the parent job completes immediately
-                # The child tasks will update the extraction_results table independently
-                results = []  # Empty list since tasks are async
+                logger.info(
+                    f"Starting per_page extraction for job {extraction_job_id} "
+                    f"with {len(pages)} pages using chord pattern"
+                )
+
+                # Create a group of page extraction tasks
+                page_tasks = group(
+                    extract_from_page.s(extraction_job_id, str(page.id))
+                    for page in pages
+                )
+
+                # Create the chord: group tasks + finalize callback
+                # The callback receives results from all page tasks
+                extraction_chord = chord(
+                    page_tasks,
+                    finalize_extraction_job.s(extraction_job_id).on_error(
+                        on_chord_error.s(extraction_job_id=extraction_job_id)
+                    )
+                )
+
+                # Dispatch the chord - this returns immediately
+                # IMPORTANT: We do NOT call .get() here to avoid deadlock
+                extraction_chord.apply_async()
+
+                logger.info(
+                    f"Dispatched chord for job {extraction_job_id} with {len(pages)} pages"
+                )
+
+                # Return early - the finalize task will handle completion
+                # Close db session before returning
+                db.close()
+
+                return {
+                    "extraction_job_id": extraction_job_id,
+                    "status": "processing",
+                    "mode": "per_page",
+                    "pages_queued": len(pages),
+                    "message": "Chord dispatched - finalize_extraction_job will complete the job"
+                }
 
         else:
             # Single image - process directly

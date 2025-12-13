@@ -26,6 +26,18 @@ celery_app.conf.update(
     task_soft_time_limit=540,  # 9 minutes soft limit
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
+
+    # --- CHORD/GROUP CONFIGURATION ---
+    # Required for chord to work properly and prevent deadlocks
+    result_extended=True,  # Store extended task result metadata (required for chord)
+    result_expires=3600,  # Results expire after 1 hour (prevents memory buildup)
+
+    # Chord-specific settings
+    task_ignore_result=False,  # Tasks must NOT ignore results for chord to work
+    chord_propagate_exceptions=True,  # Propagate exceptions in chord
+    task_always_eager=False,  # Never run tasks eagerly (required for chord)
+    # --- END CHORD/GROUP CONFIGURATION ---
+
     # Beat schedule for periodic tasks (HITL SLA monitoring)
     beat_schedule={
         'check-sla-breaches-every-5-minutes': {
