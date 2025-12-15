@@ -248,3 +248,14 @@ class CorrectionType(str, Enum):
     FIELD_ADDITION = "field_addition"
     FIELD_REMOVAL = "field_removal"
     TYPE_CORRECTION = "type_correction"
+
+
+class JobSource(str, Enum):
+    """
+    Source of job creation - distinguishes between WebUI and API submissions.
+
+    - WEBUI: Job created through the web user interface
+    - API: Job created through direct API calls (programmatic access)
+    """
+    WEBUI = "webui"
+    API = "api"

@@ -219,3 +219,28 @@ export enum ReviewPriority {
   NORMAL = "normal",
   LOW = "low",
 }
+
+/**
+ * Job source - tracks where the job was created from
+ * CRITICAL: Values MUST match backend app/models/enums.py
+ */
+export enum JobSource {
+  WEBUI = "webui",
+  API = "api",
+}
+
+export function getJobSourceLabel(source: JobSource): string {
+  const labels: Record<JobSource, string> = {
+    [JobSource.WEBUI]: "Web UI",
+    [JobSource.API]: "API",
+  };
+  return labels[source];
+}
+
+export function getJobSourceColor(source: JobSource): string {
+  const colors: Record<JobSource, string> = {
+    [JobSource.WEBUI]: "bg-blue-100 text-blue-800",
+    [JobSource.API]: "bg-purple-100 text-purple-800",
+  };
+  return colors[source];
+}

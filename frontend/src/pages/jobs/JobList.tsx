@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FileText, Plus, Clock, CheckCircle, XCircle, Loader2, RotateCw, Files, FileCode } from 'lucide-react';
+import { Eye, FileText, Plus, Clock, CheckCircle, XCircle, Loader2, RotateCw, Files, FileCode, Globe, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Page, PageHeader, PageContent } from '@/components/layout';
@@ -13,9 +13,11 @@ import {
   createActionsColumn,
 } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ProcessingModeBadge } from '@/components/markdown/ProcessingModeBadge';
 import type { Job } from '@/types/job';
 import { listJobs, retryJob } from '@/lib/api';
+import { JobSource } from '@/types/enums';
 
 export function JobList() {
   const navigate = useNavigate();
@@ -105,6 +107,26 @@ export function JobList() {
       cell: ({ row }: { row: any }) => {
         const mode = row.original.processing_mode;
         return mode ? <ProcessingModeBadge mode={mode} /> : <span className="text-muted-foreground">N/A</span>;
+      },
+      filterFn: (row: any, id: string, value: string[]) => {
+        return value.includes(row.getValue(id));
+      },
+    },
+    {
+      id: 'source',
+      accessorKey: 'source',
+      header: 'Source',
+      cell: ({ row }: { row: any }) => {
+        const source = row.original.source as JobSource;
+        if (!source) return <span className="text-muted-foreground">N/A</span>;
+
+        const isWebUI = source === JobSource.WEBUI;
+        return (
+          <Badge variant={isWebUI ? 'default' : 'secondary'} className="gap-1">
+            {isWebUI ? <Globe className="h-3 w-3" /> : <Terminal className="h-3 w-3" />}
+            {isWebUI ? 'Web UI' : 'API'}
+          </Badge>
+        );
       },
       filterFn: (row: any, id: string, value: string[]) => {
         return value.includes(row.getValue(id));
@@ -209,9 +231,25 @@ export function JobList() {
                 },
               ],
             },
+            {
+              id: 'source',
+              title: 'Source',
+              options: [
+                {
+                  label: 'Web UI',
+                  value: 'webui',
+                  icon: Globe,
+                },
+                {
+                  label: 'API',
+                  value: 'api',
+                  icon: Terminal,
+                },
+              ],
+            },
           ]}
           exportFilename="extraction-jobs"
-          exportableColumns={['id', 'document_name', 'status', 'processing_mode', 'model_used', 'created_at']}
+          exportableColumns={['id', 'document_name', 'status', 'processing_mode', 'source', 'model_used', 'created_at']}
           isLoading={isLoading}
           emptyMessage="No jobs found. Create your first extraction job to get started."
         />

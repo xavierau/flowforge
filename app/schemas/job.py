@@ -142,6 +142,7 @@ class JobListItem(BaseModel):
     updated_at: datetime = Field(..., description="Last update time")
     error: Optional[str] = Field(None, description="Error message if failed")
     model_used: Optional[str] = Field(None, description="Model used for extraction")
+    source: str = Field("api", description="Job source - 'webui' or 'api'")
 
 
 class JobListResponse(BaseModel):

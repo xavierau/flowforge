@@ -18,6 +18,7 @@ import {
   PagesChart,
   TokensChart,
   ModelDistributionChart,
+  RecentJobsWidget,
 } from '@/components/metrics';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -25,7 +26,9 @@ import {
   getDashboardMetrics,
   MetricsApiError,
 } from '@/services/metrics.service';
+import { listJobs } from '@/lib/api';
 import type { DashboardMetrics, DateRangeOption } from '@/types/metrics';
+import type { Job } from '@/types/job';
 import {
   FileText,
   FileStack,
@@ -54,6 +57,10 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeOption>(30);
+
+  // Recent jobs state
+  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
 
   /**
    * Fetch dashboard metrics
@@ -97,6 +104,45 @@ export function Dashboard() {
       isCancelled = true;
     };
   }, [dateRange]);
+
+  /**
+   * Fetch recent jobs
+   *
+   * Single effect that fetches jobs on mount.
+   * Includes proper error handling and cleanup.
+   * Dependencies: [] - only fetch on mount
+   */
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchRecentJobs() {
+      setIsLoadingJobs(true);
+
+      try {
+        const data = await listJobs({ limit: 10, offset: 0 });
+
+        // Only update state if component is still mounted
+        if (!isCancelled) {
+          setRecentJobs(data.jobs);
+          setIsLoadingJobs(false);
+        }
+      } catch (err) {
+        // Only update state if component is still mounted
+        if (!isCancelled) {
+          // Silently fail for jobs - not critical for dashboard
+          console.error('Failed to load recent jobs:', err);
+          setIsLoadingJobs(false);
+        }
+      }
+    }
+
+    fetchRecentJobs();
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   /**
    * Handle date range change
@@ -216,6 +262,13 @@ export function Dashboard() {
                 title="Model Usage Distribution"
               />
             </div>
+
+            {/* Recent Jobs Widget */}
+            <RecentJobsWidget
+              jobs={recentJobs}
+              isLoading={isLoadingJobs}
+              maxJobs={5}
+            />
           </>
         )}
       </PageContent>

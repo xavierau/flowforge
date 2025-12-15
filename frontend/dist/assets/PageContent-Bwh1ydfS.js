@@ -1,0 +1,1 @@
+import{j as r}from"./ui-vendor-B87icfZq.js";import{e as t}from"./index-B5I9cbmw.js";function i({children:e,className:a,"aria-label":o}){return r.jsx("section",{className:t("space-y-6 rounded-lg border bg-white p-6 shadow-sm",a),"aria-label":o||"Page content",children:e})}export{i as P};

@@ -23,8 +23,35 @@ export interface CreateSchemaResponse {
   updated_at: string;
 }
 
+/**
+ * Structured error detail from backend (ErrorDetail schema)
+ */
+export interface StructuredErrorDetail {
+  error_code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+/**
+ * API error response - detail can be a string or structured error object
+ */
 export interface ApiError {
-  detail: string;
+  detail: string | StructuredErrorDetail;
+}
+
+/**
+ * Extract a human-readable error message from API error response
+ * Handles both string and structured error formats
+ */
+function extractErrorMessage(detail: string | StructuredErrorDetail | undefined, fallback: string): string {
+  if (!detail) {
+    return fallback;
+  }
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  // Structured error - extract the message field
+  return detail.message || fallback;
 }
 
 export class ApiServiceError extends Error {
@@ -119,10 +146,11 @@ export async function submitSchema(
         detail: 'Unknown error occurred',
       }));
 
+      const errorMessage = extractErrorMessage(errorData.detail, response.statusText);
       throw new SchemaApiError(
-        errorData.detail || response.statusText,
+        errorMessage,
         response.status,
-        errorData.detail
+        errorMessage
       );
     }
 
@@ -187,7 +215,7 @@ export async function listSchemas(params?: {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to list schemas',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to list schemas'), response.status);
     }
 
     return await response.json();
@@ -211,7 +239,7 @@ export async function getSchema(schemaId: string): Promise<ApiSchema> {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Schema not found',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Schema not found'), response.status);
     }
 
     return await response.json();
@@ -243,7 +271,7 @@ export async function createSchema(
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to create schema',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to create schema'), response.status);
     }
 
     return await response.json();
@@ -276,7 +304,7 @@ export async function updateSchema(
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to update schema',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to update schema'), response.status);
     }
 
     return await response.json();
@@ -302,7 +330,7 @@ export async function deleteSchema(schemaId: string): Promise<void> {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to delete schema',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to delete schema'), response.status);
     }
   } catch (error) {
     if (error instanceof ApiServiceError) throw error;
@@ -328,7 +356,7 @@ export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Job not found',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Job not found'), response.status);
     }
 
     return await response.json();
@@ -352,7 +380,7 @@ export async function getJobResult(jobId: string): Promise<JobResultResponse> {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Job result not available',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Job result not available'), response.status);
     }
 
     return await response.json();
@@ -385,7 +413,7 @@ export async function listJobs(params?: {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to list jobs',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to list jobs'), response.status);
     }
 
     return await response.json();
@@ -449,7 +477,7 @@ export async function uploadDocument(file: File): Promise<DocumentUploadResponse
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to upload document',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to upload document'), response.status);
     }
 
     return await response.json();
@@ -482,7 +510,7 @@ export async function submitExtractionJob(
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to submit extraction job',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to submit extraction job'), response.status);
     }
 
     return await response.json();
@@ -524,7 +552,7 @@ export async function getDocumentStatus(
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Document not found',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Document not found'), response.status);
     }
 
     return await response.json();
@@ -556,7 +584,7 @@ export async function getDocumentFile(documentId: string): Promise<Blob> {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to download document file',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to download document file'), response.status);
     }
 
     return await response.blob();
@@ -586,6 +614,7 @@ export interface ExtractRequest {
   callback_url?: string;
   enable_thinking?: boolean;          // Enable thinking mode (default: false)
   thinking_budget?: number;           // Thinking budget in tokens (default: 3000)
+  source?: 'webui' | 'api';           // Job source (default: 'webui' for frontend)
 }
 
 export interface ExtractResponse {
@@ -654,6 +683,9 @@ export async function extractFromFile(request: ExtractRequest): Promise<ExtractR
       formData.append('thinking_budget', String(request.thinking_budget));
     }
 
+    // Always set source to 'webui' for frontend requests
+    formData.append('source', request.source || 'webui');
+
     const response = await apiFetch(`${API_BASE_URL}/jobs/extract`, {
       method: 'POST',
       body: formData,
@@ -663,7 +695,7 @@ export async function extractFromFile(request: ExtractRequest): Promise<ExtractR
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to extract from file',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to extract from file'), response.status);
     }
 
     return await response.json();
@@ -680,12 +712,13 @@ export async function extractFromFile(request: ExtractRequest): Promise<ExtractR
  * Retry an extraction job with the same configuration
  *
  * @param jobId - ID of the job to retry
+ * @param source - Job source ('webui' or 'api'), defaults to 'webui' for frontend
  * @returns Extract response with new job and document IDs
  * @throws ApiServiceError with specific status codes
  */
-export async function retryJob(jobId: string): Promise<ExtractResponse> {
+export async function retryJob(jobId: string, source: 'webui' | 'api' = 'webui'): Promise<ExtractResponse> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/jobs/${jobId}/retry`, {
+    const response = await apiFetch(`${API_BASE_URL}/jobs/${jobId}/retry?source=${source}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -696,7 +729,7 @@ export async function retryJob(jobId: string): Promise<ExtractResponse> {
       const errorData: ApiError = await response.json().catch(() => ({
         detail: 'Failed to retry job',
       }));
-      throw new ApiServiceError(errorData.detail, response.status);
+      throw new ApiServiceError(extractErrorMessage(errorData.detail, 'Failed to retry job'), response.status);
     }
 
     return await response.json();

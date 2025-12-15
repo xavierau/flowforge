@@ -3,7 +3,7 @@
  * Corresponds to app/schemas/job.py
  */
 
-import type { ProcessingMode, MarkdownConverter, MarkdownFormat } from './enums';
+import type { ProcessingMode, MarkdownConverter, MarkdownFormat, JobSource } from './enums';
 
 export interface JobProgress {
   total_pages: number;
@@ -68,6 +68,7 @@ export interface Job {
   processing_mode?: ProcessingMode;  // Processing mode used
   markdown_converter?: MarkdownConverter;  // Markdown converter if markdown mode
   markdown_format?: MarkdownFormat;  // Markdown format if markdown mode
+  source?: JobSource;  // Job source - webui or api
 }
 
 export interface JobListResponse {

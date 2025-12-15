@@ -27,6 +27,7 @@ from app.services.storage import get_storage_service, StorageService
 from app.services.schema_validator import SchemaValidator
 from app.services.extraction_service import ExtractionCreditValidator
 from app.dependencies.auth import require_permission, require_permission_flexible
+from app.models.enums import JobSource
 
 router = APIRouter()
 
@@ -45,6 +46,7 @@ async def extract_from_file(
     callback_url: str = Form(None),
     enable_thinking: bool = Form(False),
     thinking_budget: int = Form(3000),
+    source: str = Form("api"),
     current_user: User = Depends(require_permission_flexible("extraction:create")),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
@@ -68,6 +70,7 @@ async def extract_from_file(
         callback_url: Optional webhook URL for completion notification
         enable_thinking: Enable AI thinking mode (default: False)
         thinking_budget: Token budget for thinking when enabled (default: 3000)
+        source: Job source - 'webui' for web interface, 'api' for programmatic access (default: 'api')
         current_user: Authenticated user
         db: Database session
         storage: Storage service
@@ -193,6 +196,14 @@ async def extract_from_file(
         if not markdown_format:
             markdown_format = "table_heavy"
 
+    # Validate source
+    valid_sources = [s.value for s in JobSource]
+    if source not in valid_sources:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid source. Must be one of: {', '.join(valid_sources)}",
+        )
+
     # Upload to storage
     file_path, size = await storage.upload_file(file, prefix="documents")
 
@@ -262,6 +273,7 @@ async def extract_from_file(
             thinking_budget=thinking_budget if enable_thinking else 0,
             status="queued",
             credits_cost=page_count or 1,  # Now accurate for PDFs (extracted above)
+            source=source,  # Track job origin (webui or api)
         )
 
         db.add(job)
@@ -420,6 +432,7 @@ async def list_jobs(
                 updated_at=job.updated_at,
                 error=job.error_message,
                 model_used=model_used,
+                source=job.source,
             )
         )
 
@@ -608,6 +621,7 @@ async def get_job_result(
 @router.post("/jobs/{job_id}/retry", response_model=ExtractResponse, status_code=202)
 async def retry_job(
     job_id: UUID,
+    source: str = Query("api", description="Job source - 'webui' or 'api'"),
     current_user: User = Depends(require_permission_flexible("extraction:create")),
     db: Session = Depends(get_db),
 ) -> ExtractResponse:
@@ -621,6 +635,7 @@ async def retry_job(
 
     Args:
         job_id: ID of the job to retry
+        source: Job source - 'webui' for web interface, 'api' for programmatic access (default: 'api')
         current_user: Authenticated user with extraction:create permission
         db: Database session
 
@@ -635,6 +650,13 @@ async def retry_job(
         Credits are deducted SYNCHRONOUSLY before job creation.
         Cost: 1 credit per page (same as original job).
     """
+    # Validate source
+    valid_sources = [s.value for s in JobSource]
+    if source not in valid_sources:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid source. Must be one of: {', '.join(valid_sources)}",
+        )
     # Get original job with tenant filtering
     original_job = (
         db.query(ExtractionJob)
@@ -677,6 +699,7 @@ async def retry_job(
             callback_url=original_job.callback_url,
             status="queued",
             credits_cost=document.page_count or 1,  # Set cost upfront
+            source=source,  # Track job origin (webui or api)
         )
 
         db.add(new_job)

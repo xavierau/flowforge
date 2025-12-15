@@ -11,3 +11,4 @@ export { PagesChart } from './PagesChart';
 export { TokensChart } from './TokensChart';
 export { ModelDistributionChart } from './ModelDistributionChart';
 export { CompletedJobsTable } from './CompletedJobsTable';
+export { RecentJobsWidget } from './RecentJobsWidget';

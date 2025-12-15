@@ -3,10 +3,11 @@
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, Index, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 import uuid
 
 from app.database import Base
+from app.models.enums import JobSource
 
 
 class ExtractionJob(Base):
@@ -59,6 +60,9 @@ class ExtractionJob(Base):
     # HITL (Human-in-the-Loop) tracking
     confidence_score = Column(Float, nullable=True)  # AI confidence score (0.0-1.0)
 
+    # Job source tracking
+    source = Column(String(20), nullable=False, default="api")  # webui or api
+
     # Relationships
     document = relationship("Document", back_populates="extraction_jobs")
     schema_definition = relationship("SchemaDefinition", backref="extraction_jobs")
@@ -80,4 +84,14 @@ class ExtractionJob(Base):
         Index("idx_extraction_jobs_schema_definition_id", "schema_definition_id"),
         Index("idx_extraction_jobs_status", "status"),
         Index("idx_extraction_jobs_celery_task_id", "celery_task_id"),
+        Index("idx_extraction_jobs_source", "source"),
     )
+
+    @validates('source')
+    def validate_source(self, key, value):
+        """Validate source field against JobSource enum."""
+        if isinstance(value, JobSource):
+            return value.value
+        if value not in [s.value for s in JobSource]:
+            raise ValueError(f"Invalid source: {value}. Must be one of: {[s.value for s in JobSource]}")
+        return value
