@@ -729,6 +729,9 @@ async def add_tenant_credits(
             description=f"Admin credit addition: {request.reason}"
         )
 
+        # Commit the transaction to persist changes
+        db.commit()
+
         # Get new balance
         new_balance = credit_service.calculate_balance(tenant_id, use_cache=True)
 
