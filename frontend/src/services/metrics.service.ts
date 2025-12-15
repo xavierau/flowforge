@@ -137,12 +137,7 @@ export async function getDashboardMetrics(
     // Add cache-busting timestamp to prevent browser caching
     const cacheBuster = Date.now();
     const response = await apiFetch(
-      `${API_BASE_URL}/metrics/dashboard?days=${days}&_t=${cacheBuster}`,
-      {
-        method: 'GET',
-        cache: 'no-store',  // Prevent browser caching
-      }
-    );
+      `${API_BASE_URL}/metrics/dashboard?days=${days}&_t=${cacheBuster}`);
 
     // Handle 204 No Content - return empty dashboard metrics
     // This occurs when user has no completed jobs for their tenant
@@ -211,11 +206,7 @@ export async function getCompletedJobs(
     params.append('_t', Date.now().toString());
 
     const response = await apiFetch(
-      `${API_BASE_URL}/metrics/jobs/completed?${params.toString()}`,
-      {
-        method: 'GET',
-        cache: 'no-store',  // Prevent browser caching
-      }
+      `${API_BASE_URL}/metrics/jobs/completed?${params.toString()}`
     );
 
     // Handle 204 No Content - return empty jobs list
