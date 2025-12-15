@@ -79,7 +79,7 @@ async def get_dashboard_metrics(
     return service.get_dashboard_metrics(tenant_id=current_user.tenant_id, days=days)
 
 
-@router.get("/jobs/completed", response_model=CompletedJobsResponse)
+@router.get("/jobs/completed", response_model=CompletedJobsResponse, status_code=200)
 async def get_completed_jobs(
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(

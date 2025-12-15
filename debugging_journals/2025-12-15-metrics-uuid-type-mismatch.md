@@ -91,11 +91,27 @@ def _get_model_distribution(self, tenant_id: UUID, ...) -> List[ModelDistributio
 
 ---
 
+### 3. app/api/metrics.py - Explicit Status Code
+
+Added explicit `status_code=200` to ensure the endpoint never returns 204, even for empty results:
+
+```python
+# BEFORE
+@router.get("/jobs/completed", response_model=CompletedJobsResponse)
+
+# AFTER
+@router.get("/jobs/completed", response_model=CompletedJobsResponse, status_code=200)
+```
+
+**Why:** FastAPI should return 200 with `{"jobs": [], "total": 0, ...}` for empty results, but some configurations (reverse proxy, CDN, or framework behavior) may convert this to 204 No Content. Explicit `status_code=200` prevents this.
+
+---
+
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `app/api/metrics.py` | Removed `str()` conversion on lines 79 and 120 |
+| `app/api/metrics.py` | Removed `str()` conversion on lines 79 and 120; Added explicit `status_code=200` |
 | `app/services/metrics_service.py` | Added `from uuid import UUID` import; Updated 7 method signatures to use `UUID` type |
 
 ---
