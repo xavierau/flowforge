@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth import get_current_active_user
+from app.dependencies.auth import get_current_active_user, require_permission_flexible
 from app.models.user import User
 from app.services.metrics_service import MetricsService
 from app.schemas.metrics import DashboardMetricsResponse, CompletedJobsResponse
@@ -65,7 +65,7 @@ async def get_dashboard_metrics(
         le=365,
         description="Number of days to include in metrics (1-365)",
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission_flexible("jobs:read")),
     db: Session = Depends(get_db),
 ):
     """
@@ -73,7 +73,7 @@ async def get_dashboard_metrics(
 
     Returns summary statistics, time series data for charts, and model distribution.
 
-    **Permissions:** Requires valid authentication (no specific permissions needed)
+    **Permissions:** Requires `jobs:read` permission (supports both JWT and API tokens)
 
     **Query Parameters:**
     - days: Number of days to include (default: 30, max: 365)
@@ -123,13 +123,13 @@ async def get_completed_jobs(
     end_date: Optional[datetime] = Query(
         default=None, description="Filter by end date (ISO 8601 format)"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission_flexible("jobs:read")),
     db: Session = Depends(get_db),
 ):
     """
     Get paginated list of completed jobs for billing purposes.
 
-    **Permissions:** Requires valid authentication (no specific permissions needed)
+    **Permissions:** Requires `jobs:read` permission (supports both JWT and API tokens)
 
     **Query Parameters:**
     - page: Page number (default: 1)

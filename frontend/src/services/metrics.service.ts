@@ -133,10 +133,13 @@ export async function getDashboardMetrics(
   days: DateRangeOption = 30
 ): Promise<DashboardMetrics> {
   try {
+    // Add cache-busting timestamp to prevent browser caching
+    const cacheBuster = Date.now();
     const response = await apiFetch(
-      `${API_BASE_URL}/metrics/dashboard?days=${days}`,
+      `${API_BASE_URL}/metrics/dashboard?days=${days}&_t=${cacheBuster}`,
       {
         method: 'GET',
+        cache: 'no-store',  // Prevent browser caching
       }
     );
 
@@ -203,10 +206,14 @@ export async function getCompletedJobs(
       params.append('model', filters.model);
     }
 
+    // Add cache-busting timestamp to prevent browser caching
+    params.append('_t', Date.now().toString());
+
     const response = await apiFetch(
       `${API_BASE_URL}/metrics/jobs/completed?${params.toString()}`,
       {
         method: 'GET',
+        cache: 'no-store',  // Prevent browser caching
       }
     );
 
