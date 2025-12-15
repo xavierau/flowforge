@@ -56,6 +56,22 @@ async def debug_current_user(
     }
 
 
+@router.get("/stats", response_model=DashboardMetricsResponse, status_code=200)
+async def get_dashboard_stats(
+    response: Response,
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=365,
+        description="Number of days to include in metrics (1-365)",
+    ),
+    current_user: User = Depends(require_permission_flexible("jobs:read")),
+    db: Session = Depends(get_db),
+):
+    """Alias endpoint for dashboard metrics - testing if 'metrics' in URL is blocked."""
+    return await get_dashboard_metrics(response, days, current_user, db)
+
+
 @router.get("/dashboard", response_model=DashboardMetricsResponse, status_code=200)
 async def get_dashboard_metrics(
     response: Response,

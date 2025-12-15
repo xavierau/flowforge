@@ -800,3 +800,78 @@ async def retry_job(
         estimated_time_seconds=estimated_time,
         created_at=new_job.created_at,
     )
+
+
+# Analytics endpoints (alias to avoid "metrics" in URL which may be blocked by some tools)
+from fastapi import Response
+from app.schemas.metrics import DashboardMetricsResponse
+from app.services.metrics_service import MetricsService
+
+
+@router.get("/jobs/analytics/dashboard", response_model=DashboardMetricsResponse, status_code=200)
+async def get_jobs_analytics_dashboard(
+    response: Response,
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=365,
+        description="Number of days to include in analytics (1-365)",
+    ),
+    current_user: User = Depends(require_permission_flexible("jobs:read")),
+    db: Session = Depends(get_db),
+):
+    """
+    Get dashboard analytics for jobs (alias endpoint).
+
+    This is an alias for /api/v1/metrics/dashboard to avoid potential URL blocking
+    by ad blockers or security tools that block "metrics" in URLs.
+    """
+    # Set response headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    service = MetricsService(db)
+    return service.get_dashboard_metrics(tenant_id=current_user.tenant_id, days=days)
+
+
+from datetime import datetime
+from typing import Optional
+from app.schemas.metrics import CompletedJobsResponse
+
+
+@router.get("/jobs/analytics/completed", response_model=CompletedJobsResponse, status_code=200)
+async def get_jobs_analytics_completed(
+    response: Response,
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(
+        default=50, ge=1, le=100, description="Number of items per page (max 100)"
+    ),
+    start_date: Optional[datetime] = Query(
+        default=None, description="Filter by start date (ISO 8601 format)"
+    ),
+    end_date: Optional[datetime] = Query(
+        default=None, description="Filter by end date (ISO 8601 format)"
+    ),
+    current_user: User = Depends(require_permission_flexible("jobs:read")),
+    db: Session = Depends(get_db),
+):
+    """
+    Get completed jobs analytics for billing (alias endpoint).
+
+    This is an alias for /api/v1/metrics/jobs/completed to avoid potential URL blocking
+    by ad blockers or security tools that block "metrics" in URLs.
+    """
+    # Set response headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    service = MetricsService(db)
+    return service.get_completed_jobs(
+        tenant_id=current_user.tenant_id,
+        page=page,
+        page_size=page_size,
+        start_date=start_date,
+        end_date=end_date,
+    )
