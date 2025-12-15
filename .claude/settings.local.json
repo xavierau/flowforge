@@ -108,7 +108,8 @@
       "Bash(uv run python:*)",
       "Bash(ssh-add:*)",
       "Bash(grep:*)",
-      "WebFetch(domain:docs.celeryq.dev)"
+      "WebFetch(domain:docs.celeryq.dev)",
+      "mcp__chrome-devtools__new_page"
     ],
     "deny": [],
     "ask": []

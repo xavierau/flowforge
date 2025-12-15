@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { TenantListItem } from '@/types/admin';
-import { Eye, Ban, CheckCircle } from 'lucide-react';
+import { Eye, Ban, CheckCircle, Coins } from 'lucide-react';
 
 interface TenantTableProps {
   /**
@@ -37,6 +37,11 @@ interface TenantTableProps {
    * Callback when updating tenant status
    */
   onUpdateStatus: (tenantId: string, currentStatus: string) => void;
+
+  /**
+   * Callback when adding credits to a tenant
+   */
+  onAddCredits: (tenantId: string, tenantName: string, currentBalance: number) => void;
 
   /**
    * Whether the table is loading
@@ -90,6 +95,7 @@ export function TenantTable({
   tenants,
   onViewDetails,
   onUpdateStatus,
+  onAddCredits,
   isLoading = false,
 }: TenantTableProps) {
   if (tenants.length === 0 && !isLoading) {
@@ -164,7 +170,16 @@ export function TenantTable({
                     size="sm"
                     onClick={() => onViewDetails(tenant.id)}
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onAddCredits(tenant.id, tenant.name, tenant.credit_balance)}
+                  >
+                    <Coins className="h-4 w-4 mr-1" />
+                    Add Credits
                   </Button>
                   <Button
                     variant={

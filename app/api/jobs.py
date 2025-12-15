@@ -681,6 +681,41 @@ async def retry_job(
             detail="Original document not found or has been deleted"
         )
 
+    # --- CRITICAL FIX: Re-fetch schema from SchemaDefinition if available ---
+    # This ensures retried jobs use the LATEST schema version, not the old snapshot
+    final_schema = None
+    final_schema_definition_id = original_job.schema_definition_id
+
+    if original_job.schema_definition_id:
+        # Attempt to fetch current schema from SchemaDefinition
+        schema_def = (
+            db.query(SchemaDefinition)
+            .filter(SchemaDefinition.tenant_id == current_user.tenant_id)
+            .filter(SchemaDefinition.id == original_job.schema_definition_id)
+            .first()
+        )
+        if schema_def:
+            # Use fresh schema from SchemaDefinition
+            final_schema = schema_def.definitions
+            logger.info(
+                f"Retry job {job_id}: Using updated schema from SchemaDefinition "
+                f"{schema_def.id} (name: {schema_def.name})"
+            )
+        else:
+            # SchemaDefinition was deleted - fall back to original snapshot
+            final_schema = original_job.extraction_schema
+            final_schema_definition_id = None  # Clear reference to deleted schema
+            logger.warning(
+                f"Retry job {job_id}: SchemaDefinition {original_job.schema_definition_id} "
+                f"was deleted. Falling back to original schema snapshot."
+            )
+    else:
+        # No schema_definition_id - use original custom schema snapshot
+        final_schema = original_job.extraction_schema
+        logger.info(
+            f"Retry job {job_id}: Using original custom schema (no SchemaDefinition linked)"
+        )
+
     # --- CRITICAL: SYNCHRONOUS CREDIT DEDUCTION FOR RETRY ---
     # Initialize credit validator
     credit_validator = ExtractionCreditValidator(db)
@@ -690,8 +725,8 @@ async def retry_job(
         new_job = ExtractionJob(
             document_id=original_job.document_id,
             tenant_id=current_user.tenant_id,  # Set tenant_id
-            schema_definition_id=original_job.schema_definition_id,
-            extraction_schema=original_job.extraction_schema,
+            schema_definition_id=final_schema_definition_id,
+            extraction_schema=final_schema,
             custom_prompt=original_job.custom_prompt,
             model_provider=original_job.model_provider,
             model_name=original_job.model_name,

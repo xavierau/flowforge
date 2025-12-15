@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { Page, PageHeader, PageContent } from '@/components/layout';
 import { TenantTable } from '@/components/admin/TenantTable';
 import { AdminActionDialog } from '@/components/admin/AdminActionDialog';
+import { AddCreditsDialog } from '@/components/admin/AddCreditsDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -68,6 +69,19 @@ export function TenantList() {
     currentStatus: '',
   });
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Add credits dialog state
+  const [addCreditsDialog, setAddCreditsDialog] = useState<{
+    open: boolean;
+    tenantId: string;
+    tenantName: string;
+    currentBalance: number;
+  }>({
+    open: false,
+    tenantId: '',
+    tenantName: '',
+    currentBalance: 0,
+  });
 
   /**
    * Fetch tenants based on current filters
@@ -139,6 +153,28 @@ export function TenantList() {
       tenantName: tenant.name,
       currentStatus,
     });
+  }
+
+  /**
+   * Open add credits dialog
+   */
+  function handleAddCreditsClick(tenantId: string, tenantName: string, currentBalance: number) {
+    setAddCreditsDialog({
+      open: true,
+      tenantId,
+      tenantName,
+      currentBalance,
+    });
+  }
+
+  /**
+   * Callback when credits are successfully added
+   */
+  async function handleCreditsAdded() {
+    // Refresh tenant list to show updated balance
+    const response = await getTenants(filters);
+    setTenants(response.tenants);
+    setTotal(response.total);
   }
 
   /**
@@ -269,6 +305,7 @@ export function TenantList() {
             tenants={tenants}
             onViewDetails={handleViewDetails}
             onUpdateStatus={handleUpdateStatusClick}
+            onAddCredits={handleAddCreditsClick}
           />
         )}
 
@@ -320,6 +357,18 @@ export function TenantList() {
         onConfirm={handleConfirmStatusUpdate}
         isProcessing={isProcessing}
         variant={actionDialog.currentStatus === 'active' ? 'destructive' : 'default'}
+      />
+
+      {/* Add Credits Dialog */}
+      <AddCreditsDialog
+        open={addCreditsDialog.open}
+        onOpenChange={(open) =>
+          setAddCreditsDialog({ ...addCreditsDialog, open })
+        }
+        tenantId={addCreditsDialog.tenantId}
+        tenantName={addCreditsDialog.tenantName}
+        currentBalance={addCreditsDialog.currentBalance}
+        onSuccess={handleCreditsAdded}
       />
     </Page>
   );
