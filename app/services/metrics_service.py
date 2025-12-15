@@ -1,6 +1,7 @@
 """Service for calculating and retrieving metrics."""
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
 
@@ -32,7 +33,7 @@ class MetricsService:
         self.db = db
 
     def get_dashboard_metrics(
-        self, tenant_id: str, days: int = 30
+        self, tenant_id: UUID, days: int = 30
     ) -> DashboardMetricsResponse:
         """
         Get dashboard metrics for a tenant.
@@ -73,7 +74,7 @@ class MetricsService:
 
     def get_completed_jobs(
         self,
-        tenant_id: str,
+        tenant_id: UUID,
         page: int = 1,
         page_size: int = 50,
         start_date: Optional[datetime] = None,
@@ -193,7 +194,7 @@ class MetricsService:
         )
 
     def _get_summary_stats(
-        self, tenant_id: str, start_date: datetime, end_date: datetime
+        self, tenant_id: UUID, start_date: datetime, end_date: datetime
     ) -> MetricStats:
         """Get summary statistics."""
         # Query token sums from ExtractionResult, filtering by ExtractionJob.tenant_id
@@ -247,7 +248,7 @@ class MetricsService:
         )
 
     def _get_jobs_over_time(
-        self, tenant_id: str, start_date: datetime, end_date: datetime
+        self, tenant_id: UUID, start_date: datetime, end_date: datetime
     ) -> List[TimeSeriesDataPoint]:
         """Get jobs completed per day."""
         # Create labeled expression to reuse in GROUP BY and ORDER BY
@@ -277,7 +278,7 @@ class MetricsService:
         ]
 
     def _get_pages_over_time(
-        self, tenant_id: str, start_date: datetime, end_date: datetime
+        self, tenant_id: UUID, start_date: datetime, end_date: datetime
     ) -> List[TimeSeriesDataPoint]:
         """Get pages processed per day."""
         # Create labeled expression to reuse in GROUP BY and ORDER BY
@@ -309,7 +310,7 @@ class MetricsService:
         ]
 
     def _get_tokens_over_time(
-        self, tenant_id: str, start_date: datetime, end_date: datetime
+        self, tenant_id: UUID, start_date: datetime, end_date: datetime
     ) -> List[TokenUsageData]:
         """Get token usage per day."""
         # Create labeled expression to reuse in GROUP BY and ORDER BY
@@ -345,7 +346,7 @@ class MetricsService:
         ]
 
     def _get_model_distribution(
-        self, tenant_id: str, start_date: datetime, end_date: datetime
+        self, tenant_id: UUID, start_date: datetime, end_date: datetime
     ) -> List[ModelDistribution]:
         """Get model usage distribution."""
         query = (

@@ -749,6 +749,7 @@ async def add_tenant_credits(
         )
 
     except ValueError as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

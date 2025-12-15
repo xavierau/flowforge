@@ -76,7 +76,7 @@ async def get_dashboard_metrics(
     - model_distribution: Model usage distribution
     """
     service = MetricsService(db)
-    return service.get_dashboard_metrics(tenant_id=str(current_user.tenant_id), days=days)
+    return service.get_dashboard_metrics(tenant_id=current_user.tenant_id, days=days)
 
 
 @router.get("/jobs/completed", response_model=CompletedJobsResponse)
@@ -117,7 +117,7 @@ async def get_completed_jobs(
 
     service = MetricsService(db)
     return service.get_completed_jobs(
-        tenant_id=str(current_user.tenant_id),
+        tenant_id=current_user.tenant_id,
         page=page,
         page_size=page_size,
         start_date=start_date,
