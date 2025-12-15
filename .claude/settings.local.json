@@ -109,7 +109,8 @@
       "Bash(ssh-add:*)",
       "Bash(grep:*)",
       "WebFetch(domain:docs.celeryq.dev)",
-      "mcp__chrome-devtools__new_page"
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__wait_for"
     ],
     "deny": [],
     "ask": []

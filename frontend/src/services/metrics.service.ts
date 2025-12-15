@@ -98,9 +98,10 @@ async function apiFetch(url: string, options: RequestInit = {}): Promise<Respons
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
+  // NOTE: Do NOT add Content-Type header for GET requests!
+  // Adding Content-Type: application/json to GET requests triggers CORS preflight
+  // which can cause 204 responses and request abortion.
+  // Only add Content-Type for requests with body (POST, PUT, PATCH).
 
   // Make the request with updated headers
   const response = await fetch(url, {
