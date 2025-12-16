@@ -26,6 +26,7 @@ import {
   Users,
   Workflow,
   ClipboardCheck,
+  DollarSign,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -107,6 +108,11 @@ const adminNavItems: NavItem[] = [
     name: 'Users',
     path: '/admin/users',
     icon: Users,
+  },
+  {
+    name: 'Pricing',
+    path: '/admin/pricing',
+    icon: DollarSign,
   },
   {
     name: 'Platform Settings',

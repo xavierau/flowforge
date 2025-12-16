@@ -166,6 +166,30 @@ def finalize_extraction_job(
             f"{successful_pages} successful, {failed_pages} failed pages"
         )
 
+        # --- CALCULATE AND STORE IMMUTABLE COST ---
+        try:
+            from app.domain.metrics.pricing_service import PricingService
+            from app.domain.metrics.value_objects import TokenUsage
+
+            total_input = sum(r.input_tokens or 0 for r in extraction_results)
+            total_output = sum(r.output_tokens or 0 for r in extraction_results)
+            model_used = extraction_results[0].model_used if extraction_results else job.model_name
+
+            pricing_service = PricingService(db)
+            token_usage = TokenUsage(input_tokens=total_input, output_tokens=total_output)
+            cost_estimate, pricing_snapshot = pricing_service.calculate_and_snapshot(token_usage, model_used)
+
+            job.estimated_cost_usd = cost_estimate.amount
+            job.pricing_snapshot = pricing_snapshot
+
+            logger.info(
+                f"Calculated cost for job {extraction_job_id}: ${cost_estimate.amount:.6f} "
+                f"(input: {total_input}, output: {total_output}, model: {model_used})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to calculate cost for job {extraction_job_id}: {e}")
+        # --- END COST CALCULATION ---
+
         # Update job status
         job.status = "completed"
         job.completed_at = datetime.utcnow()
@@ -479,6 +503,30 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
             avg_confidence = sum(r.get("confidence_score", 1.0) for r in results) / len(results)
         else:
             avg_confidence = 1.0
+
+        # --- CALCULATE AND STORE IMMUTABLE COST ---
+        try:
+            from app.domain.metrics.pricing_service import PricingService
+            from app.domain.metrics.value_objects import TokenUsage
+
+            total_input = sum(r.get("input_tokens", 0) for r in results)
+            total_output = sum(r.get("output_tokens", 0) for r in results)
+            model_used = results[0].get("model_used", job.model_name) if results else job.model_name
+
+            pricing_service = PricingService(db)
+            token_usage = TokenUsage(input_tokens=total_input, output_tokens=total_output)
+            cost_estimate, pricing_snapshot = pricing_service.calculate_and_snapshot(token_usage, model_used)
+
+            job.estimated_cost_usd = cost_estimate.amount
+            job.pricing_snapshot = pricing_snapshot
+
+            logger.info(
+                f"Calculated cost for job {extraction_job_id}: ${cost_estimate.amount:.6f} "
+                f"(input: {total_input}, output: {total_output}, model: {model_used})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to calculate cost for job {extraction_job_id}: {e}")
+        # --- END COST CALCULATION ---
 
         # Update job status with confidence score
         job.status = "completed"

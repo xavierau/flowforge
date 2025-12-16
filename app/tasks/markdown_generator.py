@@ -136,6 +136,27 @@ def generate_markdown_from_images(
                 )
 
                 # Store markdown directly from page_results
+                total_input_tokens = result.input_tokens
+                total_output_tokens = result.output_tokens
+                num_pages = len(result.page_results)
+
+                # Calculate per-page token distribution (proportional)
+                per_page_input = total_input_tokens // num_pages if num_pages > 0 else 0
+                per_page_output = total_output_tokens // num_pages if num_pages > 0 else 0
+
+                # Calculate per-page cost
+                try:
+                    from app.domain.metrics.pricing_service import PricingService
+                    from app.domain.metrics.value_objects import TokenUsage
+
+                    pricing_service = PricingService(db)
+                    per_page_usage = TokenUsage(input_tokens=per_page_input, output_tokens=per_page_output)
+                    per_page_cost, _ = pricing_service.calculate_and_snapshot(per_page_usage, converter_name)
+                    per_page_cost_usd = per_page_cost.amount
+                except Exception as e:
+                    logger.warning(f"Failed to calculate per-page cost: {e}")
+                    per_page_cost_usd = None
+
                 for page_result in result.page_results:
                     page_num = page_result["page"]
                     content = page_result["markdown"]
@@ -147,6 +168,12 @@ def generate_markdown_from_images(
                         page.markdown_provider = converter_name
                         page.markdown_generated_at = datetime.utcnow()
 
+                        # Store token tracking for Stage 1
+                        page.markdown_input_tokens = per_page_input
+                        page.markdown_output_tokens = per_page_output
+                        page.markdown_model_used = converter_name
+                        page.markdown_cost_usd = per_page_cost_usd
+
                         # Save markdown to local filesystem
                         markdown_filename = f"page_{page.page_number}.md"
                         markdown_path = storage.upload_bytes_sync(
@@ -155,9 +182,6 @@ def generate_markdown_from_images(
                             prefix=f"markdown/{document_id}"
                         )
                         logger.info(f"Saved markdown for page {page.page_number} to {markdown_path}")
-
-                total_input_tokens = result.input_tokens
-                total_output_tokens = result.output_tokens
 
                 logger.info(
                     f"Batch markdown conversion completed: {len(result.page_results)} pages, "
@@ -189,6 +213,27 @@ def generate_markdown_from_images(
                     # No page markers found, treat as single page
                     page_sections = [(1, markdown_content)]
 
+                total_input_tokens = result.input_tokens
+                total_output_tokens = result.output_tokens
+                num_pages = len(page_sections) if page_sections else 1
+
+                # Calculate per-page token distribution (proportional)
+                per_page_input = total_input_tokens // num_pages if num_pages > 0 else 0
+                per_page_output = total_output_tokens // num_pages if num_pages > 0 else 0
+
+                # Calculate per-page cost
+                try:
+                    from app.domain.metrics.pricing_service import PricingService
+                    from app.domain.metrics.value_objects import TokenUsage
+
+                    pricing_service = PricingService(db)
+                    per_page_usage = TokenUsage(input_tokens=per_page_input, output_tokens=per_page_output)
+                    per_page_cost, _ = pricing_service.calculate_and_snapshot(per_page_usage, converter_name)
+                    per_page_cost_usd = per_page_cost.amount
+                except Exception as e:
+                    logger.warning(f"Failed to calculate per-page cost: {e}")
+                    per_page_cost_usd = None
+
                 # Store markdown for each page
                 for page_num, content in page_sections:
                     # Find corresponding page
@@ -198,6 +243,12 @@ def generate_markdown_from_images(
                         page.markdown_provider = converter_name
                         page.markdown_generated_at = datetime.utcnow()
 
+                        # Store token tracking for Stage 1
+                        page.markdown_input_tokens = per_page_input
+                        page.markdown_output_tokens = per_page_output
+                        page.markdown_model_used = converter_name
+                        page.markdown_cost_usd = per_page_cost_usd
+
                         # Save markdown to local filesystem
                         markdown_filename = f"page_{page.page_number}.md"
                         markdown_path = storage.upload_bytes_sync(
@@ -206,9 +257,6 @@ def generate_markdown_from_images(
                             prefix=f"markdown/{document_id}"
                         )
                         logger.info(f"Saved markdown for page {page.page_number} to {markdown_path}")
-
-                total_input_tokens = result.input_tokens
-                total_output_tokens = result.output_tokens
 
                 logger.info(
                     f"Batch markdown conversion completed: {len(page_sections)} pages, "
@@ -247,6 +295,24 @@ def generate_markdown_from_images(
                 page.markdown_provider = converter_name
                 page.markdown_generated_at = datetime.utcnow()
 
+                # Store token tracking for Stage 1
+                page.markdown_input_tokens = result.input_tokens
+                page.markdown_output_tokens = result.output_tokens
+                page.markdown_model_used = converter_name
+
+                # Calculate per-page cost
+                try:
+                    from app.domain.metrics.pricing_service import PricingService
+                    from app.domain.metrics.value_objects import TokenUsage
+
+                    pricing_service = PricingService(db)
+                    page_usage = TokenUsage(input_tokens=result.input_tokens, output_tokens=result.output_tokens)
+                    page_cost, _ = pricing_service.calculate_and_snapshot(page_usage, converter_name)
+                    page.markdown_cost_usd = page_cost.amount
+                except Exception as e:
+                    logger.warning(f"Failed to calculate page cost: {e}")
+                    page.markdown_cost_usd = None
+
                 # Save markdown to local filesystem
                 markdown_filename = f"page_{page.page_number}.md"
                 markdown_path = storage.upload_bytes_sync(
@@ -277,6 +343,9 @@ def generate_markdown_from_images(
             "status": "success",
             "pages_processed": len(pages),
             "total_tokens": total_input_tokens + total_output_tokens,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "model_used": converter_name,
         }
 
     except Exception as e:

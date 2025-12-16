@@ -115,8 +115,14 @@ class AdminMetricsService:
         total_output_tokens = token_stats.output_tokens or 0
         total_tokens = total_input_tokens + total_output_tokens
 
-        # Financial metrics (simplified cost estimate: $1 per 1000 tokens)
-        estimated_total_cost = (total_tokens / 1000.0) * 1.0
+        # Financial metrics - use stored costs where available
+        estimated_total_cost = (
+            self.db.query(func.sum(ExtractionJob.estimated_cost_usd))
+            .filter(ExtractionJob.estimated_cost_usd.isnot(None))
+            .scalar() or 0.0
+        )
+        # Convert Decimal to float for JSON serialization
+        estimated_total_cost = float(estimated_total_cost)
 
         # Credit metrics
         credit_stats = (
@@ -330,8 +336,15 @@ class AdminMetricsService:
         total_output_tokens = token_stats.output_tokens or 0
         total_tokens = total_input_tokens + total_output_tokens
 
-        # Financial metrics
-        estimated_cost = (total_tokens / 1000.0) * 1.0  # Simplified: $1 per 1000 tokens
+        # Financial metrics - use stored costs where available for this tenant
+        estimated_cost = (
+            self.db.query(func.sum(ExtractionJob.estimated_cost_usd))
+            .join(Document, ExtractionJob.document_id == Document.id)
+            .filter(Document.tenant_id == tenant_id)
+            .filter(ExtractionJob.estimated_cost_usd.isnot(None))
+            .scalar() or 0.0
+        )
+        estimated_cost = float(estimated_cost)  # Convert Decimal to float
 
         # Credit balance and consumption
         tenant = self.db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -393,6 +406,7 @@ class AdminMetricsService:
                     func.coalesce(ExtractionResult.input_tokens, 0) +
                     func.coalesce(ExtractionResult.output_tokens, 0)
                 ).label('total_tokens'),
+                func.sum(func.coalesce(ExtractionJob.estimated_cost_usd, 0)).label('estimated_cost'),
                 func.count(func.distinct(User.id)).label('user_count'),
                 func.max(ExtractionJob.created_at).label('last_activity'),
             )
@@ -420,7 +434,7 @@ class AdminMetricsService:
                 subscription_plan=row.subscription_plan,
                 job_count=row.job_count or 0,
                 total_tokens=row.total_tokens or 0,
-                estimated_cost=((row.total_tokens or 0) / 1000.0) * 1.0,
+                estimated_cost=float(row.estimated_cost or 0),
                 user_count=row.user_count or 0,
                 created_at=row.created_at,
                 last_activity=row.last_activity,

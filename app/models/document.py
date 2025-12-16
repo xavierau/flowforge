@@ -1,7 +1,7 @@
 """Document and DocumentPage models."""
 
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey, Index
+from sqlalchemy import Column, String, Integer, DateTime, Text, ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -65,6 +65,12 @@ class DocumentPage(Base):
     markdown_content = Column(Text, nullable=True)  # Generated markdown content
     markdown_provider = Column(String(50), nullable=True)  # Provider used (gemini_vision, gpt4v)
     markdown_generated_at = Column(DateTime, nullable=True)  # When markdown was generated
+
+    # Markdown generation token tracking (Stage 1 of markdown pipeline)
+    markdown_input_tokens = Column(Integer, nullable=True)  # Input tokens for markdown generation
+    markdown_output_tokens = Column(Integer, nullable=True)  # Output tokens for markdown generation
+    markdown_model_used = Column(String(100), nullable=True)  # Model used (e.g., qwen_vision)
+    markdown_cost_usd = Column(Numeric(10, 6), nullable=True)  # Cost for this page's markdown generation
 
     # Relationships
     document = relationship("Document", back_populates="pages")

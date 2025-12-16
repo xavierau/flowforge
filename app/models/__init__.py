@@ -28,6 +28,9 @@ from app.models.admin_audit_log import AdminAuditLog
 # Platform settings model
 from app.models.platform_setting import PlatformSetting
 
+# Model pricing
+from app.models.model_pricing import ModelPricing
+
 # Workflow models
 from app.models.workflow import (
     Workflow,
@@ -74,4 +77,6 @@ __all__ = [
     # HITL (Human-in-the-Loop)
     "ReviewRequest",
     "ReviewCorrection",
+    # Model Pricing
+    "ModelPricing",
 ]

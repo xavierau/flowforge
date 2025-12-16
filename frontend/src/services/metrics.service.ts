@@ -6,6 +6,11 @@
  * - Single Responsibility: Handles only metrics-related API calls
  * - Open/Closed: Easy to extend with new metric endpoints
  * - Interface Segregation: Focused interface for metrics operations
+ *
+ * Uses centralized API client from lib/api-client.ts for:
+ * - Automatic token refresh on 401 responses
+ * - Auth header injection
+ * - Consistent error handling
  */
 
 import type {
@@ -14,12 +19,11 @@ import type {
   CompletedJobsFilters,
   DateRangeOption,
 } from '@/types/metrics';
-import { getAccessToken, clearTokens } from './auth.service';
+import { apiFetch, API_BASE_URL, handleApiResponse } from '@/lib/api-client';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1';  // Use Vite proxy when VITE_API_URL not set
-
+/**
+ * @deprecated Use ApiClientError from api-client.ts
+ */
 export class MetricsApiError extends Error {
   statusCode: number;
   details?: unknown;
@@ -30,98 +34,6 @@ export class MetricsApiError extends Error {
     this.statusCode = statusCode;
     this.details = details;
   }
-}
-
-/**
- * Handles API response errors with proper type checking
- */
-async function handleApiResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const contentType = response.headers.get('content-type');
-    let errorData: unknown;
-
-    if (contentType?.includes('application/json')) {
-      try {
-        errorData = await response.json();
-      } catch {
-        // Ignore JSON parse errors
-      }
-    }
-
-    // Handle specific HTTP status codes
-    if (response.status === 401) {
-      throw new MetricsApiError('Unauthorized. Please log in.', 401, errorData);
-    }
-
-    if (response.status === 403) {
-      throw new MetricsApiError(
-        'Access denied. Insufficient permissions.',
-        403,
-        errorData
-      );
-    }
-
-    if (response.status === 404) {
-      throw new MetricsApiError('Resource not found.', 404, errorData);
-    }
-
-    // Generic error
-    const message =
-      errorData && typeof errorData === 'object' && 'detail' in errorData
-        ? String(errorData.detail)
-        : 'An error occurred';
-
-    throw new MetricsApiError(message, response.status, errorData);
-  }
-
-  return response.json();
-}
-
-/**
- * Centralized fetch wrapper with 401 interceptor for metrics API
- *
- * Automatically:
- * - Adds Authorization header if token exists
- * - Intercepts 401 responses and redirects to login
- * - Clears stored tokens on unauthorized access
- *
- * @param url - Request URL
- * @param options - Fetch options
- * @returns Response promise
- */
-async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  // Add Authorization header if token exists
-  const token = getAccessToken();
-  const headers = new Headers(options.headers);
-
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  // NOTE: Do NOT add Content-Type header for GET requests!
-  // Adding Content-Type: application/json to GET requests triggers CORS preflight
-  // which can cause 204 responses and request abortion.
-  // Only add Content-Type for requests with body (POST, PUT, PATCH).
-
-  // Make the request with updated headers
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  // Intercept 401 Unauthorized responses
-  if (response.status === 401) {
-    // Clear tokens from storage
-    clearTokens();
-
-    // Redirect to login page
-    window.location.href = '/login';
-
-    // Throw error to prevent further processing
-    throw new MetricsApiError('Unauthorized - Please log in again', 401);
-  }
-
-  return response;
 }
 
 /**

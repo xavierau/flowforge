@@ -128,34 +128,21 @@ export async function signup(data: SignupRequest): Promise<SignupResponse> {
 }
 
 /**
- * Store authentication tokens in localStorage
+ * Token management functions
+ * Re-exported from centralized api-client for backward compatibility
  */
-export function storeTokens(accessToken: string, refreshToken: string): void {
-  localStorage.setItem('access_token', accessToken);
-  localStorage.setItem('refresh_token', refreshToken);
-}
+import {
+  storeTokens as _storeTokens,
+  getAccessToken as _getAccessToken,
+  clearTokens as _clearTokens,
+  hasStoredTokens as _hasStoredTokens,
+} from '@/lib/api-client';
 
-/**
- * Retrieve access token from localStorage
- */
-export function getAccessToken(): string | null {
-  return localStorage.getItem('access_token');
-}
-
-/**
- * Clear authentication tokens from localStorage
- */
-export function clearTokens(): void {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-}
-
-/**
- * Check if user is authenticated
- */
-export function isAuthenticated(): boolean {
-  return getAccessToken() !== null;
-}
+// Re-export for backward compatibility
+export const storeTokens = _storeTokens;
+export const getAccessToken = _getAccessToken;
+export const clearTokens = _clearTokens;
+export const isAuthenticated = _hasStoredTokens;
 
 /**
  * Decode JWT token and extract payload

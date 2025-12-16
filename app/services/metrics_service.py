@@ -234,17 +234,22 @@ class MetricsService:
             or 0
         )
 
-        # Estimate cost (simplified - using default pricing)
-        from app.domain.metrics.value_objects import TokenUsage
-
-        token_usage = TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens)
-        cost_estimate = PricingService.calculate_cost(token_usage, "default")
+        # Use stored costs where available for this tenant
+        estimated_cost = (
+            self.db.query(func.sum(ExtractionJob.estimated_cost_usd))
+            .filter(ExtractionJob.tenant_id == tenant_id)
+            .filter(ExtractionJob.status == "completed")
+            .filter(ExtractionJob.completed_at >= start_date)
+            .filter(ExtractionJob.completed_at <= end_date)
+            .filter(ExtractionJob.estimated_cost_usd.isnot(None))
+            .scalar() or 0.0
+        )
 
         return MetricStats(
             total_jobs=total_jobs,
             total_pages=total_pages,
             total_tokens=total_tokens,
-            estimated_cost=round(cost_estimate.amount, 2),
+            estimated_cost=round(float(estimated_cost), 2),
         )
 
     def _get_jobs_over_time(

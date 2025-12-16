@@ -7,9 +7,9 @@
  * - Open/Closed: Easy to extend with new user operations
  * - Interface Segregation: Focused interface for user operations
  *
- * Uses centralized API wrapper from lib/api.ts for:
- * - Automatic auth header injection
- * - 401 interceptor with auto-redirect to login
+ * Uses centralized API client from lib/api-client.ts for:
+ * - Automatic token refresh on 401 responses
+ * - Auth header injection
  * - Consistent error handling
  */
 
@@ -21,13 +21,11 @@ import type {
   ChangePasswordRequest,
   NotificationPreferences,
 } from '@/types/profile';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1';  // Use Vite proxy when VITE_API_URL not set
+import { apiFetch, API_BASE_URL, handleApiResponse } from '@/lib/api-client';
 
 /**
  * Custom error class for user API errors
+ * @deprecated Use ApiClientError from api-client.ts
  */
 export class UserApiError extends Error {
   statusCode: number;
@@ -39,60 +37,6 @@ export class UserApiError extends Error {
     this.statusCode = statusCode;
     this.details = details;
   }
-}
-
-/**
- * Centralized fetch wrapper with 401 interceptor
- * Automatically adds Authorization header and handles auth errors
- */
-async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = localStorage.getItem('access_token');
-  const headers = new Headers(options.headers);
-
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  // Intercept 401 - clear tokens and redirect to login
-  if (response.status === 401) {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
-    throw new UserApiError('Unauthorized - Please log in again', 401);
-  }
-
-  return response;
-}
-
-/**
- * Handle API response errors
- */
-async function handleApiResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const contentType = response.headers.get('content-type');
-    let errorData: unknown;
-
-    if (contentType?.includes('application/json')) {
-      errorData = await response.json();
-    }
-
-    const message =
-      errorData &&
-      typeof errorData === 'object' &&
-      'detail' in errorData &&
-      typeof errorData.detail === 'string'
-        ? errorData.detail
-        : 'An error occurred';
-
-    throw new UserApiError(message, response.status, errorData);
-  }
-
-  return response.json();
 }
 
 /**

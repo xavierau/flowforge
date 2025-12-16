@@ -1,7 +1,7 @@
 """ExtractionJob model."""
 
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, Index, Float
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, Index, Float, Numeric
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
 import uuid
@@ -62,6 +62,10 @@ class ExtractionJob(Base):
 
     # Job source tracking
     source = Column(String(20), nullable=False, default="api")  # webui or api
+
+    # Cost tracking (immutable at completion)
+    estimated_cost_usd = Column(Numeric(10, 6), nullable=True)  # Total estimated cost in USD
+    pricing_snapshot = Column(JSONB, nullable=True)  # Pricing details at time of calculation
 
     # Relationships
     document = relationship("Document", back_populates="extraction_jobs")

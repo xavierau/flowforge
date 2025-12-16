@@ -43,6 +43,7 @@ const TenantList = lazy(() => import('@/pages/admin/TenantList').then(m => ({ de
 const TenantDetail = lazy(() => import('@/pages/admin/TenantDetail').then(m => ({ default: m.TenantDetail })));
 const UserList = lazy(() => import('@/pages/admin/UserList').then(m => ({ default: m.UserList })));
 const PlatformSettings = lazy(() => import('@/pages/admin/PlatformSettings').then(m => ({ default: m.PlatformSettings })));
+const PricingManagement = lazy(() => import('@/pages/admin/PricingManagement').then(m => ({ default: m.PricingManagement })));
 
 function App() {
   return (
@@ -324,6 +325,16 @@ function App() {
             <ProtectedRoute requiredRole="platform_admin">
               <AuthenticatedLayout>
                 <PlatformSettings />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/pricing"
+          element={
+            <ProtectedRoute requiredRole="platform_admin">
+              <AuthenticatedLayout>
+                <PricingManagement />
               </AuthenticatedLayout>
             </ProtectedRoute>
           }

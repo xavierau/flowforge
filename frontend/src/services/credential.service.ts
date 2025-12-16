@@ -2,7 +2,10 @@
  * Credential Service
  *
  * Handles all credential/secret operations including creation, listing, and deletion.
- * Uses the centralized apiFetch function for consistent error handling and auth.
+ * Uses centralized API client from lib/api-client.ts for:
+ * - Automatic token refresh on 401 responses
+ * - Auth header injection
+ * - Consistent error handling
  */
 
 import type {
@@ -11,46 +14,7 @@ import type {
   CredentialUpdateRequest,
   CredentialListResponse,
 } from '@/types/credential';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1'; // Use Vite proxy when VITE_API_URL not set
-
-/**
- * Get authentication token from localStorage
- */
-function getAuthToken(): string | null {
-  return localStorage.getItem('access_token');
-}
-
-/**
- * Centralized fetch wrapper with auth
- */
-async function apiFetch(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const token = getAuthToken();
-  const headers = new Headers(options.headers);
-
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (response.status === 401) {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
-    throw new Error('Unauthorized - Please log in again');
-  }
-
-  return response;
-}
+import { apiFetch, API_BASE_URL } from '@/lib/api-client';
 
 export const credentialService = {
   /**

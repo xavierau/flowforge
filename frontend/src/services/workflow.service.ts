@@ -1,6 +1,11 @@
 /**
  * Workflow Service - API layer for workflow CRUD and execution
  * Handles all backend communication for workflows
+ *
+ * Uses centralized API client from lib/api-client.ts for:
+ * - Automatic token refresh on 401 responses
+ * - Auth header injection
+ * - Consistent error handling
  */
 
 import type {
@@ -12,46 +17,9 @@ import type {
   WorkflowCreateRequest,
   WorkflowUpdateRequest,
 } from '@/types/workflow';
+import { apiFetch, handleApiResponse } from '@/lib/api-client';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
-/**
- * Centralized API fetch wrapper with authentication
- * CRITICAL: All API calls MUST use this wrapper
- */
-async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = localStorage.getItem('access_token');
-  const headers = new Headers(options.headers);
-
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const response = await fetch(url, { ...options, headers });
-
-  // Handle 401 - redirect to login
-  if (response.status === 401) {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    window.location.href = '/login';
-    throw new Error('Unauthorized - Please log in again');
-  }
-
-  return response;
-}
-
-/**
- * Handle API response and parse JSON
- */
-async function handleApiResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      detail: response.statusText,
-    }));
-    throw new Error(errorData.detail || `API Error: ${response.status}`);
-  }
-  return response.json();
-}
 
 /**
  * Create a new workflow

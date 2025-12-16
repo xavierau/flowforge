@@ -259,3 +259,17 @@ class JobSource(str, Enum):
     """
     WEBUI = "webui"
     API = "api"
+
+
+class PricingStatus(str, Enum):
+    """
+    Model pricing record status.
+
+    Controls the lifecycle of pricing records:
+    - ACTIVE: Currently active pricing record
+    - SUPERSEDED: Replaced by a newer pricing record
+    - DEACTIVATED: Manually deactivated by admin
+    """
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+    DEACTIVATED = "deactivated"

@@ -8,6 +8,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ============================================================================
+# Pricing Constants
+# ============================================================================
+
+# Maximum allowed price per 1M tokens (USD)
+# This prevents accidental or malicious setting of extremely high prices
+# that could cause billing issues. $10,000 per 1M tokens is far above
+# any current market rates (highest is ~$60 per 1M for GPT-4 Turbo)
+MAX_PRICE_PER_MILLION_TOKENS = 10000.0
+
+
+# ============================================================================
 # Platform Statistics Schemas
 # ============================================================================
 
@@ -436,3 +447,113 @@ class ErrorResponse(BaseModel):
     success: bool = False
     error: str
     detail: Optional[str] = None
+
+
+# ============================================================================
+# Model Pricing Schemas
+# ============================================================================
+
+class CreateModelPricingRequest(BaseModel):
+    """Request to create a new model pricing record."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "model_name": "gpt-4o",
+                "input_price_per_million": 5.00,
+                "output_price_per_million": 15.00,
+                "effective_from": "2025-01-01T00:00:00Z",
+                "notes": "Initial pricing for GPT-4o model"
+            }
+        }
+    )
+
+    model_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Model name (e.g., 'gpt-4o', 'gemini-2.5-flash')"
+    )
+    input_price_per_million: float = Field(
+        ...,
+        ge=0,
+        le=MAX_PRICE_PER_MILLION_TOKENS,
+        description=f"Price per 1M input tokens in USD (max: ${MAX_PRICE_PER_MILLION_TOKENS:,.0f})"
+    )
+    output_price_per_million: float = Field(
+        ...,
+        ge=0,
+        le=MAX_PRICE_PER_MILLION_TOKENS,
+        description=f"Price per 1M output tokens in USD (max: ${MAX_PRICE_PER_MILLION_TOKENS:,.0f})"
+    )
+    effective_from: Optional[datetime] = Field(
+        None,
+        description="When pricing takes effect (default: now)"
+    )
+    notes: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Optional notes about the pricing"
+    )
+
+
+class DeactivatePricingRequest(BaseModel):
+    """Request to deactivate a pricing record."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "reason": "Model deprecated, no longer in use"
+            }
+        }
+    )
+
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Reason for deactivation"
+    )
+
+
+class ModelPricingResponse(BaseModel):
+    """Model pricing record response."""
+
+    id: UUID
+    model_name: str
+    input_price_per_million: float
+    output_price_per_million: float
+    effective_from: datetime
+    effective_until: Optional[datetime] = None
+    is_active: bool
+    created_by: UUID
+    created_by_email: Optional[str] = None
+    created_at: datetime
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ModelPricingListResponse(BaseModel):
+    """Paginated list of model pricing records."""
+
+    pricing: List[ModelPricingResponse]
+    total: int
+    page: int = 1
+    page_size: int = 50
+    total_pages: int = 1
+
+
+class ModelPricingHistoryResponse(BaseModel):
+    """Pricing history for a specific model."""
+
+    model_name: str
+    history: List[ModelPricingResponse]
+    current_pricing: Optional[ModelPricingResponse] = None
+
+
+class SupportedModelsResponse(BaseModel):
+    """List of supported models."""
+
+    models: List[str]
+    total: int

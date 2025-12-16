@@ -3,12 +3,13 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.auth import require_super_admin
 from app.models import User
+from app.models.admin_audit_log import AdminAuditLog
 from app.services.admin_metrics_service import AdminMetricsService
 from app.services.tenant_management_service import TenantManagementService
 from app.services.admin_user_service import AdminUserService
@@ -30,6 +31,13 @@ from app.schemas.admin import (
     PlatformSettingResponse,
     UpdatePlatformSettingRequest,
     SuccessResponse,
+    # Model Pricing
+    CreateModelPricingRequest,
+    DeactivatePricingRequest,
+    ModelPricingResponse,
+    ModelPricingListResponse,
+    ModelPricingHistoryResponse,
+    SupportedModelsResponse,
 )
 from app.exceptions.auth import AuthorizationError
 
@@ -750,6 +758,391 @@ async def add_tenant_credits(
 
     except ValueError as e:
         db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+# ============================================================================
+# Model Pricing Management
+# ============================================================================
+
+@router.get("/pricing", response_model=ModelPricingListResponse)
+async def list_model_pricing(
+    include_inactive: bool = Query(False, description="Include deactivated pricing records"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    List all model pricing records.
+
+    Returns paginated list of pricing configurations for all models.
+    By default, only shows active pricing records.
+
+    **Query Parameters:**
+    - `include_inactive`: Include deactivated records (default: false)
+    - `page`: Page number (1-indexed), default 1
+    - `page_size`: Items per page (1-100), default 50
+
+    **Requires:** Super admin access (platform_admin role)
+
+    **Example Response:**
+    ```json
+    {
+        "pricing": [
+            {
+                "id": "...",
+                "model_name": "gpt-4o",
+                "input_price_per_million": 5.00,
+                "output_price_per_million": 15.00,
+                "effective_from": "2025-01-01T00:00:00Z",
+                "effective_until": null,
+                "is_active": true,
+                "created_by": "...",
+                "created_by_email": "admin@example.com",
+                "created_at": "2025-01-01T00:00:00Z",
+                "notes": "Initial pricing"
+            }
+        ],
+        "total": 5,
+        "page": 1,
+        "page_size": 50,
+        "total_pages": 1
+    }
+    ```
+    """
+    from app.services.pricing_management_service import PricingManagementService
+
+    service = PricingManagementService(db)
+    records, total = service.list_all_pricing(
+        include_inactive=include_inactive,
+        page=page,
+        page_size=page_size,
+    )
+
+    total_pages = (total + page_size - 1) // page_size
+
+    # Build response with creator email
+    pricing_items = []
+    for record in records:
+        creator_email = None
+        if record.creator:
+            creator_email = record.creator.email
+
+        pricing_items.append(
+            ModelPricingResponse(
+                id=record.id,
+                model_name=record.model_name,
+                input_price_per_million=float(record.input_price_per_million),
+                output_price_per_million=float(record.output_price_per_million),
+                effective_from=record.effective_from,
+                effective_until=record.effective_until,
+                is_active=record.is_active,
+                created_by=record.created_by,
+                created_by_email=creator_email,
+                created_at=record.created_at,
+                notes=record.notes,
+            )
+        )
+
+    return ModelPricingListResponse(
+        pricing=pricing_items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
+
+
+@router.post("/pricing", response_model=ModelPricingResponse, status_code=status.HTTP_201_CREATED)
+async def create_model_pricing(
+    request: CreateModelPricingRequest,
+    http_request: Request,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new model pricing record.
+
+    **Write Operation** - Creates a new pricing configuration for a model.
+    If an active pricing already exists for the model, it will be auto-expired.
+
+    **Request Body:**
+    ```json
+    {
+        "model_name": "gpt-4o",
+        "input_price_per_million": 5.00,
+        "output_price_per_million": 15.00,
+        "effective_from": "2025-01-01T00:00:00Z",
+        "notes": "Price update for Q1 2025"
+    }
+    ```
+
+    **Requires:** Super admin access (platform_admin role)
+
+    **Raises:**
+    - 400: Invalid model name or prices
+    """
+    from app.services.pricing_management_service import PricingManagementService
+
+    service = PricingManagementService(db)
+
+    try:
+        record = service.create_pricing(
+            model_name=request.model_name,
+            input_price=request.input_price_per_million,
+            output_price=request.output_price_per_million,
+            created_by=current_user.id,
+            effective_from=request.effective_from,
+            notes=request.notes,
+        )
+
+        # Create audit log entry for pricing creation
+        audit_log = AdminAuditLog(
+            user_id=current_user.id,
+            action="pricing_created",
+            resource_type="model_pricing",
+            resource_id=record.id,
+            endpoint="/admin/pricing",
+            method="POST",
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            status_code=201,
+            audit_metadata={
+                "model_name": record.model_name,
+                "input_price_per_million": float(record.input_price_per_million),
+                "output_price_per_million": float(record.output_price_per_million),
+                "effective_from": record.effective_from.isoformat() if record.effective_from else None,
+                "notes": request.notes,
+            }
+        )
+        db.add(audit_log)
+        db.commit()
+
+        return ModelPricingResponse(
+            id=record.id,
+            model_name=record.model_name,
+            input_price_per_million=float(record.input_price_per_million),
+            output_price_per_million=float(record.output_price_per_million),
+            effective_from=record.effective_from,
+            effective_until=record.effective_until,
+            is_active=record.is_active,
+            created_by=record.created_by,
+            created_by_email=current_user.email,
+            created_at=record.created_at,
+            notes=record.notes,
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/pricing/models", response_model=SupportedModelsResponse)
+async def get_supported_models(
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of all supported models with pricing.
+
+    Returns models from both database configurations and system defaults.
+
+    **Requires:** Super admin access (platform_admin role)
+
+    **Example Response:**
+    ```json
+    {
+        "models": ["deepseek-chat", "gemini-2.5-flash", "gpt-4o", "gpt-4-vision-preview"],
+        "total": 4
+    }
+    ```
+    """
+    from app.services.pricing_management_service import PricingManagementService
+
+    service = PricingManagementService(db)
+    models = service.get_supported_models()
+
+    return SupportedModelsResponse(
+        models=models,
+        total=len(models),
+    )
+
+
+@router.get("/pricing/{model_name}", response_model=ModelPricingHistoryResponse)
+async def get_model_pricing_history(
+    model_name: str,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get pricing history for a specific model.
+
+    Returns all pricing records (active and expired) for the specified model,
+    plus identifies the current active pricing.
+
+    **Path Parameters:**
+    - `model_name`: Model name to look up (case-insensitive)
+
+    **Requires:** Super admin access (platform_admin role)
+
+    **Example Response:**
+    ```json
+    {
+        "model_name": "gpt-4o",
+        "history": [
+            {
+                "id": "...",
+                "model_name": "gpt-4o",
+                "input_price_per_million": 5.00,
+                "output_price_per_million": 15.00,
+                "effective_from": "2025-01-01T00:00:00Z",
+                "effective_until": null,
+                "is_active": true,
+                ...
+            }
+        ],
+        "current_pricing": {...}
+    }
+    ```
+    """
+    from app.services.pricing_management_service import PricingManagementService
+
+    service = PricingManagementService(db)
+    history, current = service.get_pricing_history(model_name)
+
+    # Build response items
+    history_items = []
+    for record in history:
+        creator_email = None
+        if record.creator:
+            creator_email = record.creator.email
+
+        history_items.append(
+            ModelPricingResponse(
+                id=record.id,
+                model_name=record.model_name,
+                input_price_per_million=float(record.input_price_per_million),
+                output_price_per_million=float(record.output_price_per_million),
+                effective_from=record.effective_from,
+                effective_until=record.effective_until,
+                is_active=record.is_active,
+                created_by=record.created_by,
+                created_by_email=creator_email,
+                created_at=record.created_at,
+                notes=record.notes,
+            )
+        )
+
+    current_response = None
+    if current:
+        creator_email = None
+        if current.creator:
+            creator_email = current.creator.email
+
+        current_response = ModelPricingResponse(
+            id=current.id,
+            model_name=current.model_name,
+            input_price_per_million=float(current.input_price_per_million),
+            output_price_per_million=float(current.output_price_per_million),
+            effective_from=current.effective_from,
+            effective_until=current.effective_until,
+            is_active=current.is_active,
+            created_by=current.created_by,
+            created_by_email=creator_email,
+            created_at=current.created_at,
+            notes=current.notes,
+        )
+
+    return ModelPricingHistoryResponse(
+        model_name=model_name.lower(),
+        history=history_items,
+        current_pricing=current_response,
+    )
+
+
+@router.delete("/pricing/{pricing_id}", response_model=SuccessResponse)
+async def deactivate_model_pricing(
+    pricing_id: UUID,
+    request: DeactivatePricingRequest,
+    http_request: Request,
+    current_user: User = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Soft-delete a pricing record.
+
+    **Write Operation** - Marks the pricing record as deactivated.
+    The record is preserved for audit purposes.
+
+    **Path Parameters:**
+    - `pricing_id`: UUID of the pricing record to deactivate
+
+    **Request Body:**
+    ```json
+    {
+        "reason": "Model deprecated, no longer in use"
+    }
+    ```
+
+    **Requires:** Super admin access (platform_admin role)
+
+    **Raises:**
+    - 400: Pricing record not found or already deactivated
+    - 404: Pricing record not found
+    """
+    from app.services.pricing_management_service import PricingManagementService
+
+    service = PricingManagementService(db)
+
+    try:
+        # Get the record before deactivation for audit metadata
+        existing_record = service.get_pricing_by_id(pricing_id)
+        previous_input_price = float(existing_record.input_price_per_million) if existing_record else None
+        previous_output_price = float(existing_record.output_price_per_million) if existing_record else None
+
+        record = service.deactivate_pricing(
+            pricing_id=pricing_id,
+            reason=request.reason,
+        )
+
+        # Create audit log entry for pricing deactivation
+        audit_log = AdminAuditLog(
+            user_id=current_user.id,
+            action="pricing_deactivated",
+            resource_type="model_pricing",
+            resource_id=record.id,
+            endpoint=f"/admin/pricing/{pricing_id}",
+            method="DELETE",
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+            status_code=200,
+            audit_metadata={
+                "model_name": record.model_name,
+                "previous_input_price_per_million": previous_input_price,
+                "previous_output_price_per_million": previous_output_price,
+                "reason": request.reason,
+            }
+        )
+        db.add(audit_log)
+        db.commit()
+
+        return SuccessResponse(
+            success=True,
+            message=f"Pricing for '{record.model_name}' deactivated successfully",
+            data={
+                "pricing_id": str(record.id),
+                "model_name": record.model_name,
+                "reason": request.reason,
+            }
+        )
+
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

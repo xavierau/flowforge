@@ -121,6 +121,85 @@ def extract_from_markdown(self: Task, extraction_job_id: str) -> dict:
 
         db.add(extraction_result)
 
+        # --- CALCULATE AND STORE IMMUTABLE COST (BOTH STAGES) ---
+        try:
+            from app.domain.metrics.pricing_service import PricingService
+            from app.domain.metrics.value_objects import TokenUsage
+            from decimal import Decimal
+
+            pricing_service = PricingService(db)
+
+            # --- STAGE 1: Markdown Generation Cost (from DocumentPage) ---
+            stage1_input_tokens = sum(p.markdown_input_tokens or 0 for p in pages_with_markdown)
+            stage1_output_tokens = sum(p.markdown_output_tokens or 0 for p in pages_with_markdown)
+            stage1_cost_from_pages = sum(float(p.markdown_cost_usd or 0) for p in pages_with_markdown)
+            stage1_model = pages_with_markdown[0].markdown_model_used if pages_with_markdown else "unknown"
+
+            # If per-page costs weren't stored, calculate now
+            if stage1_cost_from_pages == 0 and (stage1_input_tokens > 0 or stage1_output_tokens > 0):
+                stage1_usage = TokenUsage(input_tokens=stage1_input_tokens, output_tokens=stage1_output_tokens)
+                stage1_cost_estimate, stage1_snapshot = pricing_service.calculate_and_snapshot(
+                    stage1_usage, stage1_model
+                )
+                stage1_cost_usd = stage1_cost_estimate.amount
+            else:
+                stage1_cost_usd = stage1_cost_from_pages
+                stage1_snapshot = {
+                    "model": stage1_model,
+                    "input_tokens": stage1_input_tokens,
+                    "output_tokens": stage1_output_tokens,
+                    "aggregated_from_pages": True,
+                }
+
+            # --- STAGE 2: JSON Extraction Cost (current result) ---
+            stage2_input_tokens = result.input_tokens
+            stage2_output_tokens = result.output_tokens
+            stage2_model = result.model or job.model_name
+
+            stage2_usage = TokenUsage(input_tokens=stage2_input_tokens, output_tokens=stage2_output_tokens)
+            stage2_cost_estimate, stage2_snapshot = pricing_service.calculate_and_snapshot(
+                stage2_usage, stage2_model
+            )
+            stage2_cost_usd = stage2_cost_estimate.amount
+
+            # --- TOTAL COST ---
+            total_cost_usd = stage1_cost_usd + stage2_cost_usd
+
+            # Store on job with breakdown
+            job.estimated_cost_usd = Decimal(str(total_cost_usd))
+            job.pricing_snapshot = {
+                "pipeline": "markdown",
+                "stages": [
+                    {
+                        "stage": "markdown_generation",
+                        "model": stage1_model,
+                        "input_tokens": stage1_input_tokens,
+                        "output_tokens": stage1_output_tokens,
+                        "cost_usd": round(stage1_cost_usd, 6),
+                        "pricing": stage1_snapshot,
+                    },
+                    {
+                        "stage": "json_extraction",
+                        "model": stage2_model,
+                        "input_tokens": stage2_input_tokens,
+                        "output_tokens": stage2_output_tokens,
+                        "cost_usd": round(stage2_cost_usd, 6),
+                        "pricing": stage2_snapshot,
+                    }
+                ],
+                "total_cost_usd": round(total_cost_usd, 6),
+                "total_input_tokens": stage1_input_tokens + stage2_input_tokens,
+                "total_output_tokens": stage1_output_tokens + stage2_output_tokens,
+            }
+
+            logger.info(
+                f"Calculated total cost for markdown pipeline job {extraction_job_id}: "
+                f"${total_cost_usd:.6f} (Stage1: ${stage1_cost_usd:.6f}, Stage2: ${stage2_cost_usd:.6f})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to calculate cost for job {extraction_job_id}: {e}")
+        # --- END COST CALCULATION ---
+
         # Update job status
         job.status = "completed"
         job.completed_at = datetime.utcnow()

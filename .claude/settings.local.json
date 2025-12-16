@@ -111,7 +111,8 @@
       "WebFetch(domain:docs.celeryq.dev)",
       "mcp__chrome-devtools__new_page",
       "mcp__chrome-devtools__wait_for",
-      "Bash(alembic stamp:*)"
+      "Bash(alembic stamp:*)",
+      "Bash(alembic heads:*)"
     ],
     "deny": [],
     "ask": []

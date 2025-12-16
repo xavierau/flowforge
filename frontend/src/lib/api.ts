@@ -1,14 +1,23 @@
 /**
  * API service for schema and job operations
+ *
+ * Uses centralized API client from api-client.ts for:
+ * - Automatic token refresh on 401 responses
+ * - Auth header injection
+ * - Consistent error handling
  */
 
 import type { ApiSchema, ApiSchemaListResponse, CreateApiSchemaRequest, UpdateApiSchemaRequest } from '@/types/api-schema';
 import type { JobListResponse, JobStatusResponse, JobResultResponse } from '@/types/job';
-import { clearTokens } from '@/services/auth.service';
+import {
+  apiFetch,
+  API_BASE_URL,
+  extractErrorMessage,
+  type StructuredErrorDetail,
+} from '@/lib/api-client';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1';  // Use Vite proxy when VITE_API_URL not set
+// Re-export for backward compatibility
+export { API_BASE_URL, apiFetch };
 
 export interface CreateSchemaRequest {
   name: string;
@@ -24,36 +33,16 @@ export interface CreateSchemaResponse {
 }
 
 /**
- * Structured error detail from backend (ErrorDetail schema)
- */
-export interface StructuredErrorDetail {
-  error_code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
-/**
  * API error response - detail can be a string or structured error object
+ * @deprecated Use ApiErrorResponse from api-client.ts
  */
 export interface ApiError {
   detail: string | StructuredErrorDetail;
 }
 
 /**
- * Extract a human-readable error message from API error response
- * Handles both string and structured error formats
+ * @deprecated Use ApiClientError from api-client.ts
  */
-function extractErrorMessage(detail: string | StructuredErrorDetail | undefined, fallback: string): string {
-  if (!detail) {
-    return fallback;
-  }
-  if (typeof detail === 'string') {
-    return detail;
-  }
-  // Structured error - extract the message field
-  return detail.message || fallback;
-}
-
 export class ApiServiceError extends Error {
   statusCode: number;
   detail?: string;
@@ -72,55 +61,6 @@ export class SchemaApiError extends ApiServiceError {
     super(message, statusCode, detail);
     this.name = 'SchemaApiError';
   }
-}
-
-/**
- * Get authentication token from localStorage
- */
-function getAuthToken(): string | null {
-  return localStorage.getItem('access_token');
-}
-
-/**
- * Centralized fetch wrapper with 401 interceptor
- *
- * Automatically:
- * - Adds Authorization header if token exists
- * - Intercepts 401 responses and redirects to login
- * - Clears stored tokens on unauthorized access
- *
- * @param url - Request URL
- * @param options - Fetch options
- * @returns Response promise
- */
-async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  // Add Authorization header if token exists
-  const token = getAuthToken();
-  const headers = new Headers(options.headers);
-
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  // Make the request with updated headers
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  // Intercept 401 Unauthorized responses
-  if (response.status === 401) {
-    // Clear tokens from storage
-    clearTokens();
-
-    // Redirect to login page
-    window.location.href = '/login';
-
-    // Throw error to prevent further processing
-    throw new ApiServiceError('Unauthorized - Please log in again', 401);
-  }
-
-  return response;
 }
 
 /**
