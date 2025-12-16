@@ -333,22 +333,44 @@ def test_admin_user(
 
 @pytest.fixture(scope="function")
 def auth_headers(test_user: User, test_tenant: Tenant) -> dict[str, str]:
-    """Generate auth headers with valid access token."""
+    """Generate auth headers with valid access token.
+
+    Includes 'origin' header to pass JWT origin validation.
+    Uses first allowed origin from settings.
+    """
+    from app.config import settings
     access_token = auth_service.create_access_token(
         user_id=str(test_user.id),
         tenant_id=str(test_tenant.id)
     )
-    return {"Authorization": f"Bearer {access_token}"}
+    # Use first allowed origin, or default to localhost:3000
+    allowed_origins = settings.jwt_allowed_origins_list
+    origin = next(iter(allowed_origins)) if allowed_origins else "http://localhost:3000"
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "origin": origin  # Required for JWT origin validation
+    }
 
 
 @pytest.fixture(scope="function")
 def admin_auth_headers(test_admin_user: User, test_tenant: Tenant) -> dict[str, str]:
-    """Generate auth headers for admin user."""
+    """Generate auth headers for admin user.
+
+    Includes 'origin' header to pass JWT origin validation.
+    Uses first allowed origin from settings.
+    """
+    from app.config import settings
     access_token = auth_service.create_access_token(
         user_id=str(test_admin_user.id),
         tenant_id=str(test_tenant.id)
     )
-    return {"Authorization": f"Bearer {access_token}"}
+    # Use first allowed origin, or default to localhost:3000
+    allowed_origins = settings.jwt_allowed_origins_list
+    origin = next(iter(allowed_origins)) if allowed_origins else "http://localhost:3000"
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "origin": origin  # Required for JWT origin validation
+    }
 
 
 # ============================================================================

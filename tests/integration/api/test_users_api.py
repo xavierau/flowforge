@@ -432,7 +432,7 @@ class TestListUsersEndpoint:
             slug="other-org",
             status="active",
             subscription_plan="free",
-            credit_balance=100,
+            cached_balance=100,
             tenant_metadata={}
         )
         db_session.add(other_tenant)
@@ -517,7 +517,7 @@ class TestGetUserEndpoint:
             slug="other-org",
             status="active",
             subscription_plan="free",
-            credit_balance=100,
+            cached_balance=100,
             tenant_metadata={}
         )
         db_session.add(other_tenant)
@@ -724,11 +724,17 @@ class TestDeleteUserEndpoint:
         db_session.commit()
 
         # Create auth headers for second admin
+        from app.config import settings
         access_token = auth_service.create_access_token(
             user_id=str(second_admin.id),
             tenant_id=str(test_tenant.id)
         )
-        second_admin_headers = {"Authorization": f"Bearer {access_token}"}
+        allowed_origins = settings.jwt_allowed_origins_list
+        origin = next(iter(allowed_origins)) if allowed_origins else "http://localhost:3000"
+        second_admin_headers = {
+            "Authorization": f"Bearer {access_token}",
+            "origin": origin
+        }
 
         # Try to delete first admin (should succeed - not last admin)
         response = client.delete(

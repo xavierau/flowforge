@@ -25,6 +25,8 @@ from app.services.user_service import UserService
 from app.services.auth_service import auth_service
 from app.services.permission_service import PermissionService
 from app.dependencies.auth import get_current_active_user, require_permission
+from app.config import settings
+from app.tasks.email_tasks import send_invitation_email_task
 
 router = APIRouter()
 
@@ -231,7 +233,7 @@ async def invite_user(
     3. Verify role exists and is valid
     4. Generate invitation token
     5. Create user record with is_active=False
-    6. TODO: Send invitation email with token
+    6. Queue invitation email task
     7. Return invitation token and success message
 
     Args:
@@ -272,14 +274,23 @@ async def invite_user(
             invited_by_user_id=current_user.id
         )
 
-        # TODO: Send invitation email
-        # invitation_url = f"{settings.frontend_url}/accept-invitation?token={invitation_token}"
-        # await email_service.send_invitation_email(
-        #     to_email=invited_user.email,
-        #     invitation_url=invitation_url,
-        #     invited_by=current_user.full_name or current_user.email,
-        #     tenant_name=current_user.tenant.name
-        # )
+        # Build invitation URL
+        invitation_url = f"{settings.frontend_url}/accept-invitation?token={invitation_token}"
+
+        # Get inviter info
+        invited_by = current_user.full_name or current_user.email
+
+        # Get tenant name
+        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+        tenant_name = tenant.name if tenant else "Your Organization"
+
+        # Queue email task (fire and forget)
+        send_invitation_email_task.delay(
+            to_email=invited_user.email,
+            invitation_url=invitation_url,
+            invited_by=invited_by,
+            tenant_name=tenant_name,
+        )
 
         return InvitationResponse(
             message="Invitation sent successfully",
