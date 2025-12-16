@@ -99,7 +99,8 @@ class AuthService:
         to_encode = {
             "sub": str(user_id),
             "exp": expire,
-            "type": "refresh"
+            "type": "refresh",
+            "jti": secrets.token_hex(16)  # Unique JWT ID ensures each token is different
         }
 
         encoded_jwt = jwt.encode(

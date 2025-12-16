@@ -1,5 +1,6 @@
 """User management API endpoints for profile, password, and user administration."""
 
+from datetime import timedelta
 from typing import Optional
 from uuid import UUID
 
@@ -17,6 +18,8 @@ from app.schemas.user import (
     UserListResponse,
     UserListItemResponse,
     InvitationResponse,
+    InvitationListItem,
+    InvitationListResponse,
     RoleInfo,
     TenantInfo,
 )
@@ -376,6 +379,60 @@ async def list_users(
 
 
 @router.get(
+    "/users/invitations",
+    response_model=InvitationListResponse,
+    summary="List pending invitations",
+    description="Get list of pending user invitations in current user's tenant (requires users:invite permission)"
+)
+async def list_invitations(
+    current_user: User = Depends(require_permission("users:invite")),
+    db: Session = Depends(get_db)
+) -> InvitationListResponse:
+    """
+    List pending invitations in tenant.
+
+    Workflow:
+    1. Check permission (users:invite required)
+    2. Query users with is_active=False and is_verified=False (pending invitations)
+    3. Return invitations with calculated expiration dates
+
+    Args:
+        current_user: Current authenticated user with users:invite permission
+        db: Database session
+
+    Returns:
+        InvitationListResponse with list of pending invitations
+    """
+    user_service = UserService(db)
+
+    # Get pending invitations (users with is_active=False and is_verified=False)
+    pending_users, total = user_service.list_pending_invitations(
+        tenant_id=current_user.tenant_id
+    )
+
+    # Convert to response models
+    # Invitation expires 7 days after creation
+    invitation_expiry_days = 7
+
+    invitation_list = [
+        InvitationListItem(
+            id=user.id,
+            email=user.email,
+            role=user.role.name if user.role else "unknown",
+            created_at=user.created_at,
+            expires_at=user.created_at + timedelta(days=invitation_expiry_days),
+            status="pending"
+        )
+        for user in pending_users
+    ]
+
+    return InvitationListResponse(
+        invitations=invitation_list,
+        total=total
+    )
+
+
+@router.get(
     "/users/{user_id}",
     response_model=UserDetailResponse,
     summary="Get user details",
@@ -436,6 +493,82 @@ async def get_user(
         tenant=TenantInfo.model_validate(user.tenant),
         permissions=permissions
     )
+
+
+@router.post(
+    "/users/{user_id}/resend-invitation",
+    response_model=MessageResponse,
+    summary="Resend invitation email",
+    description="Resend invitation email for a pending user (requires users:invite permission)"
+)
+async def resend_invitation(
+    user_id: UUID,
+    current_user: User = Depends(require_permission("users:invite")),
+    db: Session = Depends(get_db)
+) -> MessageResponse:
+    """
+    Resend invitation email for a pending user.
+
+    Workflow:
+    1. Check permission (users:invite required)
+    2. Query user by ID
+    3. Verify user is a pending invitation (is_active=False, is_verified=False)
+    4. Regenerate invitation token if needed
+    5. Queue invitation email task
+    6. Return success message
+
+    Args:
+        user_id: User ID of the pending invitation
+        current_user: Current authenticated user with users:invite permission
+        db: Database session
+
+    Returns:
+        MessageResponse confirming invitation was resent
+
+    Raises:
+        HTTPException 404: User not found or not a pending invitation
+        HTTPException 400: User is already active or verified
+    """
+    user_service = UserService(db)
+
+    # Get pending invitation (tenant-isolated)
+    pending_user = user_service.get_pending_invitation(user_id, current_user.tenant_id)
+
+    if not pending_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pending invitation not found"
+        )
+
+    try:
+        # Regenerate invitation token
+        new_token = user_service.regenerate_invitation_token(pending_user)
+
+        # Build invitation URL
+        invitation_url = f"{settings.frontend_url}/accept-invitation?token={new_token}"
+
+        # Get inviter info
+        invited_by = current_user.full_name or current_user.email
+
+        # Get tenant name
+        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
+        tenant_name = tenant.name if tenant else "Your Organization"
+
+        # Queue email task (fire and forget)
+        send_invitation_email_task.delay(
+            to_email=pending_user.email,
+            invitation_url=invitation_url,
+            invited_by=invited_by,
+            tenant_name=tenant_name,
+        )
+
+        return MessageResponse(message="Invitation email resent successfully")
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.patch(

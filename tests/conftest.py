@@ -254,7 +254,7 @@ def document(db_session: Session, tenant: Tenant) -> "Document":
         filename="test-document.pdf",
         file_path="/test/path/document.pdf",
         mime_type="application/pdf",
-        file_size_bytes=1024,
+        size_bytes=1024,
         status="ready_for_extraction",
         page_count=5,
         document_metadata={}
@@ -266,11 +266,12 @@ def document(db_session: Session, tenant: Tenant) -> "Document":
 
 
 @pytest.fixture(scope="function")
-def extraction_job(db_session: Session, document: "Document") -> "ExtractionJob":
+def extraction_job(db_session: Session, document: "Document", tenant: "Tenant") -> "ExtractionJob":
     """Create a test extraction job."""
     from app.models.extraction_job import ExtractionJob
     job = ExtractionJob(
         document_id=document.id,
+        tenant_id=tenant.id,
         extraction_schema={"type": "object", "properties": {}},
         model_provider="google",
         model_name="gemini-2.5-flash",

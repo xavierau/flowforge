@@ -27,12 +27,19 @@ LoopWorker provides these context variables for each iteration:
 
 from .base_worker import BaseWorker
 from .extraction_worker import ExtractionWorker
-from .python_worker import PythonWorker
 from .http_request_worker import HttpRequestWorker
 from .condition_worker import ConditionWorker
 from .human_review_worker import HumanReviewWorker
 from .loop_worker import LoopWorker
 from .llm_worker import LLMWorker
+
+# PythonWorker requires docker - make import optional
+try:
+    from .python_worker import PythonWorker
+    _PYTHON_WORKER_AVAILABLE = True
+except ImportError:
+    PythonWorker = None  # type: ignore
+    _PYTHON_WORKER_AVAILABLE = False
 
 __all__ = [
     "BaseWorker",

@@ -346,3 +346,83 @@ class UserService:
             List of Role objects
         """
         return self.db.query(Role).order_by(Role.name).all()
+
+    def list_pending_invitations(self, tenant_id: UUID) -> Tuple[List[User], int]:
+        """
+        List pending invitations (users with is_active=False and is_verified=False).
+
+        Args:
+            tenant_id: Tenant ID for isolation
+
+        Returns:
+            Tuple of (list of pending invitation users, total count)
+        """
+        query = (
+            self.db.query(User)
+            .options(joinedload(User.role))
+            .filter(
+                and_(
+                    User.tenant_id == tenant_id,
+                    User.is_active == False,
+                    User.is_verified == False,
+                    User.email_verification_token.isnot(None)
+                )
+            )
+        )
+
+        total = query.count()
+        users = query.order_by(User.created_at.desc()).all()
+
+        return users, total
+
+    def get_pending_invitation(self, user_id: UUID, tenant_id: UUID) -> Optional[User]:
+        """
+        Get a pending invitation by user ID (tenant-isolated).
+
+        Args:
+            user_id: User ID to fetch
+            tenant_id: Tenant ID for isolation
+
+        Returns:
+            User object if found and is a pending invitation, None otherwise
+        """
+        return (
+            self.db.query(User)
+            .options(joinedload(User.role))
+            .filter(
+                and_(
+                    User.id == user_id,
+                    User.tenant_id == tenant_id,
+                    User.is_active == False,
+                    User.is_verified == False,
+                    User.email_verification_token.isnot(None)
+                )
+            )
+            .first()
+        )
+
+    def regenerate_invitation_token(self, user: User) -> str:
+        """
+        Regenerate invitation token for a pending user.
+
+        Args:
+            user: User to regenerate token for
+
+        Returns:
+            New invitation token
+
+        Raises:
+            ValueError: If user is not a pending invitation
+        """
+        if user.is_active or user.is_verified:
+            raise ValueError("Cannot regenerate token for active or verified user")
+
+        # Generate new invitation token
+        new_token = auth_service.generate_verification_token()
+        user.email_verification_token = new_token
+        user.updated_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(user)
+
+        return new_token

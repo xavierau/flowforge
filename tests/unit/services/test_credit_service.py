@@ -54,7 +54,7 @@ class TestCreditServiceCalculateBalance:
         service.deduct_credits(
             tenant_id=tenant.id,
             amount=30,
-            reference_type="test",
+            reference_type="manual",
             reference_id=uuid4(),
             description="Test deduction"
         )
@@ -66,9 +66,9 @@ class TestCreditServiceCalculateBalance:
         """Balance correctly calculates with mixed transactions."""
         service = CreditService(db_session)
         service.add_credits(tenant.id, 100, "topup", "Top-up 1")
-        service.deduct_credits(tenant.id, 20, "test", uuid4(), "Deduct 1")
+        service.deduct_credits(tenant.id, 20, "manual", uuid4(), "Deduct 1")
         service.add_credits(tenant.id, 50, "topup", "Top-up 2")
-        service.deduct_credits(tenant.id, 15, "test", uuid4(), "Deduct 2")
+        service.deduct_credits(tenant.id, 15, "manual", uuid4(), "Deduct 2")
         db_session.commit()
         balance = service.calculate_balance(tenant.id)
         assert balance == 115  # 100 - 20 + 50 - 15
@@ -124,10 +124,12 @@ class TestCreditServiceDeductCredits:
     def test_deduction_creates_negative_transaction(self, db_session: Session, tenant: Tenant):
         """Deduction creates transaction with negative amount."""
         service = CreditService(db_session)
+        # Add credits first so we have balance to deduct
+        service.add_credits(tenant.id, 100, "topup", "Initial balance")
         tx = service.deduct_credits(
             tenant_id=tenant.id,
             amount=25,
-            reference_type="test",
+            reference_type="manual",
             reference_id=uuid4(),
             description="Test deduction"
         )
@@ -138,11 +140,13 @@ class TestCreditServiceDeductCredits:
     def test_deduction_with_metadata(self, db_session: Session, tenant: Tenant):
         """Deduction stores metadata correctly."""
         service = CreditService(db_session)
+        # Add credits first so we have balance to deduct
+        service.add_credits(tenant.id, 100, "topup", "Initial balance")
         metadata = {"job_id": "123", "page_count": 5}
         tx = service.deduct_credits(
             tenant_id=tenant.id,
             amount=10,
-            reference_type="test",
+            reference_type="manual",
             reference_id=uuid4(),
             description="Test",
             metadata=metadata
@@ -153,13 +157,13 @@ class TestCreditServiceDeductCredits:
         """Raises ValueError if deduction amount is 0."""
         service = CreditService(db_session)
         with pytest.raises(ValueError, match="Deduction amount must be positive"):
-            service.deduct_credits(tenant.id, 0, "test", uuid4(), "Test")
+            service.deduct_credits(tenant.id, 0, "manual", uuid4(), "Test")
 
     def test_deduction_negative_raises_error(self, db_session: Session, tenant: Tenant):
         """Raises ValueError if deduction amount is negative."""
         service = CreditService(db_session)
         with pytest.raises(ValueError, match="Deduction amount must be positive"):
-            service.deduct_credits(tenant.id, -10, "test", uuid4(), "Test")
+            service.deduct_credits(tenant.id, -10, "manual", uuid4(), "Test")
 
 
 class TestCreditServiceAddCredits:

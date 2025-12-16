@@ -18,6 +18,9 @@ import json
 from unittest.mock import Mock, patch, MagicMock
 
 import pytest
+
+# Skip entire module if docker is not installed
+docker = pytest.importorskip("docker", reason="docker package required for PythonWorker tests")
 from docker.errors import ContainerError, ImageNotFound, APIError
 
 from app.orchestration.workers.python_worker import PythonWorker

@@ -765,3 +765,281 @@ class TestDeleteUserEndpoint:
         )
 
         assert response.status_code == 403
+
+
+class TestListInvitationsEndpoint:
+    """Test GET /api/v1/users/invitations endpoint."""
+
+    def test_list_invitations_success(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_tenant,
+        admin_auth_headers: dict,
+        seed_roles: dict[str, Role],
+        seed_role_permissions
+    ):
+        """Test successful listing of pending invitations."""
+        from app.services.auth_service import auth_service
+
+        # Create a pending invitation (user with is_active=False, is_verified=False)
+        pending_user = User(
+            email="pending@example.com",
+            hashed_password=auth_service.hash_password("TempPass123"),
+            tenant_id=test_tenant.id,
+            role_id=seed_roles["member"].id,
+            is_active=False,
+            is_verified=False,
+            email_verification_token="test-invitation-token"
+        )
+        db_session.add(pending_user)
+        db_session.commit()
+
+        response = client.get(
+            "/api/v1/users/invitations",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "invitations" in data
+        assert "total" in data
+        assert data["total"] >= 1
+
+        # Verify response structure
+        invitation = data["invitations"][0]
+        assert "id" in invitation
+        assert "email" in invitation
+        assert "role" in invitation
+        assert "created_at" in invitation
+        assert "expires_at" in invitation
+        assert "status" in invitation
+        assert invitation["status"] == "pending"
+
+    def test_list_invitations_empty(
+        self,
+        client: TestClient,
+        admin_auth_headers: dict,
+        seed_role_permissions
+    ):
+        """Test listing invitations when there are none."""
+        response = client.get(
+            "/api/v1/users/invitations",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["invitations"] == []
+        assert data["total"] == 0
+
+    def test_list_invitations_no_permission(
+        self,
+        client: TestClient,
+        auth_headers: dict
+    ):
+        """Test listing invitations without users:invite permission."""
+        response = client.get(
+            "/api/v1/users/invitations",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 403
+
+    def test_list_invitations_tenant_isolation(
+        self,
+        client: TestClient,
+        db_session: Session,
+        admin_auth_headers: dict,
+        seed_roles: dict[str, Role],
+        seed_role_permissions
+    ):
+        """Test that invitations from other tenants are not visible."""
+        from app.services.auth_service import auth_service
+        from app.models import Tenant
+
+        # Create another tenant with a pending invitation
+        other_tenant = Tenant(
+            name="Other Org",
+            slug="other-org-inv",
+            status="active",
+            subscription_plan="free",
+            cached_balance=100,
+            tenant_metadata={}
+        )
+        db_session.add(other_tenant)
+        db_session.flush()
+
+        other_pending_user = User(
+            email="other-pending@example.com",
+            hashed_password=auth_service.hash_password("TempPass123"),
+            tenant_id=other_tenant.id,
+            role_id=seed_roles["member"].id,
+            is_active=False,
+            is_verified=False,
+            email_verification_token="other-invitation-token"
+        )
+        db_session.add(other_pending_user)
+        db_session.commit()
+
+        # List invitations - should not include other tenant's invitation
+        response = client.get(
+            "/api/v1/users/invitations",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        emails = [inv["email"] for inv in data["invitations"]]
+        assert "other-pending@example.com" not in emails
+
+
+class TestResendInvitationEndpoint:
+    """Test POST /api/v1/users/{user_id}/resend-invitation endpoint."""
+
+    def test_resend_invitation_success(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_tenant,
+        admin_auth_headers: dict,
+        seed_roles: dict[str, Role],
+        seed_role_permissions
+    ):
+        """Test successful resend of invitation."""
+        from app.services.auth_service import auth_service
+
+        # Create a pending invitation
+        old_token = "old-invitation-token"
+        pending_user = User(
+            email="resend-test@example.com",
+            hashed_password=auth_service.hash_password("TempPass123"),
+            tenant_id=test_tenant.id,
+            role_id=seed_roles["member"].id,
+            is_active=False,
+            is_verified=False,
+            email_verification_token=old_token
+        )
+        db_session.add(pending_user)
+        db_session.commit()
+        db_session.refresh(pending_user)
+
+        response = client.post(
+            f"/api/v1/users/{pending_user.id}/resend-invitation",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "resent successfully" in data["message"].lower()
+
+        # Verify token was regenerated
+        db_session.refresh(pending_user)
+        assert pending_user.email_verification_token != old_token
+        assert pending_user.email_verification_token is not None
+
+    def test_resend_invitation_not_found(
+        self,
+        client: TestClient,
+        admin_auth_headers: dict,
+        seed_role_permissions
+    ):
+        """Test resend invitation for non-existent user."""
+        response = client.post(
+            "/api/v1/users/00000000-0000-0000-0000-000000000000/resend-invitation",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_resend_invitation_for_active_user(
+        self,
+        client: TestClient,
+        test_user: User,
+        admin_auth_headers: dict,
+        seed_role_permissions
+    ):
+        """Test resend invitation for an active user (should fail)."""
+        response = client.post(
+            f"/api/v1/users/{test_user.id}/resend-invitation",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_resend_invitation_no_permission(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_tenant,
+        auth_headers: dict,
+        seed_roles: dict[str, Role]
+    ):
+        """Test resend invitation without users:invite permission."""
+        from app.services.auth_service import auth_service
+
+        # Create a pending invitation
+        pending_user = User(
+            email="resend-noperm@example.com",
+            hashed_password=auth_service.hash_password("TempPass123"),
+            tenant_id=test_tenant.id,
+            role_id=seed_roles["member"].id,
+            is_active=False,
+            is_verified=False,
+            email_verification_token="test-token"
+        )
+        db_session.add(pending_user)
+        db_session.commit()
+
+        response = client.post(
+            f"/api/v1/users/{pending_user.id}/resend-invitation",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 403
+
+    def test_resend_invitation_tenant_isolation(
+        self,
+        client: TestClient,
+        db_session: Session,
+        admin_auth_headers: dict,
+        seed_roles: dict[str, Role],
+        seed_role_permissions
+    ):
+        """Test that invitations from other tenants cannot be resent."""
+        from app.services.auth_service import auth_service
+        from app.models import Tenant
+
+        # Create another tenant with a pending invitation
+        other_tenant = Tenant(
+            name="Other Org Resend",
+            slug="other-org-resend",
+            status="active",
+            subscription_plan="free",
+            cached_balance=100,
+            tenant_metadata={}
+        )
+        db_session.add(other_tenant)
+        db_session.flush()
+
+        other_pending_user = User(
+            email="other-resend@example.com",
+            hashed_password=auth_service.hash_password("TempPass123"),
+            tenant_id=other_tenant.id,
+            role_id=seed_roles["member"].id,
+            is_active=False,
+            is_verified=False,
+            email_verification_token="other-token"
+        )
+        db_session.add(other_pending_user)
+        db_session.commit()
+
+        # Try to resend invitation for other tenant's user
+        response = client.post(
+            f"/api/v1/users/{other_pending_user.id}/resend-invitation",
+            headers=admin_auth_headers
+        )
+
+        assert response.status_code == 404

@@ -364,3 +364,52 @@ class InvitationResponse(BaseModel):
             }
         }
     )
+
+
+class InvitationListItem(BaseModel):
+    """Individual pending invitation item for list response."""
+
+    id: UUID = Field(..., description="User ID of the pending invitation")
+    email: str = Field(..., description="Email address invited")
+    role: str = Field(..., description="Role name assigned to the invitation (e.g., 'admin', 'member')")
+    created_at: datetime = Field(..., description="When the invitation was created")
+    expires_at: datetime = Field(..., description="When the invitation expires (created_at + 7 days)")
+    status: str = Field(default="pending", description="Invitation status (always 'pending' for this list)")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": "660e8400-e29b-41d4-a716-446655440001",
+                "email": "newuser@example.com",
+                "role": "member",
+                "created_at": "2025-11-03T10:00:00Z",
+                "expires_at": "2025-11-10T10:00:00Z",
+                "status": "pending"
+            }
+        }
+    )
+
+
+class InvitationListResponse(BaseModel):
+    """Response for listing pending invitations."""
+
+    invitations: List[InvitationListItem] = Field(..., description="List of pending invitations")
+    total: int = Field(..., description="Total number of pending invitations")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "invitations": [
+                    {
+                        "id": "660e8400-e29b-41d4-a716-446655440001",
+                        "email": "newuser@example.com",
+                        "role": "member",
+                        "created_at": "2025-11-03T10:00:00Z",
+                        "expires_at": "2025-11-10T10:00:00Z",
+                        "status": "pending"
+                    }
+                ],
+                "total": 1
+            }
+        }
+    )

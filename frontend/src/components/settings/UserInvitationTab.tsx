@@ -143,16 +143,25 @@ export function UserInvitationTab() {
   }, []);
 
   /**
+   * Refetch invitations from the server
+   */
+  const refetchInvitations = async () => {
+    try {
+      const data = await getInvitations();
+      setInvitations(data);
+    } catch (error) {
+      console.error('Failed to refetch invitations:', error);
+    }
+  };
+
+  /**
    * Handle invitation form submission
    */
   const onSubmit = async (data: CreateInvitationRequest) => {
     setIsSubmitting(true);
 
     try {
-      const newInvitation = await createInvitation(data);
-
-      // Optimistically update UI
-      setInvitations((prev) => [newInvitation, ...prev]);
+      await createInvitation(data);
 
       toast.success('Invitation sent', {
         description: `Invitation sent to ${data.email}`,
@@ -160,6 +169,9 @@ export function UserInvitationTab() {
 
       // Reset form
       reset();
+
+      // Refetch invitations to get accurate data from server
+      await refetchInvitations();
     } catch (error) {
       if (error instanceof UserApiError) {
         toast.error('Failed to send invitation', {

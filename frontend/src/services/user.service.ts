@@ -17,9 +17,13 @@ import type {
   UserProfile,
   UserInvitation,
   CreateInvitationRequest,
+  CreateInvitationApiRequest,
+  CreateInvitationResponse,
   UpdateAccountRequest,
   ChangePasswordRequest,
   NotificationPreferences,
+  RoleInfo,
+  UserRole,
 } from '@/types/profile';
 import { apiFetch, API_BASE_URL, handleApiResponse } from '@/lib/api-client';
 
@@ -178,11 +182,97 @@ export async function deleteAccount(): Promise<void> {
 }
 
 /**
- * Get all invitations for the current tenant
+ * Role name to ID mapping (cached)
+ * Maps frontend role names ('admin', 'user', 'viewer') to backend role IDs
+ */
+let cachedRoles: RoleInfo[] | null = null;
+
+/**
+ * Hardcoded role mapping as fallback when roles endpoint is unavailable
+ * These values match the backend seed data role names
+ */
+const ROLE_NAME_MAP: Record<UserRole, string> = {
+  admin: 'tenant_admin',
+  user: 'member',
+  viewer: 'viewer',
+};
+
+/**
+ * Get available roles for the tenant
+ * Note: Backend currently doesn't have a /roles endpoint, so we fetch from /users
+ * and extract unique roles. Roles are cached for performance.
+ */
+export async function getRoles(): Promise<RoleInfo[]> {
+  if (cachedRoles) {
+    return cachedRoles;
+  }
+
+  try {
+    // Fetch users list to extract available roles
+    const response = await apiFetch(`${API_BASE_URL}/users?limit=100`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await handleApiResponse<{ users: Array<{ role: RoleInfo }> }>(response);
+
+    // Extract unique roles from users
+    const rolesMap = new Map<string, RoleInfo>();
+    for (const user of data.users) {
+      if (user.role && !rolesMap.has(user.role.id)) {
+        rolesMap.set(user.role.id, user.role);
+      }
+    }
+
+    cachedRoles = Array.from(rolesMap.values());
+    return cachedRoles;
+  } catch (error) {
+    // Return empty array if fetching fails - component will use hardcoded mapping
+    console.warn('Failed to fetch roles, will use hardcoded mapping:', error);
+    return [];
+  }
+}
+
+/**
+ * Clear cached roles (call when tenant context changes)
+ */
+export function clearRolesCache(): void {
+  cachedRoles = null;
+}
+
+/**
+ * Get role ID from role name
+ * First tries to find from fetched roles, then falls back to hardcoded mapping
+ */
+export async function getRoleIdByName(roleName: UserRole): Promise<string | null> {
+  const roles = await getRoles();
+
+  // Map frontend role name to backend role name
+  const backendRoleName = ROLE_NAME_MAP[roleName];
+
+  // Try to find role by name
+  const role = roles.find(
+    (r) => r.name === backendRoleName || r.name === roleName
+  );
+
+  if (role) {
+    return role.id;
+  }
+
+  // No role found - return null, let caller handle
+  console.warn(`Role not found for name: ${roleName} (mapped to: ${backendRoleName})`);
+  return null;
+}
+
+/**
+ * Get all pending invitations for the current tenant
+ * Uses: GET /api/v1/users/invitations
  */
 export async function getInvitations(): Promise<UserInvitation[]> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/invitations`, {
+    const response = await apiFetch(`${API_BASE_URL}/users/invitations`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -200,20 +290,55 @@ export async function getInvitations(): Promise<UserInvitation[]> {
 
 /**
  * Create a new user invitation
+ * Uses: POST /api/v1/users/invite
+ *
+ * This function handles role name to ID mapping internally.
+ * The component passes a role name, this function converts it to role_id.
  */
 export async function createInvitation(
   data: CreateInvitationRequest
 ): Promise<UserInvitation> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/invitations`, {
+    // Get role ID from role name
+    const roleId = await getRoleIdByName(data.role);
+
+    if (!roleId) {
+      throw new UserApiError(
+        `Invalid role: ${data.role}. Please contact support.`,
+        400
+      );
+    }
+
+    // Build API request with role_id
+    const apiRequest: CreateInvitationApiRequest = {
+      email: data.email,
+      role_id: roleId,
+    };
+
+    const response = await apiFetch(`${API_BASE_URL}/users/invite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(apiRequest),
     });
 
-    return handleApiResponse<UserInvitation>(response);
+    // Backend returns CreateInvitationResponse, we need to transform to UserInvitation
+    const invitationResponse = await handleApiResponse<CreateInvitationResponse>(response);
+
+    // Transform response to UserInvitation format for UI
+    // Note: The actual invitation is created on the backend, we return a temporary UI representation
+    const invitation: UserInvitation = {
+      id: invitationResponse.invitation_token, // Use token as temporary ID
+      email: invitationResponse.email,
+      role: data.role, // Use the role name passed from UI
+      invited_by: '', // Will be filled when fetching from list
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+      status: 'pending',
+    };
+
+    return invitation;
   } catch (error) {
     if (error instanceof UserApiError) {
       throw error;
@@ -223,12 +348,16 @@ export async function createInvitation(
 }
 
 /**
- * Resend an invitation
+ * Resend an invitation email
+ * Uses: POST /api/v1/users/{user_id}/resend-invitation
+ *
+ * Note: The invitation ID is actually the user ID on the backend since
+ * invitations create a user record with is_active=false
  */
 export async function resendInvitation(invitationId: string): Promise<void> {
   try {
     const response = await apiFetch(
-      `${API_BASE_URL}/invitations/${invitationId}/resend`,
+      `${API_BASE_URL}/users/${invitationId}/resend-invitation`,
       {
         method: 'POST',
         headers: {
@@ -237,7 +366,7 @@ export async function resendInvitation(invitationId: string): Promise<void> {
       }
     );
 
-    await handleApiResponse<void>(response);
+    await handleApiResponse<{ message: string }>(response);
   } catch (error) {
     if (error instanceof UserApiError) {
       throw error;
@@ -247,15 +376,19 @@ export async function resendInvitation(invitationId: string): Promise<void> {
 }
 
 /**
- * Cancel an invitation
+ * Cancel an invitation (delete the invited user)
+ * Uses: DELETE /api/v1/users/{user_id}
+ *
+ * Note: Cancelling an invitation actually deletes the user record that
+ * was created with is_active=false during invitation
  */
 export async function cancelInvitation(invitationId: string): Promise<void> {
   try {
-    const response = await apiFetch(`${API_BASE_URL}/invitations/${invitationId}`, {
+    const response = await apiFetch(`${API_BASE_URL}/users/${invitationId}`, {
       method: 'DELETE',
     });
 
-    await handleApiResponse<void>(response);
+    await handleApiResponse<{ message: string }>(response);
   } catch (error) {
     if (error instanceof UserApiError) {
       throw error;

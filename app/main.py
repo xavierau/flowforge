@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, invitations, subscriptions, admin, credits, workflows, reviews, credentials
+from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, subscriptions, admin, credits, workflows, reviews, credentials
 from app.config import settings
 from app.middleware.tenant_context import TenantContextMiddleware
 from app.middleware.admin_audit import AdminAuditMiddleware
@@ -68,7 +68,6 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/v1", tags=["Users"])
 app.include_router(tokens.router, prefix="/api/v1", tags=["API Tokens"])
-app.include_router(invitations.router, prefix="/api/v1", tags=["Invitations"])
 app.include_router(subscriptions.router, prefix="/api/v1", tags=["Subscriptions"])
 app.include_router(credits.router, tags=["Credits"])
 app.include_router(documents.router, prefix="/api/v1", tags=["Documents"])

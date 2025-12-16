@@ -50,12 +50,13 @@ export interface UserProfile {
 export type UserRole = 'admin' | 'user' | 'viewer';
 
 /**
- * User Invitation
+ * User Invitation (matches backend response)
  */
 export interface UserInvitation {
   id: string;
   email: string;
-  role: UserRole;
+  role: string; // Role display name from backend
+  role_id?: string; // Role ID (UUID)
   invited_by: string;
   invited_by_name?: string;
   created_at: string;
@@ -69,11 +70,28 @@ export interface UserInvitation {
 export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'cancelled';
 
 /**
- * Create Invitation Request
+ * Create Invitation Request (internal - uses role name for UI)
  */
 export interface CreateInvitationRequest {
   email: string;
   role: UserRole;
+}
+
+/**
+ * Create Invitation API Request (matches backend schema - uses role_id UUID)
+ */
+export interface CreateInvitationApiRequest {
+  email: string;
+  role_id: string; // UUID
+}
+
+/**
+ * Create Invitation Response (matches backend InvitationResponse)
+ */
+export interface CreateInvitationResponse {
+  message: string;
+  invitation_token: string;
+  email: string;
 }
 
 /**
