@@ -1,11 +1,14 @@
 """User management API endpoints for profile, password, and user administration."""
 
+import logging
 from datetime import timedelta
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.models import User, Tenant, Role
@@ -603,12 +606,24 @@ async def resend_invitation(
         tenant_name = tenant.name if tenant else "Your Organization"
 
         # Queue email task (fire and forget)
-        send_invitation_email_task.delay(
-            to_email=pending_user.email,
-            invitation_url=invitation_url,
-            invited_by=invited_by,
-            tenant_name=tenant_name,
-        )
+        from app.tasks.celery_app import celery_app
+        logger.info(f"Celery broker URL: {celery_app.conf.broker_url}")
+        logger.info(f"Queueing invitation email task for {pending_user.email}")
+        logger.info(f"  invitation_url: {invitation_url}")
+        logger.info(f"  invited_by: {invited_by}")
+        logger.info(f"  tenant_name: {tenant_name}")
+
+        try:
+            result = send_invitation_email_task.delay(
+                to_email=pending_user.email,
+                invitation_url=invitation_url,
+                invited_by=invited_by,
+                tenant_name=tenant_name,
+            )
+            logger.info(f"Task queued successfully with ID: {result.id}")
+        except Exception as e:
+            logger.error(f"Failed to queue email task: {e}", exc_info=True)
+            raise
 
         return MessageResponse(message="Invitation email resent successfully")
 

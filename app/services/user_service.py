@@ -1,5 +1,6 @@
 """User service for business logic and tenant-isolated operations."""
 
+import logging
 from typing import Optional, List, Tuple
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -9,6 +10,8 @@ from sqlalchemy import and_, or_
 
 from app.models import User, Role, Tenant
 from app.services.auth_service import auth_service
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
@@ -390,7 +393,9 @@ class UserService:
         Returns:
             User object if found and is a pending invitation, None otherwise
         """
-        return (
+        logger.info(f"Looking up pending invitation: user_id={user_id}, tenant_id={tenant_id}")
+
+        result = (
             self.db.query(User)
             .options(joinedload(User.role))
             .filter(
@@ -405,6 +410,13 @@ class UserService:
             .first()
         )
 
+        if result:
+            logger.info(f"  Found pending invitation for {result.email}")
+        else:
+            logger.warning(f"  No pending invitation found for user_id={user_id}")
+
+        return result
+
     def regenerate_invitation_token(self, user: User) -> str:
         """
         Regenerate invitation token for a pending user.
@@ -418,7 +430,11 @@ class UserService:
         Raises:
             ValueError: If user is not a pending invitation
         """
+        logger.info(f"Regenerating invitation token for user {user.id} ({user.email})")
+        logger.info(f"  User state: is_active={user.is_active}, is_verified={user.is_verified}")
+
         if user.is_active or user.is_verified:
+            logger.warning(f"Cannot regenerate token - user is active or verified")
             raise ValueError("Cannot regenerate token for active or verified user")
 
         # Generate new invitation token and reset expiration (7 days from now)
@@ -427,7 +443,10 @@ class UserService:
         user.invitation_expires = datetime.utcnow() + timedelta(days=7)
         user.updated_at = datetime.utcnow()
 
+        logger.info(f"  New token generated, expires: {user.invitation_expires}")
+
         self.db.commit()
         self.db.refresh(user)
 
+        logger.info(f"  Token regeneration committed successfully")
         return new_token
