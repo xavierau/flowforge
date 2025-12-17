@@ -34,6 +34,12 @@ from app.services.permission_service import PermissionService
 from app.services.platform_settings_service import PlatformSettingsService
 from app.services.credit_service import CreditService
 from app.dependencies.auth import get_current_active_user
+from app.config import settings
+from app.tasks.email_tasks import (
+    send_password_reset_email_task,
+    send_verification_email_task,
+    send_welcome_email_task,
+)
 
 router = APIRouter()
 
@@ -232,8 +238,14 @@ async def register(
             detail="Failed to create user"
         )
 
-    # TODO: Send verification email with verification_token
-    # await email_service.send_verification_email(user.email, verification_token)
+    # Send verification email asynchronously via Celery task
+    verification_url = f"{settings.frontend_url}/verify-email?token={verification_token}"
+    send_verification_email_task.delay(
+        to_email=user.email,
+        verification_url=verification_url,
+        user_name=user.full_name,
+        expires_in_hours=48,
+    )
 
     # Get user's role for JWT token
     user_role = db.query(Role).filter(Role.id == user.role_id).first()
@@ -541,9 +553,14 @@ async def forgot_password(
         user.password_reset_expires = reset_expires
         db.commit()
 
-        # TODO: Send password reset email
-        # reset_url = f"{settings.frontend_url}/reset-password?token={reset_token}"
-        # await email_service.send_password_reset_email(user.email, reset_url)
+        # Send password reset email asynchronously via Celery task
+        reset_url = f"{settings.frontend_url}/reset-password?token={reset_token}"
+        send_password_reset_email_task.delay(
+            to_email=user.email,
+            reset_url=reset_url,
+            user_name=user.full_name,
+            expires_in_hours=6,  # Match the token expiry
+        )
 
     # Always return success to prevent email enumeration
     return MessageResponse(
@@ -782,6 +799,15 @@ async def accept_invitation(
     db.commit()
     db.refresh(user)
     db.refresh(tenant)
+
+    # Send welcome email asynchronously via Celery task
+    login_url = f"{settings.frontend_url}/login"
+    send_welcome_email_task.delay(
+        to_email=user.email,
+        login_url=login_url,
+        user_name=user.full_name,
+        tenant_name=tenant.name,
+    )
 
     return AuthResponse(
         user=UserInfo.model_validate(user),
