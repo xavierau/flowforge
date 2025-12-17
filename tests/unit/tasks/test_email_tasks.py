@@ -264,3 +264,388 @@ class TestSendInvitationEmailTaskIntegration:
 
         # Bound tasks have access to self.request
         assert hasattr(send_invitation_email_task, 'request')
+
+
+class TestSendPasswordResetEmailTask:
+    """Tests for send_password_reset_email_task Celery task."""
+
+    def _run_task_with_mocks(
+        self,
+        mock_email_service,
+        to_email: str,
+        reset_url: str,
+        user_name: str | None = None,
+        expires_in_hours: int = 24,
+        retries: int = 0,
+        retry_side_effect=None,
+    ):
+        """Helper to run the task with mocked dependencies."""
+        from app.services.email_service import (
+            EmailConfigurationError,
+            EmailDeliveryError,
+        )
+
+        mock_self = MagicMock()
+        mock_self.request.retries = retries
+        mock_self.max_retries = 5
+
+        if retry_side_effect:
+            mock_self.retry.side_effect = retry_side_effect
+
+        try:
+            email_service = mock_email_service
+
+            if not email_service.is_configured():
+                return {
+                    "status": "skipped",
+                    "reason": "SMTP not configured",
+                    "to_email": to_email,
+                }
+
+            asyncio.run(
+                email_service.send_password_reset_email(
+                    to_email=to_email,
+                    reset_url=reset_url,
+                    user_name=user_name,
+                    expires_in_hours=expires_in_hours,
+                )
+            )
+
+            return {
+                "status": "success",
+                "to_email": to_email,
+            }
+
+        except EmailConfigurationError as e:
+            return {
+                "status": "failed",
+                "reason": "configuration_error",
+                "error": str(e),
+                "to_email": to_email,
+            }
+
+        except EmailDeliveryError as e:
+            raise mock_self.retry(exc=e, countdown=60 * (2 ** mock_self.request.retries))
+
+        except Exception as e:
+            raise mock_self.retry(exc=e, countdown=60 * (2 ** mock_self.request.retries))
+
+    def test_skips_when_smtp_not_configured(self):
+        """Verify result status is 'skipped' when SMTP not configured."""
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = False
+
+        result = self._run_task_with_mocks(
+            mock_email_service=mock_service,
+            to_email="test@example.com",
+            reset_url="https://example.com/reset?token=abc",
+        )
+
+        assert result["status"] == "skipped"
+        assert result["reason"] == "SMTP not configured"
+        mock_service.is_configured.assert_called_once()
+
+    def test_sends_email_when_configured(self):
+        """Verify result status is 'success' when email sent successfully."""
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        mock_service.send_password_reset_email = AsyncMock(return_value=None)
+
+        result = self._run_task_with_mocks(
+            mock_email_service=mock_service,
+            to_email="user@example.com",
+            reset_url="https://app.example.com/reset?token=abc",
+            user_name="John Doe",
+        )
+
+        assert result["status"] == "success"
+        assert result["to_email"] == "user@example.com"
+
+    def test_retries_on_delivery_error(self):
+        """Verify task.retry() is called on EmailDeliveryError."""
+        from app.services.email_service import EmailDeliveryError
+
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        delivery_error = EmailDeliveryError("SMTP connection failed")
+        mock_service.send_password_reset_email = AsyncMock(side_effect=delivery_error)
+
+        with pytest.raises(Exception, match="Retry called"):
+            self._run_task_with_mocks(
+                mock_email_service=mock_service,
+                to_email="test@example.com",
+                reset_url="https://example.com/reset",
+                retry_side_effect=Exception("Retry called"),
+            )
+
+    def test_task_function_exists(self):
+        """Verify the task function is properly registered."""
+        from app.tasks.email_tasks import send_password_reset_email_task
+
+        assert send_password_reset_email_task is not None
+        assert hasattr(send_password_reset_email_task, 'run')
+        assert send_password_reset_email_task.name == 'app.tasks.email_tasks.send_password_reset_email_task'
+
+    def test_task_has_correct_retry_settings(self):
+        """Verify the task has correct retry configuration."""
+        from app.tasks.email_tasks import send_password_reset_email_task
+
+        assert send_password_reset_email_task.max_retries == 5
+        assert send_password_reset_email_task.default_retry_delay == 60
+
+
+class TestSendVerificationEmailTask:
+    """Tests for send_verification_email_task Celery task."""
+
+    def _run_task_with_mocks(
+        self,
+        mock_email_service,
+        to_email: str,
+        verification_url: str,
+        user_name: str | None = None,
+        expires_in_hours: int = 48,
+        retries: int = 0,
+        retry_side_effect=None,
+    ):
+        """Helper to run the task with mocked dependencies."""
+        from app.services.email_service import (
+            EmailConfigurationError,
+            EmailDeliveryError,
+        )
+
+        mock_self = MagicMock()
+        mock_self.request.retries = retries
+        mock_self.max_retries = 5
+
+        if retry_side_effect:
+            mock_self.retry.side_effect = retry_side_effect
+
+        try:
+            email_service = mock_email_service
+
+            if not email_service.is_configured():
+                return {
+                    "status": "skipped",
+                    "reason": "SMTP not configured",
+                    "to_email": to_email,
+                }
+
+            asyncio.run(
+                email_service.send_verification_email(
+                    to_email=to_email,
+                    verification_url=verification_url,
+                    user_name=user_name,
+                    expires_in_hours=expires_in_hours,
+                )
+            )
+
+            return {
+                "status": "success",
+                "to_email": to_email,
+            }
+
+        except EmailConfigurationError as e:
+            return {
+                "status": "failed",
+                "reason": "configuration_error",
+                "error": str(e),
+                "to_email": to_email,
+            }
+
+        except EmailDeliveryError as e:
+            raise mock_self.retry(exc=e, countdown=60 * (2 ** mock_self.request.retries))
+
+        except Exception as e:
+            raise mock_self.retry(exc=e, countdown=60 * (2 ** mock_self.request.retries))
+
+    def test_skips_when_smtp_not_configured(self):
+        """Verify result status is 'skipped' when SMTP not configured."""
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = False
+
+        result = self._run_task_with_mocks(
+            mock_email_service=mock_service,
+            to_email="test@example.com",
+            verification_url="https://example.com/verify?token=abc",
+        )
+
+        assert result["status"] == "skipped"
+        assert result["reason"] == "SMTP not configured"
+        mock_service.is_configured.assert_called_once()
+
+    def test_sends_email_when_configured(self):
+        """Verify result status is 'success' when email sent successfully."""
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        mock_service.send_verification_email = AsyncMock(return_value=None)
+
+        result = self._run_task_with_mocks(
+            mock_email_service=mock_service,
+            to_email="user@example.com",
+            verification_url="https://app.example.com/verify?token=abc",
+            user_name="Jane Smith",
+        )
+
+        assert result["status"] == "success"
+        assert result["to_email"] == "user@example.com"
+
+    def test_retries_on_delivery_error(self):
+        """Verify task.retry() is called on EmailDeliveryError."""
+        from app.services.email_service import EmailDeliveryError
+
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        delivery_error = EmailDeliveryError("SMTP connection failed")
+        mock_service.send_verification_email = AsyncMock(side_effect=delivery_error)
+
+        with pytest.raises(Exception, match="Retry called"):
+            self._run_task_with_mocks(
+                mock_email_service=mock_service,
+                to_email="test@example.com",
+                verification_url="https://example.com/verify",
+                retry_side_effect=Exception("Retry called"),
+            )
+
+    def test_task_function_exists(self):
+        """Verify the task function is properly registered."""
+        from app.tasks.email_tasks import send_verification_email_task
+
+        assert send_verification_email_task is not None
+        assert hasattr(send_verification_email_task, 'run')
+        assert send_verification_email_task.name == 'app.tasks.email_tasks.send_verification_email_task'
+
+    def test_task_has_correct_retry_settings(self):
+        """Verify the task has correct retry configuration."""
+        from app.tasks.email_tasks import send_verification_email_task
+
+        assert send_verification_email_task.max_retries == 5
+        assert send_verification_email_task.default_retry_delay == 60
+
+
+class TestSendWelcomeEmailTask:
+    """Tests for send_welcome_email_task Celery task."""
+
+    def _run_task_with_mocks(
+        self,
+        mock_email_service,
+        to_email: str,
+        login_url: str,
+        user_name: str | None = None,
+        tenant_name: str | None = None,
+        retries: int = 0,
+        retry_side_effect=None,
+    ):
+        """Helper to run the task with mocked dependencies."""
+        from app.services.email_service import (
+            EmailConfigurationError,
+            EmailDeliveryError,
+        )
+
+        mock_self = MagicMock()
+        mock_self.request.retries = retries
+        mock_self.max_retries = 5
+
+        if retry_side_effect:
+            mock_self.retry.side_effect = retry_side_effect
+
+        try:
+            email_service = mock_email_service
+
+            if not email_service.is_configured():
+                return {
+                    "status": "skipped",
+                    "reason": "SMTP not configured",
+                    "to_email": to_email,
+                }
+
+            asyncio.run(
+                email_service.send_welcome_email(
+                    to_email=to_email,
+                    login_url=login_url,
+                    user_name=user_name,
+                    tenant_name=tenant_name,
+                )
+            )
+
+            return {
+                "status": "success",
+                "to_email": to_email,
+            }
+
+        except EmailConfigurationError as e:
+            return {
+                "status": "failed",
+                "reason": "configuration_error",
+                "error": str(e),
+                "to_email": to_email,
+            }
+
+        except EmailDeliveryError as e:
+            raise mock_self.retry(exc=e, countdown=60 * (2 ** mock_self.request.retries))
+
+        except Exception as e:
+            raise mock_self.retry(exc=e, countdown=60 * (2 ** mock_self.request.retries))
+
+    def test_skips_when_smtp_not_configured(self):
+        """Verify result status is 'skipped' when SMTP not configured."""
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = False
+
+        result = self._run_task_with_mocks(
+            mock_email_service=mock_service,
+            to_email="test@example.com",
+            login_url="https://example.com/login",
+        )
+
+        assert result["status"] == "skipped"
+        assert result["reason"] == "SMTP not configured"
+        mock_service.is_configured.assert_called_once()
+
+    def test_sends_email_when_configured(self):
+        """Verify result status is 'success' when email sent successfully."""
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        mock_service.send_welcome_email = AsyncMock(return_value=None)
+
+        result = self._run_task_with_mocks(
+            mock_email_service=mock_service,
+            to_email="newuser@example.com",
+            login_url="https://app.example.com/login",
+            user_name="New User",
+            tenant_name="Acme Corp",
+        )
+
+        assert result["status"] == "success"
+        assert result["to_email"] == "newuser@example.com"
+
+    def test_retries_on_delivery_error(self):
+        """Verify task.retry() is called on EmailDeliveryError."""
+        from app.services.email_service import EmailDeliveryError
+
+        mock_service = MagicMock()
+        mock_service.is_configured.return_value = True
+        delivery_error = EmailDeliveryError("SMTP connection failed")
+        mock_service.send_welcome_email = AsyncMock(side_effect=delivery_error)
+
+        with pytest.raises(Exception, match="Retry called"):
+            self._run_task_with_mocks(
+                mock_email_service=mock_service,
+                to_email="test@example.com",
+                login_url="https://example.com/login",
+                retry_side_effect=Exception("Retry called"),
+            )
+
+    def test_task_function_exists(self):
+        """Verify the task function is properly registered."""
+        from app.tasks.email_tasks import send_welcome_email_task
+
+        assert send_welcome_email_task is not None
+        assert hasattr(send_welcome_email_task, 'run')
+        assert send_welcome_email_task.name == 'app.tasks.email_tasks.send_welcome_email_task'
+
+    def test_task_has_correct_retry_settings(self):
+        """Verify the task has correct retry configuration."""
+        from app.tasks.email_tasks import send_welcome_email_task
+
+        assert send_welcome_email_task.max_retries == 5
+        assert send_welcome_email_task.default_retry_delay == 60

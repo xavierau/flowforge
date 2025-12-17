@@ -1,7 +1,7 @@
-"""Unit tests for EmailService."""
+"""Unit tests for EmailService with SendGrid."""
 
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 
 from app.services.email_service import (
     EmailService,
@@ -9,7 +9,6 @@ from app.services.email_service import (
     EmailDeliveryError,
     EmailServiceError,
     get_email_service,
-    _email_service,
 )
 
 
@@ -19,39 +18,29 @@ class TestEmailServiceInit:
     def test_init_with_explicit_config(self):
         """Verify explicit config overrides settings."""
         service = EmailService(
-            smtp_host="custom.smtp.com",
-            smtp_port=2525,
-            smtp_user="custom_user",
-            smtp_password="custom_pass",
-            smtp_from_email="custom@example.com",
-            smtp_from_name="Custom App",
-            smtp_use_tls=False,
+            sendgrid_api_key="SG.test_api_key",
+            from_email="custom@example.com",
+            from_name="Custom App",
         )
 
-        assert service._smtp_host == "custom.smtp.com"
-        assert service._smtp_port == 2525
-        assert service._smtp_user == "custom_user"
-        assert service._smtp_password == "custom_pass"
-        assert service._smtp_from_email == "custom@example.com"
-        assert service._smtp_from_name == "Custom App"
-        assert service._smtp_use_tls is False
+        assert service._api_key == "SG.test_api_key"
+        assert service._from_email == "custom@example.com"
+        assert service._from_name == "Custom App"
 
     def test_is_configured_returns_true_when_configured(self):
-        """With host, port, from_email set, is_configured returns True."""
+        """With api_key and from_email set, is_configured returns True."""
         service = EmailService(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_from_email="noreply@example.com",
+            sendgrid_api_key="SG.test_api_key",
+            from_email="noreply@example.com",
         )
 
         assert service.is_configured() is True
 
-    def test_is_configured_returns_false_when_missing_host(self):
-        """Empty smtp_host returns False."""
+    def test_is_configured_returns_false_when_missing_api_key(self):
+        """Empty api_key returns False."""
         service = EmailService(
-            smtp_host="",
-            smtp_port=587,
-            smtp_from_email="noreply@example.com",
+            sendgrid_api_key="",
+            from_email="noreply@example.com",
         )
 
         assert service.is_configured() is False
@@ -59,19 +48,8 @@ class TestEmailServiceInit:
     def test_is_configured_returns_false_when_missing_from_email(self):
         """Empty from_email returns False."""
         service = EmailService(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_from_email="",
-        )
-
-        assert service.is_configured() is False
-
-    def test_is_configured_returns_false_when_missing_port(self):
-        """Port 0 or None returns False."""
-        service = EmailService(
-            smtp_host="smtp.example.com",
-            smtp_port=0,
-            smtp_from_email="noreply@example.com",
+            sendgrid_api_key="SG.test_api_key",
+            from_email="",
         )
 
         assert service.is_configured() is False
@@ -84,10 +62,9 @@ class TestEmailServiceRenderTemplate:
     def configured_service(self):
         """Create a configured EmailService instance."""
         return EmailService(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_from_email="noreply@example.com",
-            smtp_from_name="Test App",
+            sendgrid_api_key="SG.test_api_key",
+            from_email="noreply@example.com",
+            from_name="Test App",
         )
 
     def test_render_invitation_template(self, configured_service):
@@ -123,28 +100,23 @@ class TestEmailServiceSendEmail:
     def configured_service(self):
         """Create a fully configured EmailService instance."""
         return EmailService(
-            smtp_host="smtp.example.com",
-            smtp_port=587,
-            smtp_user="user@example.com",
-            smtp_password="password123",
-            smtp_from_email="noreply@example.com",
-            smtp_from_name="Test App",
-            smtp_use_tls=True,
+            sendgrid_api_key="SG.test_api_key",
+            from_email="noreply@example.com",
+            from_name="Test App",
         )
 
     @pytest.fixture
     def unconfigured_service(self):
         """Create an unconfigured EmailService instance."""
         return EmailService(
-            smtp_host="",
-            smtp_port=0,
-            smtp_from_email="",
+            sendgrid_api_key="",
+            from_email="",
         )
 
     @pytest.mark.asyncio
     async def test_send_email_raises_when_not_configured(self, unconfigured_service):
-        """Expect EmailConfigurationError when SMTP not configured."""
-        with pytest.raises(EmailConfigurationError, match="SMTP is not configured"):
+        """Expect EmailConfigurationError when SendGrid not configured."""
+        with pytest.raises(EmailConfigurationError, match="SendGrid is not configured"):
             await unconfigured_service._send_email(
                 to_email="test@example.com",
                 subject="Test Subject",
@@ -153,8 +125,12 @@ class TestEmailServiceSendEmail:
 
     @pytest.mark.asyncio
     async def test_send_email_success(self, configured_service):
-        """Mock aiosmtplib.send, verify it's called with correct params."""
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
+        """Mock SendGrid client, verify it's called correctly."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
             await configured_service._send_email(
                 to_email="recipient@example.com",
                 subject="Test Subject",
@@ -163,41 +139,21 @@ class TestEmailServiceSendEmail:
             )
 
             mock_send.assert_called_once()
-            call_kwargs = mock_send.call_args[1]
+            call_args = mock_send.call_args[0]
+            message = call_args[0]
 
-            assert call_kwargs["hostname"] == "smtp.example.com"
-            assert call_kwargs["port"] == 587
-            assert call_kwargs["username"] == "user@example.com"
-            assert call_kwargs["password"] == "password123"
-            assert call_kwargs["start_tls"] is True
-
-    @pytest.mark.asyncio
-    async def test_send_email_without_tls(self):
-        """Verify email sending without TLS."""
-        service = EmailService(
-            smtp_host="smtp.example.com",
-            smtp_port=25,
-            smtp_from_email="noreply@example.com",
-            smtp_use_tls=False,
-        )
-
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
-            await service._send_email(
-                to_email="recipient@example.com",
-                subject="Test Subject",
-                html_content="<p>Test content</p>",
-            )
-
-            mock_send.assert_called_once()
-            call_kwargs = mock_send.call_args[1]
-
-            # start_tls should not be in kwargs when not using TLS
-            assert "start_tls" not in call_kwargs
+            # Verify message structure
+            assert message.from_email.email == "noreply@example.com"
+            assert message.subject.subject == "Test Subject"
 
     @pytest.mark.asyncio
     async def test_send_invitation_email_success(self, configured_service):
-        """Mock aiosmtplib.send, verify full invitation email flow."""
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
+        """Mock SendGrid client, verify full invitation email flow."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
             await configured_service.send_invitation_email(
                 to_email="newuser@example.com",
                 invitation_url="https://app.example.com/invite?token=xyz789",
@@ -206,26 +162,22 @@ class TestEmailServiceSendEmail:
             )
 
             mock_send.assert_called_once()
-
-            # Verify the message was constructed correctly
             call_args = mock_send.call_args[0]
             message = call_args[0]
 
-            assert message["To"] == "newuser@example.com"
-            assert "Test Organization" in message["Subject"]
-            assert "Test App <noreply@example.com>" in message["From"]
+            # Verify message was constructed correctly
+            assert message.from_email.email == "noreply@example.com"
+            assert "Test Organization" in message.subject.subject
 
     @pytest.mark.asyncio
-    async def test_send_email_handles_authentication_error(self, configured_service):
-        """Verify EmailDeliveryError raised on SMTP authentication failure."""
-        import aiosmtplib
+    async def test_send_email_handles_api_error(self, configured_service):
+        """Verify EmailDeliveryError raised on SendGrid API error."""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.body = b"Unauthorized"
 
-        with patch(
-            "app.services.email_service.aiosmtplib.send",
-            new_callable=AsyncMock,
-            side_effect=aiosmtplib.SMTPAuthenticationError(535, "Authentication failed"),
-        ):
-            with pytest.raises(EmailDeliveryError, match="authentication failed"):
+        with patch.object(configured_service._client, 'send', return_value=mock_response):
+            with pytest.raises(EmailDeliveryError, match="SendGrid API error"):
                 await configured_service._send_email(
                     to_email="test@example.com",
                     subject="Test",
@@ -233,38 +185,241 @@ class TestEmailServiceSendEmail:
                 )
 
     @pytest.mark.asyncio
-    async def test_send_email_handles_connection_error(self, configured_service):
-        """Verify EmailDeliveryError raised on SMTP connection failure."""
-        import aiosmtplib
-
-        with patch(
-            "app.services.email_service.aiosmtplib.send",
-            new_callable=AsyncMock,
-            side_effect=aiosmtplib.SMTPConnectError("Connection refused"),
-        ):
-            with pytest.raises(EmailDeliveryError, match="Failed to connect"):
+    async def test_send_email_handles_exception(self, configured_service):
+        """Verify EmailDeliveryError raised on exception."""
+        with patch.object(configured_service._client, 'send', side_effect=Exception("Connection failed")):
+            with pytest.raises(EmailDeliveryError, match="Failed to send email"):
                 await configured_service._send_email(
                     to_email="test@example.com",
                     subject="Test",
                     html_content="<p>Test</p>",
                 )
+
+
+class TestEmailServicePasswordReset:
+    """Tests for send_password_reset_email method."""
+
+    @pytest.fixture
+    def configured_service(self):
+        """Create a fully configured EmailService instance."""
+        return EmailService(
+            sendgrid_api_key="SG.test_api_key",
+            from_email="noreply@example.com",
+            from_name="Test App",
+        )
+
+    def test_render_password_reset_template(self, configured_service):
+        """Verify password reset template renders with correct variables."""
+        context = {
+            "app_name": "Test Application",
+            "reset_url": "https://example.com/reset?token=abc123",
+            "user_name": "John Doe",
+            "expires_in_hours": 24,
+            "current_year": 2025,
+        }
+
+        html_content = configured_service._render_template(
+            "email/password_reset.html", context
+        )
+
+        # Verify key variables are present in rendered output
+        assert "Test Application" in html_content
+        assert "https://example.com/reset?token=abc123" in html_content
+        assert "John Doe" in html_content
+        assert "24 hours" in html_content
 
     @pytest.mark.asyncio
-    async def test_send_email_handles_smtp_exception(self, configured_service):
-        """Verify EmailDeliveryError raised on general SMTP error."""
-        import aiosmtplib
+    async def test_send_password_reset_email_success(self, configured_service):
+        """Mock SendGrid client, verify full password reset email flow."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
 
-        with patch(
-            "app.services.email_service.aiosmtplib.send",
-            new_callable=AsyncMock,
-            side_effect=aiosmtplib.SMTPException("Unknown SMTP error"),
-        ):
-            with pytest.raises(EmailDeliveryError, match="SMTP error"):
-                await configured_service._send_email(
-                    to_email="test@example.com",
-                    subject="Test",
-                    html_content="<p>Test</p>",
-                )
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_password_reset_email(
+                to_email="user@example.com",
+                reset_url="https://app.example.com/reset?token=xyz789",
+                user_name="John Smith",
+                expires_in_hours=24,
+            )
+
+            mock_send.assert_called_once()
+            call_args = mock_send.call_args[0]
+            message = call_args[0]
+
+            assert message.from_email.email == "noreply@example.com"
+            assert "Reset Your Password" in message.subject.subject
+
+    @pytest.mark.asyncio
+    async def test_send_password_reset_email_without_user_name(self, configured_service):
+        """Verify email sends successfully without user_name."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_password_reset_email(
+                to_email="user@example.com",
+                reset_url="https://app.example.com/reset?token=xyz789",
+            )
+
+            mock_send.assert_called_once()
+
+
+class TestEmailServiceVerification:
+    """Tests for send_verification_email method."""
+
+    @pytest.fixture
+    def configured_service(self):
+        """Create a fully configured EmailService instance."""
+        return EmailService(
+            sendgrid_api_key="SG.test_api_key",
+            from_email="noreply@example.com",
+            from_name="Test App",
+        )
+
+    def test_render_verification_template(self, configured_service):
+        """Verify verification template renders with correct variables."""
+        context = {
+            "app_name": "Test Application",
+            "verification_url": "https://example.com/verify?token=abc123",
+            "user_name": "Jane Doe",
+            "expires_in_hours": 48,
+            "current_year": 2025,
+        }
+
+        html_content = configured_service._render_template(
+            "email/email_verification.html", context
+        )
+
+        # Verify key variables are present in rendered output
+        assert "Test Application" in html_content
+        assert "https://example.com/verify?token=abc123" in html_content
+        assert "Jane Doe" in html_content
+        assert "48 hours" in html_content
+
+    @pytest.mark.asyncio
+    async def test_send_verification_email_success(self, configured_service):
+        """Mock SendGrid client, verify full verification email flow."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_verification_email(
+                to_email="newuser@example.com",
+                verification_url="https://app.example.com/verify?token=xyz789",
+                user_name="Jane Smith",
+                expires_in_hours=48,
+            )
+
+            mock_send.assert_called_once()
+            call_args = mock_send.call_args[0]
+            message = call_args[0]
+
+            assert message.from_email.email == "noreply@example.com"
+            assert "Verify Your Email" in message.subject.subject
+
+    @pytest.mark.asyncio
+    async def test_send_verification_email_without_user_name(self, configured_service):
+        """Verify email sends successfully without user_name."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_verification_email(
+                to_email="user@example.com",
+                verification_url="https://app.example.com/verify?token=xyz789",
+            )
+
+            mock_send.assert_called_once()
+
+
+class TestEmailServiceWelcome:
+    """Tests for send_welcome_email method."""
+
+    @pytest.fixture
+    def configured_service(self):
+        """Create a fully configured EmailService instance."""
+        return EmailService(
+            sendgrid_api_key="SG.test_api_key",
+            from_email="noreply@example.com",
+            from_name="Test App",
+        )
+
+    def test_render_welcome_template(self, configured_service):
+        """Verify welcome template renders with correct variables."""
+        context = {
+            "app_name": "Test Application",
+            "login_url": "https://example.com/login",
+            "user_name": "New User",
+            "tenant_name": "Acme Corp",
+            "current_year": 2025,
+        }
+
+        html_content = configured_service._render_template(
+            "email/welcome.html", context
+        )
+
+        # Verify key variables are present in rendered output
+        assert "Test Application" in html_content
+        assert "https://example.com/login" in html_content
+        assert "New User" in html_content
+        assert "Acme Corp" in html_content
+
+    @pytest.mark.asyncio
+    async def test_send_welcome_email_success(self, configured_service):
+        """Mock SendGrid client, verify full welcome email flow."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_welcome_email(
+                to_email="newuser@example.com",
+                login_url="https://app.example.com/login",
+                user_name="New User",
+                tenant_name="Test Organization",
+            )
+
+            mock_send.assert_called_once()
+            call_args = mock_send.call_args[0]
+            message = call_args[0]
+
+            assert message.from_email.email == "noreply@example.com"
+            assert "Welcome" in message.subject.subject
+
+    @pytest.mark.asyncio
+    async def test_send_welcome_email_without_optional_fields(self, configured_service):
+        """Verify email sends successfully without user_name and tenant_name."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_welcome_email(
+                to_email="user@example.com",
+                login_url="https://app.example.com/login",
+            )
+
+            mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_welcome_email_with_tenant_only(self, configured_service):
+        """Verify email sends successfully with tenant_name but no user_name."""
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.body = b""
+
+        with patch.object(configured_service._client, 'send', return_value=mock_response) as mock_send:
+            await configured_service.send_welcome_email(
+                to_email="user@example.com",
+                login_url="https://app.example.com/login",
+                tenant_name="Test Corp",
+            )
+
+            mock_send.assert_called_once()
 
 
 class TestEmailServiceSingleton:

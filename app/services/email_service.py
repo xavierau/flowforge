@@ -1,13 +1,12 @@
-"""Email service for sending transactional emails using async SMTP and Jinja2 templates."""
+"""Email service for sending transactional emails using SendGrid and Jinja2 templates."""
 
 import logging
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Optional
 
-import aiosmtplib
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content, MimeType
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 logger = logging.getLogger(__name__)
@@ -20,7 +19,7 @@ class EmailServiceError(Exception):
 
 
 class EmailConfigurationError(EmailServiceError):
-    """Exception raised when SMTP is not configured properly."""
+    """Exception raised when SendGrid is not configured properly."""
 
     pass
 
@@ -33,9 +32,9 @@ class EmailDeliveryError(EmailServiceError):
 
 class EmailService:
     """
-    Service for sending transactional emails using async SMTP.
+    Service for sending transactional emails using SendGrid.
 
-    Uses Jinja2 templates for email rendering and aiosmtplib for async delivery.
+    Uses Jinja2 templates for email rendering and SendGrid API for delivery.
 
     Usage:
         service = EmailService()
@@ -48,49 +47,34 @@ class EmailService:
             )
 
     Configuration:
-        SMTP settings are loaded from app.config.settings by default.
+        Settings are loaded from app.config.settings by default.
         Override by passing parameters to __init__().
     """
 
     def __init__(
         self,
-        smtp_host: Optional[str] = None,
-        smtp_port: Optional[int] = None,
-        smtp_user: Optional[str] = None,
-        smtp_password: Optional[str] = None,
-        smtp_from_email: Optional[str] = None,
-        smtp_from_name: Optional[str] = None,
-        smtp_use_tls: Optional[bool] = None,
+        sendgrid_api_key: Optional[str] = None,
+        from_email: Optional[str] = None,
+        from_name: Optional[str] = None,
     ):
         """
-        Initialize email service with SMTP settings.
+        Initialize email service with SendGrid settings.
 
         Args:
-            smtp_host: SMTP server hostname (default from settings)
-            smtp_port: SMTP server port (default from settings)
-            smtp_user: SMTP username for authentication (default from settings)
-            smtp_password: SMTP password for authentication (default from settings)
-            smtp_from_email: Sender email address (default from settings)
-            smtp_from_name: Sender display name (default from settings)
-            smtp_use_tls: Whether to use STARTTLS (default from settings)
+            sendgrid_api_key: SendGrid API key (default from settings)
+            from_email: Sender email address (default from settings)
+            from_name: Sender display name (default from settings)
         """
         from app.config import settings
 
-        self._smtp_host = smtp_host if smtp_host is not None else settings.smtp_host
-        self._smtp_port = smtp_port if smtp_port is not None else settings.smtp_port
-        self._smtp_user = smtp_user if smtp_user is not None else settings.smtp_user
-        self._smtp_password = (
-            smtp_password if smtp_password is not None else settings.smtp_password
-        )
-        self._smtp_from_email = (
-            smtp_from_email if smtp_from_email is not None else settings.smtp_from_email
-        )
-        self._smtp_from_name = (
-            smtp_from_name if smtp_from_name is not None else settings.smtp_from_name
-        )
-        self._smtp_use_tls = (
-            smtp_use_tls if smtp_use_tls is not None else settings.smtp_use_tls
-        )
+        self._api_key = sendgrid_api_key if sendgrid_api_key is not None else settings.sendgrid_api_key
+        self._from_email = from_email if from_email is not None else settings.email_from_address
+        self._from_name = from_name if from_name is not None else settings.email_from_name
+
+        # Initialize SendGrid client if API key is provided
+        self._client: Optional[SendGridAPIClient] = None
+        if self._api_key:
+            self._client = SendGridAPIClient(self._api_key)
 
         # Initialize Jinja2 environment
         templates_dir = Path(__file__).parent.parent / "templates"
@@ -101,14 +85,12 @@ class EmailService:
 
     def is_configured(self) -> bool:
         """
-        Check if SMTP is properly configured.
+        Check if SendGrid is properly configured.
 
         Returns:
-            True if smtp_host, smtp_port, and smtp_from_email are all set
+            True if sendgrid_api_key and from_email are set
         """
-        return bool(
-            self._smtp_host and self._smtp_port and self._smtp_from_email
-        )
+        return bool(self._api_key and self._from_email)
 
     def _render_template(self, template_name: str, context: dict) -> str:
         """
@@ -144,7 +126,7 @@ class EmailService:
         text_content: Optional[str] = None,
     ) -> None:
         """
-        Send an email via SMTP.
+        Send an email via SendGrid.
 
         Args:
             to_email: Recipient email address
@@ -153,33 +135,31 @@ class EmailService:
             text_content: Optional plain text body (for multipart emails)
 
         Raises:
-            EmailConfigurationError: If SMTP is not configured
+            EmailConfigurationError: If SendGrid is not configured
             EmailDeliveryError: If sending fails
         """
         if not self.is_configured():
             raise EmailConfigurationError(
-                "SMTP is not configured. Set SMTP_HOST, SMTP_PORT, and "
-                "SMTP_FROM_EMAIL environment variables."
+                "SendGrid is not configured. Set SENDGRID_API_KEY and "
+                "EMAIL_FROM_ADDRESS environment variables."
             )
 
         # Build email message
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = (
-            f"{self._smtp_from_name} <{self._smtp_from_email}>"
-            if self._smtp_from_name
-            else self._smtp_from_email
+        from_email = Email(self._from_email, self._from_name) if self._from_name else Email(self._from_email)
+        to_email_obj = To(to_email)
+
+        message = Mail(
+            from_email=from_email,
+            to_emails=to_email_obj,
+            subject=subject,
         )
-        msg["To"] = to_email
 
-        # Add plain text part (optional)
+        # Add HTML content
+        message.add_content(Content(MimeType.html, html_content))
+
+        # Add plain text content if provided (should be added first for proper MIME ordering)
         if text_content:
-            text_part = MIMEText(text_content, "plain", "utf-8")
-            msg.attach(text_part)
-
-        # Add HTML part
-        html_part = MIMEText(html_content, "html", "utf-8")
-        msg.attach(html_part)
+            message.add_content(Content(MimeType.text, text_content))
 
         try:
             logger.info(
@@ -188,46 +168,26 @@ class EmailService:
                 subject,
             )
 
-            # Connect and send
-            if self._smtp_use_tls:
-                # Use STARTTLS
-                await aiosmtplib.send(
-                    msg,
-                    hostname=self._smtp_host,
-                    port=self._smtp_port,
-                    username=self._smtp_user if self._smtp_user else None,
-                    password=self._smtp_password if self._smtp_password else None,
-                    start_tls=True,
+            response = self._client.send(message)
+
+            if response.status_code >= 400:
+                logger.error(
+                    "SendGrid returned error status %d: %s",
+                    response.status_code,
+                    response.body,
                 )
-            else:
-                # No TLS (not recommended for production)
-                await aiosmtplib.send(
-                    msg,
-                    hostname=self._smtp_host,
-                    port=self._smtp_port,
-                    username=self._smtp_user if self._smtp_user else None,
-                    password=self._smtp_password if self._smtp_password else None,
+                raise EmailDeliveryError(
+                    f"SendGrid API error: status {response.status_code}"
                 )
 
-            logger.info("Email sent successfully to %s", to_email)
+            logger.info("Email sent successfully to %s (status: %d)", to_email, response.status_code)
 
-        except aiosmtplib.SMTPAuthenticationError as e:
-            logger.error("SMTP authentication failed: %s", e)
-            raise EmailDeliveryError(
-                "SMTP authentication failed. Check SMTP_USER and SMTP_PASSWORD."
-            ) from e
-        except aiosmtplib.SMTPConnectError as e:
-            logger.error("Failed to connect to SMTP server: %s", e)
-            raise EmailDeliveryError(
-                f"Failed to connect to SMTP server at {self._smtp_host}:{self._smtp_port}"
-            ) from e
-        except aiosmtplib.SMTPException as e:
-            logger.error("SMTP error while sending email: %s", e)
-            raise EmailDeliveryError(f"SMTP error: {type(e).__name__}") from e
+        except EmailDeliveryError:
+            raise
         except Exception as e:
-            logger.error("Unexpected error sending email: %s", e)
+            logger.error("Failed to send email via SendGrid: %s", e)
             raise EmailDeliveryError(
-                f"Failed to send email: {type(e).__name__}"
+                f"Failed to send email: {type(e).__name__}: {str(e)}"
             ) from e
 
     async def send_invitation_email(
@@ -247,15 +207,13 @@ class EmailService:
             tenant_name: Name of the tenant/organization
 
         Raises:
-            EmailConfigurationError: If SMTP is not configured
+            EmailConfigurationError: If SendGrid is not configured
             EmailDeliveryError: If sending fails
             EmailServiceError: If template rendering fails
         """
-        from app.config import settings
-
         # Prepare template context
         context = {
-            "app_name": self._smtp_from_name or "AI Document Processing",
+            "app_name": self._from_name or "AI Document Processing",
             "invitation_url": invitation_url,
             "invited_by": invited_by,
             "tenant_name": tenant_name,
@@ -293,6 +251,232 @@ This email was sent by {context['app_name']}.
 
         # Build subject
         subject = f"You're Invited to Join {tenant_name}"
+
+        # Send email
+        await self._send_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+        )
+
+    async def send_password_reset_email(
+        self,
+        to_email: str,
+        reset_url: str,
+        user_name: Optional[str] = None,
+        expires_in_hours: int = 24,
+    ) -> None:
+        """
+        Send a password reset email to a user.
+
+        Args:
+            to_email: Recipient email address
+            reset_url: Full URL for resetting the password
+            user_name: Optional user's name for personalization
+            expires_in_hours: How many hours until the link expires (default 24)
+
+        Raises:
+            EmailConfigurationError: If SendGrid is not configured
+            EmailDeliveryError: If sending fails
+            EmailServiceError: If template rendering fails
+        """
+        # Prepare template context
+        context = {
+            "app_name": self._from_name or "AI Document Processing",
+            "reset_url": reset_url,
+            "user_name": user_name,
+            "expires_in_hours": expires_in_hours,
+            "current_year": datetime.now().year,
+        }
+
+        # Render HTML template
+        html_content = self._render_template("email/password_reset.html", context)
+
+        # Create plain text version
+        text_content = f"""
+Reset Your Password
+
+Hi{' ' + user_name if user_name else ''},
+
+We received a request to reset the password for your {context['app_name']} account.
+Click the link below to create a new password:
+
+{reset_url}
+
+Important: This password reset link will expire in {expires_in_hours} hours.
+After that, you'll need to request a new link.
+
+Didn't request this?
+If you didn't request a password reset, please ignore this email or
+contact support if you're concerned about your account security.
+Your password will not change unless you click the link above.
+
+For your security, never share this link with anyone.
+{context['app_name']} will never ask for your password via email.
+
+---
+This email was sent by {context['app_name']}.
+        """.strip()
+
+        # Build subject
+        subject = f"Reset Your Password - {context['app_name']}"
+
+        # Send email
+        await self._send_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+        )
+
+    async def send_verification_email(
+        self,
+        to_email: str,
+        verification_url: str,
+        user_name: Optional[str] = None,
+        expires_in_hours: int = 48,
+    ) -> None:
+        """
+        Send an email verification email to a user.
+
+        Args:
+            to_email: Recipient email address
+            verification_url: Full URL for verifying the email
+            user_name: Optional user's name for personalization
+            expires_in_hours: How many hours until the link expires (default 48)
+
+        Raises:
+            EmailConfigurationError: If SendGrid is not configured
+            EmailDeliveryError: If sending fails
+            EmailServiceError: If template rendering fails
+        """
+        # Prepare template context
+        context = {
+            "app_name": self._from_name or "AI Document Processing",
+            "verification_url": verification_url,
+            "user_name": user_name,
+            "expires_in_hours": expires_in_hours,
+            "current_year": datetime.now().year,
+        }
+
+        # Render HTML template
+        html_content = self._render_template("email/email_verification.html", context)
+
+        # Create plain text version
+        text_content = f"""
+Verify Your Email Address
+
+Hi{' ' + user_name if user_name else ''},
+
+Thanks for signing up for {context['app_name']}! Please verify your email address
+by clicking the link below to complete your account setup:
+
+{verification_url}
+
+Note: This verification link will expire in {expires_in_hours} hours.
+If it expires, you can request a new verification email from your account settings.
+
+Why verify your email?
+- Secure Your Account: Protect your account from unauthorized access
+- Recover Your Password: Reset your password if you ever forget it
+- Receive Important Updates: Get notifications about your account and documents
+
+If you didn't create an account with {context['app_name']}, you can safely ignore this email.
+No account will be activated unless you verify your email.
+
+---
+This email was sent by {context['app_name']}.
+        """.strip()
+
+        # Build subject
+        subject = f"Verify Your Email - {context['app_name']}"
+
+        # Send email
+        await self._send_email(
+            to_email=to_email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+        )
+
+    async def send_welcome_email(
+        self,
+        to_email: str,
+        login_url: str,
+        user_name: Optional[str] = None,
+        tenant_name: Optional[str] = None,
+    ) -> None:
+        """
+        Send a welcome email to a newly registered user.
+
+        Args:
+            to_email: Recipient email address
+            login_url: Full URL for logging in
+            user_name: Optional user's name for personalization
+            tenant_name: Optional tenant/organization name
+
+        Raises:
+            EmailConfigurationError: If SendGrid is not configured
+            EmailDeliveryError: If sending fails
+            EmailServiceError: If template rendering fails
+        """
+        # Prepare template context
+        context = {
+            "app_name": self._from_name or "AI Document Processing",
+            "login_url": login_url,
+            "user_name": user_name,
+            "tenant_name": tenant_name,
+            "current_year": datetime.now().year,
+        }
+
+        # Render HTML template
+        html_content = self._render_template("email/welcome.html", context)
+
+        # Create plain text version
+        tenant_text = f" and you're now part of {tenant_name}" if tenant_name else ""
+        text_content = f"""
+Welcome to {context['app_name']}!
+
+Hi{' ' + user_name if user_name else ''},
+
+Thank you for joining {context['app_name']}! Your account has been successfully created{tenant_text}.
+We're excited to help you automate your document processing workflows.
+
+Get started: {login_url}
+
+Getting Started with {context['app_name']}:
+
+1. Upload Your First Document
+   Start by uploading a PDF, image, or scanned document to process
+
+2. Create or Choose a Schema
+   Define what data you want to extract, or use a pre-built template
+
+3. Extract Data with AI
+   Let our AI analyze your documents and extract structured data
+
+4. Build Automated Workflows
+   Create workflows to automate your document processing pipeline
+
+What you can do with {context['app_name']}:
+- Process Multiple Document Types: PDFs, images, scanned documents, and more
+- Custom Extraction Schemas: Define exactly what data you need to extract
+- Visual Workflow Builder: Drag-and-drop interface for building automation
+- API Integration: Connect to your existing systems via REST API
+
+Need help?
+Check out our documentation or contact support if you have any questions.
+We're here to help you get the most out of {context['app_name']}.
+
+We're thrilled to have you on board!
+
+---
+This email was sent by {context['app_name']}.
+        """.strip()
+
+        # Build subject
+        subject = f"Welcome to {context['app_name']}!"
 
         # Send email
         await self._send_email(

@@ -61,14 +61,10 @@ class Settings(BaseSettings):
     # Example: "http://localhost:3002,https://yourdomain.com,https://app.yourdomain.com"
     jwt_allowed_origins: str = "http://localhost:3002,http://localhost:3000"
 
-    # Email (SMTP)
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    smtp_from_email: str = "noreply@example.com"
-    smtp_from_name: str = "AI Document Processing"
-    smtp_use_tls: bool = True
+    # Email (SendGrid)
+    sendgrid_api_key: str = ""
+    email_from_address: str = "noreply@example.com"
+    email_from_name: str = "AI Document Processing"
 
     # Frontend URL (for email links)
     frontend_url: str = "http://localhost:3002"

@@ -1,0 +1,269 @@
+{% extends "email/base.html" %}
+
+{% block title %}Welcome to {{ app_name }}!{% endblock %}
+
+{% block preheader %}Welcome to {{ app_name }}! Your account is ready. Start processing documents with AI today.{% endblock %}
+
+{% block content %}
+<table border="0" cellpadding="0" cellspacing="0" width="100%">
+    <!-- Greeting -->
+    <tr>
+        <td style="font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; color: #111827; line-height: 32px; padding-bottom: 16px;">
+            Welcome to {{ app_name }}!
+        </td>
+    </tr>
+
+    <!-- Main message -->
+    <tr>
+        <td style="font-family: Arial, sans-serif; font-size: 16px; color: #374151; line-height: 26px; padding-bottom: 24px;">
+            Hi{% if user_name %} <strong style="color: #111827;">{{ user_name }}</strong>{% endif %},
+        </td>
+    </tr>
+
+    <tr>
+        <td style="font-family: Arial, sans-serif; font-size: 16px; color: #374151; line-height: 26px; padding-bottom: 24px;">
+            Thank you for joining {{ app_name }}! Your account has been successfully created
+            {% if tenant_name %}and you're now part of <strong style="color: #111827;">{{ tenant_name }}</strong>{% endif %}.
+            We're excited to help you automate your document processing workflows.
+        </td>
+    </tr>
+
+    <!-- CTA Button -->
+    <tr>
+        <td align="center" style="padding-bottom: 32px;">
+            <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td align="center" style="border-radius: 6px; background-color: #2563eb;">
+                        <a href="{{ login_url }}" target="_blank" class="button-primary" style="display: inline-block; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; background-color: #2563eb;">
+                            Get Started
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- Divider -->
+    <tr>
+        <td style="padding-bottom: 24px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                    <td style="border-top: 1px solid #e5e7eb;"></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- Getting started section -->
+    <tr>
+        <td style="font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #111827; line-height: 24px; padding-bottom: 16px;">
+            Getting Started with {{ app_name }}
+        </td>
+    </tr>
+
+    <tr>
+        <td style="padding-bottom: 24px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <!-- Step 1 -->
+                <tr>
+                    <td style="padding-bottom: 16px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 16px;">
+                                    <div style="width: 32px; height: 32px; background-color: #2563eb; border-radius: 50%; text-align: center; line-height: 32px;">
+                                        <span style="color: #ffffff; font-size: 16px; font-weight: bold;">1</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Upload Your First Document</strong><br>
+                                    Start by uploading a PDF, image, or scanned document to process
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Step 2 -->
+                <tr>
+                    <td style="padding-bottom: 16px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 16px;">
+                                    <div style="width: 32px; height: 32px; background-color: #2563eb; border-radius: 50%; text-align: center; line-height: 32px;">
+                                        <span style="color: #ffffff; font-size: 16px; font-weight: bold;">2</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Create or Choose a Schema</strong><br>
+                                    Define what data you want to extract, or use a pre-built template
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Step 3 -->
+                <tr>
+                    <td style="padding-bottom: 16px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 16px;">
+                                    <div style="width: 32px; height: 32px; background-color: #2563eb; border-radius: 50%; text-align: center; line-height: 32px;">
+                                        <span style="color: #ffffff; font-size: 16px; font-weight: bold;">3</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Extract Data with AI</strong><br>
+                                    Let our AI analyze your documents and extract structured data
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Step 4 -->
+                <tr>
+                    <td>
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 16px;">
+                                    <div style="width: 32px; height: 32px; background-color: #2563eb; border-radius: 50%; text-align: center; line-height: 32px;">
+                                        <span style="color: #ffffff; font-size: 16px; font-weight: bold;">4</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Build Automated Workflows</strong><br>
+                                    Create workflows to automate your document processing pipeline
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- Divider -->
+    <tr>
+        <td style="padding-bottom: 24px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                    <td style="border-top: 1px solid #e5e7eb;"></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- Features list -->
+    <tr>
+        <td style="font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #111827; line-height: 24px; padding-bottom: 16px;">
+            What you can do with {{ app_name }}:
+        </td>
+    </tr>
+
+    <tr>
+        <td style="padding-bottom: 24px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <!-- Feature 1 -->
+                <tr>
+                    <td style="padding-bottom: 12px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 12px;">
+                                    <div style="width: 24px; height: 24px; background-color: #dbeafe; border-radius: 50%; text-align: center; line-height: 24px;">
+                                        <span style="color: #2563eb; font-size: 14px; font-weight: bold;">&#10003;</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Process Multiple Document Types</strong><br>
+                                    PDFs, images, scanned documents, and more
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Feature 2 -->
+                <tr>
+                    <td style="padding-bottom: 12px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 12px;">
+                                    <div style="width: 24px; height: 24px; background-color: #dbeafe; border-radius: 50%; text-align: center; line-height: 24px;">
+                                        <span style="color: #2563eb; font-size: 14px; font-weight: bold;">&#10003;</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Custom Extraction Schemas</strong><br>
+                                    Define exactly what data you need to extract
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Feature 3 -->
+                <tr>
+                    <td style="padding-bottom: 12px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 12px;">
+                                    <div style="width: 24px; height: 24px; background-color: #dbeafe; border-radius: 50%; text-align: center; line-height: 24px;">
+                                        <span style="color: #2563eb; font-size: 14px; font-weight: bold;">&#10003;</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">Visual Workflow Builder</strong><br>
+                                    Drag-and-drop interface for building automation
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Feature 4 -->
+                <tr>
+                    <td>
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td valign="top" style="padding-right: 12px;">
+                                    <div style="width: 24px; height: 24px; background-color: #dbeafe; border-radius: 50%; text-align: center; line-height: 24px;">
+                                        <span style="color: #2563eb; font-size: 14px; font-weight: bold;">&#10003;</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #374151; line-height: 22px;">
+                                    <strong style="color: #111827;">API Integration</strong><br>
+                                    Connect to your existing systems via REST API
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- Help section -->
+    <tr>
+        <td style="padding-bottom: 16px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f0f9ff; border-radius: 6px; border-left: 4px solid #0ea5e9;">
+                <tr>
+                    <td style="padding: 16px;">
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="font-family: Arial, sans-serif; font-size: 14px; color: #0c4a6e; line-height: 22px;">
+                                    <strong>Need help?</strong><br>
+                                    Check out our documentation or contact support if you have any questions.
+                                    We're here to help you get the most out of {{ app_name }}.
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- Closing note -->
+    <tr>
+        <td style="font-family: Arial, sans-serif; font-size: 13px; color: #9ca3af; line-height: 20px; font-style: italic;">
+            We're thrilled to have you on board. If you have any feedback or suggestions,
+            we'd love to hear from you!
+        </td>
+    </tr>
+</table>
+{% endblock %}

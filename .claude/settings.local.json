@@ -118,7 +118,8 @@
       "Bash(/usr/bin/curl:*)",
       "Bash(tee:*)",
       "Bash(done)",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(uv run celery:*)"
     ],
     "deny": [],
     "ask": []
