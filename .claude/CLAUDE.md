@@ -170,6 +170,44 @@ WHERE status = 'processing'
 
 ## 🧪 Testing
 
+### Running the Test Suite
+
+```bash
+# Run all tests (recommended)
+uv run python -m pytest tests/ -v
+
+# Run with coverage report
+uv run python -m pytest tests/ --cov=app --cov-report=term-missing
+
+# Run specific test categories
+uv run python -m pytest tests/unit -v          # Unit tests only
+uv run python -m pytest tests/integration -v   # Integration tests only
+```
+
+### Test Environment Configuration
+
+Tests are configured in `tests/conftest.py` with:
+
+| Setting | Environment Variable | Default | Description |
+|---------|---------------------|---------|-------------|
+| Test Database | `TEST_DATABASE_URL` | `postgresql+psycopg://postgres:password@localhost:5432/doc_processing` | PostgreSQL required for JSONB support |
+| Rate Limiting | `RATE_LIMIT_ENABLED` | `false` (in tests) | Disabled by default to prevent test interference |
+
+```bash
+# Override test database
+TEST_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/test_db uv run python -m pytest tests/ -v
+
+# Run rate limiting tests specifically (must enable rate limiting)
+RATE_LIMIT_ENABLED=true uv run python -m pytest tests/integration/api/test_rate_limiting.py -v
+```
+
+**Key files:**
+- `tests/conftest.py` - Test fixtures and environment setup
+- `app/config.py` - `rate_limit_enabled` setting
+- `app/dependencies/rate_limit.py` - Rate limiting logic
+
+**See:** [Development Commands - Testing](../docs/guides/2025-11-02-development-commands.md#testing) for complete reference
+
 ### End-to-End Test Flow
 
 ```bash
@@ -743,5 +781,5 @@ document = (
 
 ---
 
-**Last Updated:** 2025-12-03
-**Version:** 1.7 (Added mandatory test suite verification after every implementation; Tests must pass before work is considered complete)
+**Last Updated:** 2025-12-17
+**Version:** 1.8 (Added test environment configuration: TEST_DATABASE_URL and RATE_LIMIT_ENABLED settings; Rate limiting disabled by default in tests)

@@ -5,14 +5,25 @@ Test Coverage:
 - POST /api/v1/auth/login - 10 requests per minute
 - POST /api/v1/auth/forgot-password - 3 requests per minute
 - POST /api/v1/auth/reset-password - 5 requests per minute
+
+NOTE: These tests are skipped when RATE_LIMIT_ENABLED=false (default in test environment).
+To run these tests, set RATE_LIMIT_ENABLED=true before running pytest.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import User, Tenant
 from app.services.auth_service import auth_service
+
+
+# Skip all tests in this module when rate limiting is disabled
+pytestmark = pytest.mark.skipif(
+    not settings.rate_limit_enabled,
+    reason="Rate limiting is disabled (RATE_LIMIT_ENABLED=false)"
+)
 
 
 # Note: rate limiter is reset automatically via conftest.py fixture

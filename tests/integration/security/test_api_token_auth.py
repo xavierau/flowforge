@@ -12,6 +12,7 @@ Phase 4: Security tests for API token authentication system.
 import io
 import pytest
 import time
+import uuid
 from datetime import datetime, timedelta
 from uuid import uuid4
 from fastapi.testclient import TestClient
@@ -64,6 +65,16 @@ def create_api_token_directly(
 def get_api_token_headers(token: str) -> dict[str, str]:
     """Create headers for API token authentication."""
     return {"Authorization": f"Bearer {token}"}
+
+
+def unique_slug(base: str) -> str:
+    """Generate a unique slug using UUID suffix."""
+    return f"{base}-{uuid.uuid4().hex[:8]}"
+
+
+def unique_email(prefix: str) -> str:
+    """Generate a unique email using UUID suffix."""
+    return f"{prefix}-{uuid.uuid4().hex[:8]}@example.com"
 
 
 def ensure_permission(db_session: Session, name: str, resource: str, action: str) -> Permission:
@@ -232,7 +243,7 @@ class TestAPITokenCreation:
         """Test member user can only create tokens with their available permissions."""
         # Create member user
         member_user = User(
-            email="member_token@example.com",
+            email=unique_email("member_token"),
             hashed_password=auth_service.hash_password("TestPass123"),
             full_name="Member User",
             tenant_id=test_tenant.id,
@@ -415,7 +426,7 @@ class TestAPITokenAuthentication:
         # Create another tenant and user
         other_tenant = Tenant(
             name="Other Organization",
-            slug="other-org-token",
+            slug=unique_slug("other-org-token"),
             status="active",
             subscription_plan="free",
             tenant_metadata={}
@@ -425,7 +436,7 @@ class TestAPITokenAuthentication:
         db_session.refresh(other_tenant)
 
         other_user = User(
-            email="other_tenant@example.com",
+            email=unique_email("other_tenant"),
             hashed_password=auth_service.hash_password("TestPass123"),
             full_name="Other User",
             tenant_id=other_tenant.id,
@@ -470,20 +481,21 @@ class TestAPITokenAuthentication:
             name="Inactive User Token"
         )
 
-        # Deactivate user
-        test_admin_user.is_active = False
-        db_session.commit()
+        try:
+            # Deactivate user
+            test_admin_user.is_active = False
+            db_session.commit()
 
-        response = client.get(
-            "/api/v1/documents",
-            headers=get_api_token_headers(full_token)
-        )
+            response = client.get(
+                "/api/v1/documents",
+                headers=get_api_token_headers(full_token)
+            )
 
-        assert response.status_code == 401
-
-        # Restore user for other tests
-        test_admin_user.is_active = True
-        db_session.commit()
+            assert response.status_code == 401
+        finally:
+            # Always restore user for other tests
+            test_admin_user.is_active = True
+            db_session.commit()
 
 
 # ============================================================================
@@ -835,7 +847,7 @@ class TestAPITokenRevocation:
         # Create another tenant and user
         other_tenant = Tenant(
             name="Other Org Revoke",
-            slug="other-org-revoke",
+            slug=unique_slug("other-org-revoke"),
             status="active",
             subscription_plan="free",
             tenant_metadata={}
@@ -845,7 +857,7 @@ class TestAPITokenRevocation:
         db_session.refresh(other_tenant)
 
         other_user = User(
-            email="other_revoke@example.com",
+            email=unique_email("other_revoke"),
             hashed_password=auth_service.hash_password("TestPass123"),
             full_name="Other User",
             tenant_id=other_tenant.id,
@@ -946,7 +958,7 @@ class TestAPITokenEdgeCases:
 
         # Create another user in same tenant
         other_user = User(
-            email="other_list@example.com",
+            email=unique_email("other_list"),
             hashed_password=auth_service.hash_password("TestPass123"),
             full_name="Other User",
             tenant_id=test_tenant.id,

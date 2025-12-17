@@ -67,29 +67,107 @@ celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
 
 ## Testing
 
-```bash
-# Run all tests
-pytest
+### Running Tests
 
-# Run specific test directory
-pytest tests/unit
-pytest tests/integration
+```bash
+# Run all tests (recommended - uses uv)
+uv run python -m pytest tests/ -v
 
 # Run with coverage report
-pytest -v --cov=app --cov-report=term-missing
+uv run python -m pytest tests/ --cov=app --cov-report=term-missing
+
+# Run specific test directory
+uv run python -m pytest tests/unit -v
+uv run python -m pytest tests/integration -v
 
 # Run specific test file
-pytest tests/unit/test_models.py
+uv run python -m pytest tests/unit/test_models.py -v
 
 # Run specific test function
-pytest tests/unit/test_models.py::test_document_creation
-
-# Run with verbose output
-pytest -v
+uv run python -m pytest tests/unit/test_models.py::test_document_creation -v
 
 # Stop on first failure
-pytest -x
+uv run python -m pytest tests/ -x
+
+# Run tests matching a pattern
+uv run python -m pytest tests/ -k "auth" -v
 ```
+
+### Test Environment Configuration
+
+The test environment is configured in `tests/conftest.py` with the following settings:
+
+#### Test Database URL
+
+Tests use PostgreSQL by default (required for JSONB column support). The database URL can be configured via environment variable:
+
+```bash
+# Default test database URL
+TEST_DATABASE_URL=postgresql+psycopg://postgres:password@localhost:5432/doc_processing
+
+# Override for CI/CD or different environments
+TEST_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/test_db uv run python -m pytest tests/ -v
+```
+
+**Note:** Tests automatically create and drop tables for isolation. Each test function gets a fresh database state.
+
+#### Rate Limiting in Tests
+
+Rate limiting is **disabled by default** in the test environment to prevent test interference. This is controlled by the `RATE_LIMIT_ENABLED` environment variable.
+
+```bash
+# Default behavior (rate limiting disabled)
+uv run python -m pytest tests/ -v
+
+# Enable rate limiting for specific tests
+RATE_LIMIT_ENABLED=true uv run python -m pytest tests/integration/api/test_rate_limiting.py -v
+```
+
+**How it works:**
+- `tests/conftest.py` sets `RATE_LIMIT_ENABLED=false` before importing app modules
+- When disabled, each request gets a unique key, bypassing rate limits
+- Rate limiting tests are automatically skipped when rate limiting is disabled
+
+**Files involved:**
+- `app/config.py` - `rate_limit_enabled: bool = True` setting
+- `app/dependencies/rate_limit.py` - Conditional rate limiting logic
+- `tests/conftest.py` - Sets `RATE_LIMIT_ENABLED=false`
+- `tests/integration/api/test_rate_limiting.py` - Skipped when rate limiting disabled
+
+### Test Markers
+
+```bash
+# Run only unit tests
+uv run python -m pytest tests/ -m unit
+
+# Run only integration tests
+uv run python -m pytest tests/ -m integration
+
+# Run workflow tests
+uv run python -m pytest tests/ -m workflow
+
+# Run tests requiring PostgreSQL
+uv run python -m pytest tests/ -m postgres
+
+# Run Conductor integration tests (requires Conductor server)
+uv run python -m pytest tests/ --conductor-integration -m conductor
+```
+
+### Available Test Fixtures
+
+Key fixtures defined in `tests/conftest.py`:
+
+| Fixture | Description |
+|---------|-------------|
+| `db_session` | Fresh database session per test |
+| `client` | FastAPI TestClient with DB override |
+| `test_tenant` | Test tenant entity |
+| `test_user` | Regular test user (member role) |
+| `test_admin_user` | Admin test user |
+| `auth_headers` | JWT auth headers for test_user |
+| `admin_auth_headers` | JWT auth headers for admin |
+| `seed_roles` | Seed admin/member/viewer roles |
+| `seed_permissions` | Seed all permissions |
 
 ## Code Quality
 
@@ -230,3 +308,33 @@ GOOGLE_API_KEY=your_google_api_key
 OPENAI_API_KEY=your_openai_api_key
 DEEPSEEK_API_KEY=your_deepseek_api_key
 ```
+
+### Test Environment Variables
+
+These variables configure the test environment:
+
+```bash
+# Test database URL (separate from production/development)
+# Default: postgresql+psycopg://postgres:password@localhost:5432/doc_processing
+TEST_DATABASE_URL=postgresql+psycopg://postgres:password@localhost:5432/test_db
+
+# Rate limiting toggle (default: true in production, false in tests)
+# Set to "false" to disable rate limiting (useful for testing)
+RATE_LIMIT_ENABLED=false
+```
+
+### Rate Limiting Configuration
+
+The `RATE_LIMIT_ENABLED` setting controls whether rate limiting is active:
+
+| Environment | Default | Description |
+|-------------|---------|-------------|
+| Production | `true` | Rate limiting enabled to protect against abuse |
+| Development | `true` | Rate limiting enabled (can be disabled if needed) |
+| Testing | `false` | Rate limiting disabled to prevent test interference |
+
+Rate limits in production (when enabled):
+- `/api/v1/auth/login` - 10 requests/minute
+- `/api/v1/auth/forgot-password` - 3 requests/minute
+- `/api/v1/auth/reset-password` - 5 requests/minute
+- `/api/v1/auth/accept-invitation` - 5 requests/minute

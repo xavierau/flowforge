@@ -1,6 +1,13 @@
 """Pytest configuration and fixtures for testing."""
 
 import os
+
+# ============================================================================
+# Test Environment Configuration
+# MUST be set before importing app modules to take effect
+# ============================================================================
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+
 import pytest
 from typing import Generator
 from sqlalchemy import create_engine

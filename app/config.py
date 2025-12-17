@@ -103,6 +103,10 @@ class Settings(BaseSettings):
     enable_markdown_caching: bool = True
     markdown_pipeline_enabled: bool = True  # Feature flag
 
+    # Rate Limiting
+    # Set to False in tests to disable rate limiting
+    rate_limit_enabled: bool = True
+
     @property
     def max_file_size_bytes(self) -> int:
         """Get max file size in bytes."""
