@@ -159,6 +159,73 @@ async def get_review_queue(
     )
 
 
+# ----- Review Metrics -----
+# NOTE: This endpoint MUST be defined BEFORE /reviews/{review_id} to avoid route conflicts
+
+@router.get("/reviews/metrics", response_model=ReviewMetricsResponse)
+async def get_review_metrics(
+    start_date: Optional[datetime] = Query(None, description="Start date filter"),
+    end_date: Optional[datetime] = Query(None, description="End date filter"),
+    current_user: User = Depends(require_permission_flexible("reviews:read")),
+    db: Session = Depends(get_db)
+) -> ReviewMetricsResponse:
+    """
+    Get review accuracy and performance metrics for the tenant.
+
+    Metrics include:
+    - Total and completed review counts
+    - Average review time
+    - SLA breach count
+    - Most frequently corrected fields
+    - Accuracy rates by schema
+
+    Required Permission: reviews:read
+
+    Args:
+        start_date: Optional start date for filtering
+        end_date: Optional end date for filtering
+
+    Returns:
+        Review metrics for the tenant
+    """
+    hitl_service = HITLService(db)
+
+    metrics = hitl_service.calculate_review_metrics(
+        tenant_id=current_user.tenant_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+    # Calculate pending reviews
+    pending_count = db.query(ReviewRequest).filter(
+        ReviewRequest.tenant_id == current_user.tenant_id,
+        ReviewRequest.status.in_([
+            ReviewRequestStatus.PENDING.value,
+            ReviewRequestStatus.ASSIGNED.value,
+            ReviewRequestStatus.IN_REVIEW.value
+        ])
+    ).count()
+
+    # Calculate SLA breach count
+    sla_breach_count = db.query(ReviewRequest).filter(
+        ReviewRequest.tenant_id == current_user.tenant_id,
+        ReviewRequest.status == ReviewRequestStatus.ESCALATED.value
+    ).count()
+
+    return ReviewMetricsResponse(
+        total_reviews=metrics["total_reviews"],
+        completed_reviews=metrics["completed_reviews"],
+        pending_reviews=pending_count,
+        average_review_time_minutes=metrics["avg_review_time_minutes"],
+        sla_breach_count=sla_breach_count,
+        accuracy_by_schema={},  # TODO: Implement per-schema accuracy
+        most_corrected_fields=[
+            {"field_path": field, "correction_count": count}
+            for field, count in metrics["top_corrected_fields"]
+        ]
+    )
+
+
 # ----- Review Details -----
 
 @router.get("/reviews/{review_id}", response_model=ReviewRequestResponse)
@@ -504,69 +571,3 @@ async def escalate_review(
         return escalated_review
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-# ----- Review Metrics -----
-
-@router.get("/reviews/metrics", response_model=ReviewMetricsResponse)
-async def get_review_metrics(
-    start_date: Optional[datetime] = Query(None, description="Start date filter"),
-    end_date: Optional[datetime] = Query(None, description="End date filter"),
-    current_user: User = Depends(require_permission_flexible("reviews:read")),
-    db: Session = Depends(get_db)
-) -> ReviewMetricsResponse:
-    """
-    Get review accuracy and performance metrics for the tenant.
-
-    Metrics include:
-    - Total and completed review counts
-    - Average review time
-    - SLA breach count
-    - Most frequently corrected fields
-    - Accuracy rates by schema
-
-    Required Permission: reviews:read
-
-    Args:
-        start_date: Optional start date for filtering
-        end_date: Optional end date for filtering
-
-    Returns:
-        Review metrics for the tenant
-    """
-    hitl_service = HITLService(db)
-
-    metrics = hitl_service.calculate_review_metrics(
-        tenant_id=current_user.tenant_id,
-        start_date=start_date,
-        end_date=end_date
-    )
-
-    # Calculate pending reviews
-    pending_count = db.query(ReviewRequest).filter(
-        ReviewRequest.tenant_id == current_user.tenant_id,
-        ReviewRequest.status.in_([
-            ReviewRequestStatus.PENDING.value,
-            ReviewRequestStatus.ASSIGNED.value,
-            ReviewRequestStatus.IN_REVIEW.value
-        ])
-    ).count()
-
-    # Calculate SLA breach count
-    sla_breach_count = db.query(ReviewRequest).filter(
-        ReviewRequest.tenant_id == current_user.tenant_id,
-        ReviewRequest.status == ReviewRequestStatus.ESCALATED.value
-    ).count()
-
-    return ReviewMetricsResponse(
-        total_reviews=metrics["total_reviews"],
-        completed_reviews=metrics["completed_reviews"],
-        pending_reviews=pending_count,
-        average_review_time_minutes=metrics["avg_review_time_minutes"],
-        sla_breach_count=sla_breach_count,
-        accuracy_by_schema={},  # TODO: Implement per-schema accuracy
-        most_corrected_fields=[
-            {"field_path": field, "correction_count": count}
-            for field, count in metrics["top_corrected_fields"]
-        ]
-    )

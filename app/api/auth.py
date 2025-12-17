@@ -5,12 +5,13 @@ from typing import Optional
 import re
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from jose import JWTError
 
 from app.database import get_db
+from app.dependencies.rate_limit import limiter
 from app.models import User, Tenant, Role
 from app.schemas.auth import (
     RegisterRequest,
@@ -20,6 +21,7 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
     VerifyEmailRequest,
+    AcceptInvitationRequest,
     AuthResponse,
     TokenResponse,
     MessageResponse,
@@ -264,8 +266,10 @@ async def register(
     summary="Login with email and password",
     description="Authenticate user and return access/refresh tokens"
 )
+@limiter.limit("10/minute")
 async def login(
-    request: LoginRequest,
+    request: Request,
+    login_request: LoginRequest,
     db: Session = Depends(get_db)
 ) -> AuthResponse:
     """
@@ -291,7 +295,7 @@ async def login(
         HTTPException 401: Invalid credentials or inactive user
     """
     # Find user
-    user = db.query(User).filter(User.email == request.email).first()
+    user = db.query(User).filter(User.email == login_request.email).first()
 
     if not user:
         # Generic error message to prevent email enumeration
@@ -301,7 +305,7 @@ async def login(
         )
 
     # Verify password
-    if not auth_service.verify_password(request.password, user.hashed_password):
+    if not auth_service.verify_password(login_request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -500,8 +504,10 @@ async def logout(
     summary="Request password reset",
     description="Generate password reset token and send email (placeholder)"
 )
+@limiter.limit("3/minute")
 async def forgot_password(
-    request: ForgotPasswordRequest,
+    request: Request,
+    forgot_request: ForgotPasswordRequest,
     db: Session = Depends(get_db)
 ) -> MessageResponse:
     """
@@ -523,7 +529,7 @@ async def forgot_password(
         MessageResponse (always success to prevent email enumeration)
     """
     # Find user (but don't reveal if email doesn't exist)
-    user = db.query(User).filter(User.email == request.email).first()
+    user = db.query(User).filter(User.email == forgot_request.email).first()
 
     if user:
         # Generate reset token
@@ -551,8 +557,10 @@ async def forgot_password(
     summary="Reset password with token",
     description="Complete password reset using token from email"
 )
+@limiter.limit("5/minute")
 async def reset_password(
-    request: ResetPasswordRequest,
+    request: Request,
+    reset_request: ResetPasswordRequest,
     db: Session = Depends(get_db)
 ) -> MessageResponse:
     """
@@ -579,7 +587,7 @@ async def reset_password(
     """
     # Find user by reset token
     user = db.query(User).filter(
-        User.password_reset_token == request.token
+        User.password_reset_token == reset_request.token
     ).first()
 
     if not user:
@@ -601,7 +609,7 @@ async def reset_password(
         )
 
     # Hash new password
-    user.hashed_password = auth_service.hash_password(request.new_password)
+    user.hashed_password = auth_service.hash_password(reset_request.new_password)
 
     # Clear reset token
     user.password_reset_token = None
@@ -665,6 +673,123 @@ async def verify_email(
     db.commit()
 
     return MessageResponse(message="Email verified successfully")
+
+
+@router.post(
+    "/auth/accept-invitation",
+    response_model=AuthResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Accept invitation and set up account",
+    description="Complete invitation acceptance by setting password and activating account"
+)
+@limiter.limit("5/minute")
+async def accept_invitation(
+    request: Request,
+    invitation_request: AcceptInvitationRequest,
+    db: Session = Depends(get_db)
+) -> AuthResponse:
+    """
+    Accept an invitation and complete account setup.
+
+    Workflow:
+    1. Find user by invitation token (email_verification_token)
+    2. Validate user exists and is in pending state
+    3. Hash password
+    4. Update user: set password, activate, verify, clear token
+    5. Generate access + refresh tokens
+    6. Return user, tenant, and tokens (same as login)
+
+    Args:
+        request: Accept invitation request with token, password, optional full_name
+        db: Database session
+
+    Returns:
+        AuthResponse with user, tenant, and tokens
+
+    Raises:
+        HTTPException 400: Invalid invitation token
+        HTTPException 400: Invitation already accepted
+    """
+    # Find user by invitation token with eager loading of tenant and role
+    # This uses a single query with JOINs instead of 3 separate queries
+    user = db.query(User).options(
+        joinedload(User.tenant),
+        joinedload(User.role)
+    ).filter(
+        User.email_verification_token == invitation_request.token
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid invitation token"
+        )
+
+    # Check if invitation has expired
+    if user.invitation_expires and user.invitation_expires < datetime.utcnow():
+        # Clear expired token
+        user.email_verification_token = None
+        user.invitation_expires = None
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has expired. Please request a new invitation."
+        )
+
+    # Check if invitation already accepted (user is already active)
+    if user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation already accepted"
+        )
+
+    # Hash password
+    hashed_password = auth_service.hash_password(invitation_request.password)
+
+    # Update user record
+    user.hashed_password = hashed_password
+    user.is_verified = True
+    user.is_active = True
+    user.email_verification_token = None  # Clear token (single use)
+    user.invitation_expires = None  # Clear expiration after acceptance
+    user.last_login = datetime.utcnow()
+
+    # Set full_name if provided and user doesn't already have one
+    if invitation_request.full_name and not user.full_name:
+        user.full_name = invitation_request.full_name
+
+    # Access tenant and role from eagerly loaded relationships
+    tenant = user.tenant
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User tenant not found"
+        )
+
+    # Get role name from eagerly loaded relationship
+    role_name = user.role.name if user.role else None
+
+    # Generate tokens with role information
+    access_token = auth_service.create_access_token(
+        user_id=str(user.id),
+        tenant_id=str(tenant.id),
+        additional_claims={"role_name": role_name} if role_name else None
+    )
+    refresh_token = auth_service.create_refresh_token(user_id=str(user.id))
+
+    # Store refresh token
+    user.refresh_token = refresh_token
+    db.commit()
+    db.refresh(user)
+    db.refresh(tenant)
+
+    return AuthResponse(
+        user=UserInfo.model_validate(user),
+        tenant=TenantInfo.model_validate(tenant),
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer"
+    )
 
 
 @router.get(

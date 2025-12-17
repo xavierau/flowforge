@@ -50,3 +50,9 @@ export interface ValidationError {
     type: string;
   }>;
 }
+
+export interface AcceptInvitationRequest {
+  token: string;
+  password: string;
+  full_name?: string;
+}

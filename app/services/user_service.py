@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Tuple
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
@@ -309,6 +309,9 @@ class UserService:
 
         # Create user with temporary password (they'll set real password via invitation link)
         # Set is_active=False until they accept invitation
+        # Set invitation expiration to 7 days from now
+        invitation_expires = datetime.utcnow() + timedelta(days=7)
+
         user = User(
             email=email.lower(),
             hashed_password=auth_service.hash_password(auth_service.generate_reset_token()),  # Temporary, unused
@@ -317,6 +320,7 @@ class UserService:
             is_active=False,  # Activate on invitation acceptance
             is_verified=False,
             email_verification_token=invitation_token,
+            invitation_expires=invitation_expires,
             locale="en"
         )
 
@@ -417,9 +421,10 @@ class UserService:
         if user.is_active or user.is_verified:
             raise ValueError("Cannot regenerate token for active or verified user")
 
-        # Generate new invitation token
+        # Generate new invitation token and reset expiration (7 days from now)
         new_token = auth_service.generate_verification_token()
         user.email_verification_token = new_token
+        user.invitation_expires = datetime.utcnow() + timedelta(days=7)
         user.updated_at = datetime.utcnow()
 
         self.db.commit()

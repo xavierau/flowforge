@@ -12,6 +12,7 @@ import type {
   LoginResponse,
   SignupRequest,
   SignupResponse,
+  AcceptInvitationRequest,
   AuthError,
   ValidationError,
 } from '@/types/auth';
@@ -114,6 +115,33 @@ export async function signup(data: SignupRequest): Promise<SignupResponse> {
     });
 
     return handleApiResponse<SignupResponse>(response);
+  } catch (error) {
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
+
+    // Network or other errors
+    throw new AuthApiError(
+      'Network error. Please check your connection.',
+      0
+    );
+  }
+}
+
+/**
+ * Accept invitation and set password for invited user
+ */
+export async function acceptInvitation(data: AcceptInvitationRequest): Promise<LoginResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/accept-invitation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    return handleApiResponse<LoginResponse>(response);
   } catch (error) {
     if (error instanceof AuthApiError) {
       throw error;

@@ -41,6 +41,7 @@ class User(Base):
     password_reset_token = Column(String(255), nullable=True)
     password_reset_expires = Column(DateTime, nullable=True)
     email_verification_token = Column(String(255), nullable=True)
+    invitation_expires = Column(DateTime, nullable=True)
 
     # Timestamps
     last_login = Column(DateTime, nullable=True)
@@ -57,6 +58,7 @@ class User(Base):
         Index("idx_users_tenant_id", "tenant_id"),
         Index("idx_users_email", "email"),
         Index("idx_users_is_active", "is_active"),
+        Index("idx_users_email_verification_token", "email_verification_token"),
     )
 
     def __repr__(self):

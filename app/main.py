@@ -5,8 +5,11 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, subscriptions, admin, credits, workflows, reviews, credentials
+from app.dependencies.rate_limit import limiter
 from app.config import settings
 from app.middleware.tenant_context import TenantContextMiddleware
 from app.middleware.admin_audit import AdminAuditMiddleware
@@ -46,6 +49,10 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# Configure rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS - Allow all origins
 app.add_middleware(

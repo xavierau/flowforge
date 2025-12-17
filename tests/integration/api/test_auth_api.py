@@ -8,6 +8,7 @@ Test Coverage:
 - POST /api/v1/auth/forgot-password
 - POST /api/v1/auth/reset-password
 - POST /api/v1/auth/verify-email
+- POST /api/v1/auth/accept-invitation
 - GET /api/v1/auth/me
 """
 
@@ -599,6 +600,215 @@ class TestVerifyEmailEndpoint:
 
         assert response.status_code == 200
         assert "already verified" in response.json()["message"].lower()
+
+
+class TestAcceptInvitationEndpoint:
+    """Test /api/v1/auth/accept-invitation endpoint."""
+
+    def test_accept_invitation_success(
+        self,
+        client: TestClient,
+        test_user: User,
+        test_tenant: Tenant,
+        db_session: Session
+    ):
+        """Test successful invitation acceptance."""
+        # Set user as invited (inactive with token)
+        invitation_token = auth_service.generate_verification_token()
+        test_user.is_active = False
+        test_user.is_verified = False
+        test_user.email_verification_token = invitation_token
+        # Use placeholder password (will be replaced when accepting invitation)
+        test_user.hashed_password = auth_service.hash_password("placeholder")
+        test_user.full_name = None  # No name set yet
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": invitation_token,
+                "password": "SecurePass123",
+                "full_name": "Invited User"
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify response structure (same as login)
+        assert "user" in data
+        assert "tenant" in data
+        assert "access_token" in data
+        assert "refresh_token" in data
+        assert data["token_type"] == "bearer"
+
+        # Verify user is now active and verified
+        assert data["user"]["is_active"] is True
+        assert data["user"]["is_verified"] is True
+        assert data["user"]["full_name"] == "Invited User"
+
+        # Verify database was updated
+        db_session.refresh(test_user)
+        assert test_user.is_active is True
+        assert test_user.is_verified is True
+        assert test_user.email_verification_token is None  # Token cleared
+        assert test_user.full_name == "Invited User"
+        assert test_user.last_login is not None
+        assert auth_service.verify_password("SecurePass123", test_user.hashed_password)
+        assert test_user.refresh_token == data["refresh_token"]
+
+    def test_accept_invitation_without_full_name(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test invitation acceptance without providing full_name."""
+        invitation_token = auth_service.generate_verification_token()
+        test_user.is_active = False
+        test_user.is_verified = False
+        test_user.email_verification_token = invitation_token
+        test_user.full_name = "Existing Name"  # Already has a name
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": invitation_token,
+                "password": "SecurePass123"
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify existing name is preserved
+        assert data["user"]["full_name"] == "Existing Name"
+
+    def test_accept_invitation_preserves_existing_name(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test invitation acceptance preserves existing full_name even if new one provided."""
+        invitation_token = auth_service.generate_verification_token()
+        test_user.is_active = False
+        test_user.is_verified = False
+        test_user.email_verification_token = invitation_token
+        test_user.full_name = "Existing Name"  # Already has a name
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": invitation_token,
+                "password": "SecurePass123",
+                "full_name": "New Name"  # Tries to set new name
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify existing name is preserved (not overwritten)
+        assert data["user"]["full_name"] == "Existing Name"
+
+    def test_accept_invitation_invalid_token(self, client: TestClient):
+        """Test invitation acceptance with invalid token."""
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": "invalid-token",
+                "password": "SecurePass123"
+            }
+        )
+
+        assert response.status_code == 400
+        assert "invalid invitation token" in response.json()["detail"].lower()
+
+    def test_accept_invitation_already_accepted(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test invitation acceptance when already active (double accept)."""
+        # User is active (already accepted invitation)
+        invitation_token = auth_service.generate_verification_token()
+        test_user.is_active = True
+        test_user.is_verified = True
+        test_user.email_verification_token = invitation_token
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": invitation_token,
+                "password": "SecurePass123"
+            }
+        )
+
+        assert response.status_code == 400
+        assert "already accepted" in response.json()["detail"].lower()
+
+    def test_accept_invitation_weak_password(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test invitation acceptance with weak password fails validation."""
+        invitation_token = auth_service.generate_verification_token()
+        test_user.is_active = False
+        test_user.is_verified = False
+        test_user.email_verification_token = invitation_token
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": invitation_token,
+                "password": "weak"  # Too weak
+            }
+        )
+
+        assert response.status_code == 422
+
+    def test_accept_invitation_expired_token(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test invitation acceptance with expired token fails."""
+        # Set user as invited (inactive with token) but with expired invitation
+        invitation_token = auth_service.generate_verification_token()
+        test_user.is_active = False
+        test_user.is_verified = False
+        test_user.email_verification_token = invitation_token
+        # Set invitation_expires to past date (expired 1 hour ago)
+        test_user.invitation_expires = datetime.utcnow() - timedelta(hours=1)
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/accept-invitation",
+            json={
+                "token": invitation_token,
+                "password": "SecurePass123"
+            }
+        )
+
+        assert response.status_code == 400
+        assert "expired" in response.json()["detail"].lower()
+
+        # Verify that the token was cleared after expiration check
+        db_session.refresh(test_user)
+        assert test_user.email_verification_token is None
+        assert test_user.invitation_expires is None
+        # User should still be inactive (invitation not accepted)
+        assert test_user.is_active is False
+        assert test_user.is_verified is False
 
 
 class TestGetCurrentUserProfileEndpoint:

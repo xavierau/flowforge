@@ -9,6 +9,38 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 # ============================================================================
+# SHARED VALIDATORS
+# ============================================================================
+
+
+def validate_password_strength(password: str) -> str:
+    """
+    Validate password meets security requirements.
+
+    Requirements:
+    - Minimum 8 characters
+    - At least one uppercase letter
+    - At least one number
+
+    Args:
+        password: The password to validate
+
+    Returns:
+        The validated password
+
+    Raises:
+        ValueError: If password doesn't meet requirements
+    """
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    if not re.search(r'[A-Z]', password):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not re.search(r'[0-9]', password):
+        raise ValueError("Password must contain at least one number")
+    return password
+
+
+# ============================================================================
 # REQUEST SCHEMAS
 # ============================================================================
 
@@ -53,15 +85,9 @@ class RegisterRequest(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def validate_password_strength(cls, v: str) -> str:
+    def validate_password(cls, v: str) -> str:
         """Validate password meets security requirements."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not re.search(r'[A-Z]', v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r'[0-9]', v):
-            raise ValueError("Password must contain at least one number")
-        return v
+        return validate_password_strength(v)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -186,15 +212,9 @@ class ResetPasswordRequest(BaseModel):
 
     @field_validator("new_password")
     @classmethod
-    def validate_password_strength(cls, v: str) -> str:
+    def validate_password(cls, v: str) -> str:
         """Validate password meets security requirements."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not re.search(r'[A-Z]', v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r'[0-9]', v):
-            raise ValueError("Password must contain at least one number")
-        return v
+        return validate_password_strength(v)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -219,6 +239,45 @@ class VerifyEmailRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "token": "a1b2c3d4e5f6..."
+            }
+        }
+    )
+
+
+class AcceptInvitationRequest(BaseModel):
+    """Request schema for accepting an invitation and setting up account."""
+
+    token: str = Field(
+        ...,
+        description="Invitation token from email",
+        json_schema_extra={"example": "a1b2c3d4e5f6..."}
+    )
+    password: str = Field(
+        ...,
+        description="New password (min 8 chars, 1 uppercase, 1 number)",
+        min_length=8,
+        max_length=128,
+        json_schema_extra={"example": "SecurePass123"}
+    )
+    full_name: Optional[str] = Field(
+        None,
+        description="User's full name",
+        max_length=255,
+        json_schema_extra={"example": "John Doe"}
+    )
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Validate password meets security requirements."""
+        return validate_password_strength(v)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "token": "a1b2c3d4e5f6...",
+                "password": "SecurePass123",
+                "full_name": "John Doe"
             }
         }
     )

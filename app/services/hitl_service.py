@@ -506,8 +506,15 @@ class HITLService:
                 )
 
         # PERFORMANCE: Prefetch all extraction results to avoid N+1 queries
+        # Handle both UUID objects and string representations from API layer
+        def to_uuid(value) -> UUID:
+            """Convert string or UUID to UUID."""
+            if isinstance(value, UUID):
+                return value
+            return UUID(str(value))
+
         result_ids: Set[UUID] = {
-            correction_data["extraction_result_id"]
+            to_uuid(correction_data["extraction_result_id"])
             for correction_data in corrections
             if correction_data.get("extraction_result_id")
         }
@@ -883,7 +890,6 @@ class HITLService:
         # Update to escalated
         review.status = ReviewRequestStatus.ESCALATED.value
         review.updated_at = datetime.utcnow()
-        review.escalation_count = (review.escalation_count or 0) + 1
 
         # Append escalation reason to notes
         existing_notes = review.review_notes or ""

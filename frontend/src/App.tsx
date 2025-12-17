@@ -17,6 +17,7 @@ const LoadingFallback = () => (
 // Lazy load all pages for code splitting
 const Login = lazy(() => import('@/pages/Login').then(m => ({ default: m.Login })));
 const Signup = lazy(() => import('@/pages/Signup').then(m => ({ default: m.Signup })));
+const AcceptInvitation = lazy(() => import('@/pages/AcceptInvitation').then(m => ({ default: m.AcceptInvitation })));
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const BillingDetails = lazy(() => import('@/pages/BillingDetails').then(m => ({ default: m.BillingDetails })));
 const SchemaBuilder = lazy(() => import('@/pages/SchemaBuilder').then(m => ({ default: m.SchemaBuilder })));
@@ -53,6 +54,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/accept-invitation" element={<AcceptInvitation />} />
           <Route
             path="/dashboard"
             element={

@@ -112,7 +112,13 @@
       "mcp__chrome-devtools__new_page",
       "mcp__chrome-devtools__wait_for",
       "Bash(alembic stamp:*)",
-      "Bash(alembic heads:*)"
+      "Bash(alembic heads:*)",
+      "Bash(printf:*)",
+      "Bash(xxd:*)",
+      "Bash(/usr/bin/curl:*)",
+      "Bash(tee:*)",
+      "Bash(done)",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []
