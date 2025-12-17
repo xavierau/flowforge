@@ -15,11 +15,22 @@ function loadEnvFile(envPath) {
         const [key, ...valueParts] = line.split('=');
         if (key && valueParts.length > 0) {
           let value = valueParts.join('=').trim();
-          // Remove surrounding quotes if present
-          if ((value.startsWith('"') && value.endsWith('"')) ||
-              (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
+
+          // Handle quoted values (preserve everything inside quotes)
+          if ((value.startsWith('"') && value.includes('"', 1)) ||
+              (value.startsWith("'") && value.includes("'", 1))) {
+            // Find the closing quote
+            const quote = value[0];
+            const endQuote = value.indexOf(quote, 1);
+            value = value.slice(1, endQuote);
+          } else {
+            // Unquoted value: strip inline comments
+            const commentIndex = value.indexOf('#');
+            if (commentIndex > 0) {
+              value = value.substring(0, commentIndex).trim();
+            }
           }
+
           envVars[key.trim()] = value;
         }
       }
