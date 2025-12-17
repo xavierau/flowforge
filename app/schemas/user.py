@@ -199,6 +199,39 @@ class RoleInfo(BaseModel):
     )
 
 
+class RoleListResponse(BaseModel):
+    """Response schema for listing available roles."""
+
+    roles: list[RoleInfo] = Field(..., description="List of available roles")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "roles": [
+                    {
+                        "id": "770e8400-e29b-41d4-a716-446655440001",
+                        "name": "tenant_admin",
+                        "display_name": "Tenant Administrator",
+                        "description": "Full tenant access with user and billing management"
+                    },
+                    {
+                        "id": "770e8400-e29b-41d4-a716-446655440002",
+                        "name": "member",
+                        "display_name": "Member",
+                        "description": "Standard user with create/read/update access"
+                    },
+                    {
+                        "id": "770e8400-e29b-41d4-a716-446655440003",
+                        "name": "viewer",
+                        "display_name": "Viewer",
+                        "description": "Read-only access to documents and schemas"
+                    }
+                ]
+            }
+        }
+    )
+
+
 class TenantInfo(BaseModel):
     """Tenant information for response payloads."""
 

@@ -1,7 +1,35 @@
 const path = require('path');
+const fs = require('fs');
 
 // Use __dirname to get the actual project root dynamically
 const projectRoot = __dirname;
+
+// Load .env file and parse it
+function loadEnvFile(envPath) {
+  const envVars = {};
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split('\n').forEach(line => {
+      // Skip comments and empty lines
+      if (line.trim() && !line.startsWith('#')) {
+        const [key, ...valueParts] = line.split('=');
+        if (key && valueParts.length > 0) {
+          let value = valueParts.join('=').trim();
+          // Remove surrounding quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) ||
+              (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          envVars[key.trim()] = value;
+        }
+      }
+    });
+  }
+  return envVars;
+}
+
+// Load environment variables from .env
+const dotEnvVars = loadEnvFile(path.join(projectRoot, '.env'));
 const venvPython = path.join(projectRoot, '.venv', 'bin', 'python');
 
 console.log(`Project root: ${projectRoot}`);
@@ -19,6 +47,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '1G',
       env: {
+        ...dotEnvVars,
         NODE_ENV: 'production',
         VIRTUAL_ENV: path.join(projectRoot, '.venv'),
         PATH: `${path.join(projectRoot, '.venv', 'bin')}:${process.env.PATH}`,
@@ -38,6 +67,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '1G',
       env: {
+        ...dotEnvVars,
         NODE_ENV: 'production',
         VIRTUAL_ENV: path.join(projectRoot, '.venv'),
         PATH: `${path.join(projectRoot, '.venv', 'bin')}:${process.env.PATH}`,

@@ -199,8 +199,7 @@ const ROLE_NAME_MAP: Record<UserRole, string> = {
 
 /**
  * Get available roles for the tenant
- * Note: Backend currently doesn't have a /roles endpoint, so we fetch from /users
- * and extract unique roles. Roles are cached for performance.
+ * Fetches from dedicated /roles endpoint. Results are cached for performance.
  */
 export async function getRoles(): Promise<RoleInfo[]> {
   if (cachedRoles) {
@@ -208,25 +207,15 @@ export async function getRoles(): Promise<RoleInfo[]> {
   }
 
   try {
-    // Fetch users list to extract available roles
-    const response = await apiFetch(`${API_BASE_URL}/users?limit=100`, {
+    const response = await apiFetch(`${API_BASE_URL}/roles`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    const data = await handleApiResponse<{ users: Array<{ role: RoleInfo }> }>(response);
-
-    // Extract unique roles from users
-    const rolesMap = new Map<string, RoleInfo>();
-    for (const user of data.users) {
-      if (user.role && !rolesMap.has(user.role.id)) {
-        rolesMap.set(user.role.id, user.role);
-      }
-    }
-
-    cachedRoles = Array.from(rolesMap.values());
+    const data = await handleApiResponse<{ roles: RoleInfo[] }>(response);
+    cachedRoles = data.roles;
     return cachedRoles;
   } catch (error) {
     // Return empty array if fetching fails - component will use hardcoded mapping

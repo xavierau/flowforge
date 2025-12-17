@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User, Tenant
+from app.models import User, Tenant, Role
 from app.schemas.user import (
     ProfileUpdateRequest,
     PasswordUpdateRequest,
@@ -21,6 +21,7 @@ from app.schemas.user import (
     InvitationListItem,
     InvitationListResponse,
     RoleInfo,
+    RoleListResponse,
     TenantInfo,
 )
 from app.schemas.auth import MessageResponse
@@ -306,6 +307,53 @@ async def invite_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.get(
+    "/roles",
+    response_model=RoleListResponse,
+    summary="List available roles",
+    description="Get list of available roles that can be assigned to users (requires users:read permission)"
+)
+async def list_roles(
+    current_user: User = Depends(require_permission("users:read")),
+    db: Session = Depends(get_db)
+) -> RoleListResponse:
+    """
+    List available roles for user assignment.
+
+    Returns system roles (is_system=True with tenant_id=NULL) that are available
+    to all tenants. Excludes the platform_admin role which is for super admins only.
+
+    Workflow:
+    1. Check permission (users:read required)
+    2. Query system roles (is_system=True, tenant_id=NULL)
+    3. Exclude platform_admin role
+    4. Return roles list
+
+    Args:
+        current_user: Current authenticated user with users:read permission
+        db: Database session
+
+    Returns:
+        RoleListResponse with list of available roles
+    """
+    # Query system roles that can be assigned to tenant users
+    # Exclude platform_admin which is only for super admins
+    roles = (
+        db.query(Role)
+        .filter(
+            Role.is_system == True,
+            Role.tenant_id.is_(None),
+            Role.name != "platform_admin"  # Exclude super admin role
+        )
+        .order_by(Role.name)
+        .all()
+    )
+
+    return RoleListResponse(
+        roles=[RoleInfo.model_validate(role) for role in roles]
+    )
 
 
 @router.get(
