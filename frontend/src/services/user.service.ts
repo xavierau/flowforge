@@ -267,6 +267,14 @@ export async function getRoleIdByName(roleName: UserRole): Promise<string | null
 }
 
 /**
+ * Response type for invitation list endpoint
+ */
+interface InvitationListResponse {
+  invitations: UserInvitation[];
+  total: number;
+}
+
+/**
  * Get all pending invitations for the current tenant
  * Uses: GET /api/v1/users/invitations
  */
@@ -279,7 +287,8 @@ export async function getInvitations(): Promise<UserInvitation[]> {
       },
     });
 
-    return handleApiResponse<UserInvitation[]>(response);
+    const data = await handleApiResponse<InvitationListResponse>(response);
+    return data.invitations;
   } catch (error) {
     if (error instanceof UserApiError) {
       throw error;
