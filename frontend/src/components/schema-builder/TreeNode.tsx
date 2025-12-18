@@ -1,14 +1,23 @@
-import { ChevronRight, ChevronDown, Plus, Trash2, Edit } from 'lucide-react';
+import { useCallback } from 'react';
+import { ChevronRight, ChevronDown, Plus, Trash2, Edit, GripVertical } from 'lucide-react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DropIndicator } from './DropIndicator';
 import type { Property } from '@/store/schemaStore';
 import { useSchemaStore } from '@/store/schemaStore';
 import { cn } from '@/lib/utils';
 import { SCHEMA_CONFIG } from '@/config';
+import type { DragState, DndData } from '@/hooks/useSchemaDnd';
 
 interface TreeNodeProps {
   property: Property;
+  index: number;
+  parentId: string | null;
   onEdit: (property: Property) => void;
+  dragState: DragState;
+  isValidDrop: boolean;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -26,12 +35,53 @@ const BORDER_COLORS: Record<number, string> = {
   3: 'border-l-slate-100',
 };
 
-export function TreeNode({ property, onEdit }: TreeNodeProps) {
+export function TreeNode({
+  property,
+  index,
+  parentId,
+  onEdit,
+  dragState,
+  isValidDrop,
+}: TreeNodeProps) {
   const { expandedNodeIds, toggleNode, deleteProperty, addProperty } = useSchemaStore();
   const isExpanded = expandedNodeIds.has(property.id);
   const hasChildren = property.children && property.children.length > 0;
   const canAddChildren = property.type === 'object' || property.type === 'array';
   const canNest = property.level < SCHEMA_CONFIG.MAX_NESTING_LEVEL;
+
+  // Data attached to this node for DnD
+  const dndData: DndData = {
+    property,
+    index,
+    parentId,
+  };
+
+  // Draggable setup
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: property.id,
+    data: dndData,
+  });
+
+  // Droppable setup
+  const { setNodeRef: setDropRef } = useDroppable({
+    id: property.id,
+    data: dndData,
+  });
+
+  // Combine refs
+  const setNodeRef = useCallback(
+    (node: HTMLElement | null) => {
+      setDragRef(node);
+      setDropRef(node);
+    },
+    [setDragRef, setDropRef]
+  );
 
   const handleAddChild = () => {
     if (!canNest) {
@@ -63,16 +113,45 @@ export function TreeNode({ property, onEdit }: TreeNodeProps) {
 
   const indentLevel = property.level * 24; // 24px per level
 
+  // Calculate drag state visual indicators
+  const isBeingDragged = isDragging || dragState.activeId === property.id;
+  const isDropTarget = dragState.overId === property.id;
+  const showDropBefore = isDropTarget && dragState.dropPosition === 'before' && isValidDrop;
+  const showDropAfter = isDropTarget && dragState.dropPosition === 'after' && isValidDrop;
+  const showDropInside = isDropTarget && dragState.dropPosition === 'inside' && isValidDrop && canAddChildren;
+
+  // Transform style for drag
+  const style = {
+    transform: CSS.Transform.toString(transform),
+  };
+
   return (
     <div>
+      {/* Drop indicator BEFORE this node */}
+      {showDropBefore && <DropIndicator position="before" level={property.level} />}
+
       <div
+        ref={setNodeRef}
         className={cn(
-          'group flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-50 transition-all duration-200',
+          'group flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all duration-200',
           'border-l-2',
-          BORDER_COLORS[property.level as keyof typeof BORDER_COLORS] || 'border-l-slate-100'
+          BORDER_COLORS[property.level as keyof typeof BORDER_COLORS] || 'border-l-slate-100',
+          isBeingDragged && 'opacity-50',
+          showDropInside && 'ring-2 ring-primary ring-offset-2',
+          !isBeingDragged && 'hover:bg-slate-50'
         )}
-        style={{ marginLeft: `${indentLevel}px` }}
+        style={{ marginLeft: `${indentLevel}px`, ...style }}
       >
+        {/* Drag Handle */}
+        <button
+          {...listeners}
+          {...attributes}
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-slate-600"
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+
         {/* Expand/Collapse Button */}
         {canAddChildren && (
           <button
@@ -145,11 +224,22 @@ export function TreeNode({ property, onEdit }: TreeNodeProps) {
         </div>
       </div>
 
+      {/* Drop indicator AFTER this node */}
+      {showDropAfter && <DropIndicator position="after" level={property.level} />}
+
       {/* Recursive Children */}
       {canAddChildren && isExpanded && hasChildren && (
         <div className="mt-0.5">
-          {property.children!.map((child) => (
-            <TreeNode key={child.id} property={child} onEdit={onEdit} />
+          {property.children!.map((child, childIndex) => (
+            <TreeNode
+              key={child.id}
+              property={child}
+              index={childIndex}
+              parentId={property.id}
+              onEdit={onEdit}
+              dragState={dragState}
+              isValidDrop={isValidDrop}
+            />
           ))}
         </div>
       )}

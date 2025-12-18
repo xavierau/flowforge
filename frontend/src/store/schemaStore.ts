@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { SCHEMA_CONFIG } from '@/config';
 
 export interface Property {
   id: string;
@@ -46,11 +47,12 @@ interface SchemaState {
   loadTemplate: (properties: Property[], name: string) => void;
   reset: () => void;
   markClean: () => void;
+  moveProperty: (sourceId: string, destinationParentId: string | null, destinationIndex: number) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const findPropertyById = (
+export const findPropertyById = (
   properties: Property[],
   id: string
 ): Property | null => {
@@ -194,4 +196,131 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
   }),
 
   markClean: () => set({ isDirty: false }),
+
+  moveProperty: (sourceId, destinationParentId, destinationIndex) => {
+    const state = get();
+
+    // Find the source property
+    const sourceProperty = findPropertyById(state.properties, sourceId);
+    if (!sourceProperty) {
+      console.error('Source property not found:', sourceId);
+      return;
+    }
+
+    // Calculate new level based on destination parent
+    const newLevel = destinationParentId
+      ? (findPropertyById(state.properties, destinationParentId)?.level ?? -1) + 1
+      : 0;
+
+    // Validate nesting depth
+    if (newLevel > SCHEMA_CONFIG.MAX_NESTING_LEVEL) {
+      console.error('Cannot move: would exceed maximum nesting depth');
+      return;
+    }
+
+    // Helper to recursively update levels for a property and its descendants
+    const updateLevels = (prop: Property, baseLevel: number): Property => {
+      const updated: Property = { ...prop, level: baseLevel };
+      if (prop.children && prop.children.length > 0) {
+        updated.children = prop.children.map(child =>
+          updateLevels(child, baseLevel + 1)
+        );
+      }
+      return updated;
+    };
+
+    // Helper to remove property from tree and return [remaining tree, removed property]
+    const removeFromTree = (
+      props: Property[],
+      targetId: string
+    ): [Property[], Property | null] => {
+      let removed: Property | null = null;
+
+      const remaining = props.reduce<Property[]>((acc, prop) => {
+        if (prop.id === targetId) {
+          removed = prop;
+          return acc;
+        }
+
+        if (prop.children && prop.children.length > 0) {
+          const [childRemaining, childRemoved] = removeFromTree(prop.children, targetId);
+          if (childRemoved) {
+            removed = childRemoved;
+          }
+          acc.push({ ...prop, children: childRemaining });
+        } else {
+          acc.push(prop);
+        }
+
+        return acc;
+      }, []);
+
+      return [remaining, removed];
+    };
+
+    // Helper to insert property at specific index in target location
+    const insertIntoTree = (
+      props: Property[],
+      targetParentId: string | null,
+      property: Property,
+      index: number
+    ): Property[] => {
+      if (targetParentId === null) {
+        // Insert at root level
+        const result = [...props];
+        const safeIndex = Math.min(Math.max(0, index), result.length);
+        result.splice(safeIndex, 0, property);
+        return result;
+      }
+
+      return props.map(prop => {
+        if (prop.id === targetParentId) {
+          const children = [...(prop.children || [])];
+          const safeIndex = Math.min(Math.max(0, index), children.length);
+          children.splice(safeIndex, 0, property);
+          return { ...prop, children };
+        }
+
+        if (prop.children && prop.children.length > 0) {
+          return {
+            ...prop,
+            children: insertIntoTree(prop.children, targetParentId, property, index),
+          };
+        }
+
+        return prop;
+      });
+    };
+
+    // Step 1: Remove source from its current location
+    const [treeAfterRemoval, removedProperty] = removeFromTree(state.properties, sourceId);
+
+    if (!removedProperty) {
+      console.error('Failed to remove source property');
+      return;
+    }
+
+    // Step 2: Update levels for the removed property and its descendants
+    const updatedProperty = updateLevels(removedProperty, newLevel);
+
+    // Step 3: Insert at destination
+    const newProperties = insertIntoTree(
+      treeAfterRemoval,
+      destinationParentId,
+      updatedProperty,
+      destinationIndex
+    );
+
+    // Step 4: Auto-expand destination parent if nesting into a parent
+    const newExpandedNodeIds = new Set(state.expandedNodeIds);
+    if (destinationParentId) {
+      newExpandedNodeIds.add(destinationParentId);
+    }
+
+    set({
+      properties: newProperties,
+      isDirty: true,
+      expandedNodeIds: newExpandedNodeIds,
+    });
+  },
 }));
