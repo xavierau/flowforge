@@ -103,8 +103,10 @@ export const TYPE_ICONS = {
 
 /**
  * Level depth configuration
+ * @deprecated Use SCHEMA_CONFIG.MAX_NESTING_LEVEL from '@/config' instead
  */
-export const MAX_NESTING_LEVEL = 3;
+export { SCHEMA_CONFIG } from '@/config';
+export const MAX_NESTING_LEVEL = 3; // Kept for backwards compatibility, use SCHEMA_CONFIG instead
 
 /**
  * Validation result type

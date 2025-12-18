@@ -205,6 +205,31 @@ export function PropertyEditor({ property, isOpen, isCreating, onClose }: Proper
                     placeholder="e.g., ^[A-Z]{3}$"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="enum">Enum Values</Label>
+                  <Textarea
+                    id="enum"
+                    value={formData.constraints?.enum?.join('\n') ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.trim() === '') {
+                        handleConstraintChange('enum', undefined);
+                      } else {
+                        const enumValues = value
+                          .split('\n')
+                          .map((v) => v.trim())
+                          .filter((v) => v !== '');
+                        handleConstraintChange('enum', enumValues.length > 0 ? enumValues : undefined);
+                      }
+                    }}
+                    placeholder="Enter one value per line&#10;e.g.:&#10;pending&#10;approved&#10;rejected"
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty for free-text string, or enter allowed values (one per line) to create an enum.
+                  </p>
+                </div>
               </>
             )}
 

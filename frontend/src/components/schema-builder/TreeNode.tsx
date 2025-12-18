@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Property } from '@/store/schemaStore';
 import { useSchemaStore } from '@/store/schemaStore';
 import { cn } from '@/lib/utils';
+import { SCHEMA_CONFIG } from '@/config';
 
 interface TreeNodeProps {
   property: Property;
@@ -30,11 +31,11 @@ export function TreeNode({ property, onEdit }: TreeNodeProps) {
   const isExpanded = expandedNodeIds.has(property.id);
   const hasChildren = property.children && property.children.length > 0;
   const canAddChildren = property.type === 'object' || property.type === 'array';
-  const canNest = property.level < 3; // Max 3 levels (0, 1, 2, 3)
+  const canNest = property.level < SCHEMA_CONFIG.MAX_NESTING_LEVEL;
 
   const handleAddChild = () => {
     if (!canNest) {
-      alert('Maximum nesting depth (3 levels) reached');
+      alert(`Maximum nesting depth (${SCHEMA_CONFIG.MAX_NESTING_LEVEL} levels) reached`);
       return;
     }
 
