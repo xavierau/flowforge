@@ -8,19 +8,20 @@
  * - Composition: Combines Navbar and Sidebar components
  * - Single Responsibility: Manages layout structure and sidebar state
  * - State Management: Handles sidebar collapse/mobile state in one place
- * - Proper useEffect usage: Only for reading/writing localStorage
+ * - Proper useEffect usage: For reading localStorage and fetching user data
  * - No prop drilling: Direct state passing to child components
  *
  * State Management:
  * - Sidebar collapse state persisted to localStorage
  * - Mobile sidebar state managed locally (no persistence needed)
- * - User data currently mocked (will be replaced with API call)
+ * - User data fetched from API on mount
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
-import { getMockUser } from '@/types/user';
+import { getCurrentUser } from '@/services/user.service';
+import type { User } from '@/types/user';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -59,9 +60,42 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   // Mobile sidebar state (not persisted)
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // User data (currently mocked)
-  // TODO: Replace with actual user data from API
-  const user = getMockUser();
+  // User data fetched from API
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  // Fetch user data on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchUser() {
+      try {
+        const userProfile = await getCurrentUser();
+        if (isMounted) {
+          // Map UserProfile to User type expected by Navbar
+          setUser({
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.full_name,
+            avatar: userProfile.avatar_url,
+          });
+        }
+      } catch (error) {
+        // Error handling is done in apiFetch (redirects to login on 401)
+        console.error('Failed to fetch user:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingUser(false);
+        }
+      }
+    }
+
+    fetchUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   /**
    * Toggle sidebar collapse and persist preference
@@ -91,6 +125,15 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const handleMobileClose = () => {
     setIsMobileOpen(false);
   };
+
+  // Show loading state while fetching user
+  if (isLoadingUser || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
