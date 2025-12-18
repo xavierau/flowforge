@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { FileJson, Download, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,53 +16,75 @@ export function SchemaBuilder() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const schemaId = searchParams.get('schemaId');
-  const { schemaName, properties, setSchemaName, markClean, loadTemplate } = useSchemaStore();
+
+  // Use Zustand selectors for stable references and prevent unnecessary re-renders
+  const schemaName = useSchemaStore((state) => state.schemaName);
+  const properties = useSchemaStore((state) => state.properties);
+  const setSchemaName = useSchemaStore((state) => state.setSchemaName);
+  const markClean = useSchemaStore((state) => state.markClean);
+  const loadTemplate = useSchemaStore((state) => state.loadTemplate);
+
   const [nameError, setNameError] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Track if we've already loaded for this schemaId to prevent infinite loops
+  const hasLoadedRef = useRef<string | null>(null);
+
   // Load existing schema if schemaId is provided
+  // Using ref to prevent infinite loops caused by unstable navigate/loadTemplate references
   useEffect(() => {
-    if (schemaId) {
-      setIsLoading(true);
-      getSchema(schemaId)
-        .then((schema) => {
-          // Convert API schema format to Properties
-          const props = jsonSchemaToProperties(schema.definitions as any);
-          loadTemplate(props, schema.name);
-          toast.success('Schema loaded', {
-            description: `Loaded schema "${schema.name}" for editing`,
-          });
-        })
-        .catch((error) => {
-          if (error instanceof ApiServiceError) {
-            if (error.statusCode === 404) {
-              toast.error('Schema not found', {
-                description: 'The requested schema could not be found',
-              });
-            } else if (error.statusCode === 401) {
-              toast.error('Authentication required', {
-                description: 'Please log in to view schemas',
-              });
-              setTimeout(() => navigate('/login'), 1500);
-            } else {
-              toast.error('Failed to load schema', {
-                description: error.detail || 'An error occurred while loading the schema',
-              });
-            }
+    // Skip if no schemaId or already loaded for this schemaId
+    if (!schemaId || hasLoadedRef.current === schemaId) {
+      return;
+    }
+
+    // Mark as loading for this schemaId
+    hasLoadedRef.current = schemaId;
+    setIsLoading(true);
+
+    getSchema(schemaId)
+      .then((schema) => {
+        // Convert API schema format to Properties
+        const props = jsonSchemaToProperties(schema.definitions as any);
+        loadTemplate(props, schema.name);
+        toast.success('Schema loaded', {
+          description: `Loaded schema "${schema.name}" for editing`,
+        });
+      })
+      .catch((error) => {
+        // Reset ref on error to allow retry
+        hasLoadedRef.current = null;
+
+        if (error instanceof ApiServiceError) {
+          if (error.statusCode === 404) {
+            toast.error('Schema not found', {
+              description: 'The requested schema could not be found',
+            });
+          } else if (error.statusCode === 401) {
+            toast.error('Authentication required', {
+              description: 'Please log in to view schemas',
+            });
+            setTimeout(() => navigate('/login'), 1500);
           } else {
             toast.error('Failed to load schema', {
-              description: error instanceof Error ? error.message : 'Unknown error',
+              description: error.detail || 'An error occurred while loading the schema',
             });
           }
-          // Navigate back to schemas list on error
-          setTimeout(() => navigate('/schemas'), 2000);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }
-  }, [schemaId, loadTemplate, navigate]);
+        } else {
+          toast.error('Failed to load schema', {
+            description: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+        // Navigate back to schemas list on error
+        setTimeout(() => navigate('/schemas'), 2000);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [schemaId, loadTemplate, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Note: loadTemplate and navigate are intentionally kept in deps for correctness,
+  // but hasLoadedRef prevents re-execution even if they change
 
   // Handle schema name change with validation
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
