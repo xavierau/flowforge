@@ -202,7 +202,7 @@ class ResetPasswordRequest(BaseModel):
         description="Password reset token from email",
         json_schema_extra={"example": "a1b2c3d4e5f6..."}
     )
-    new_password: str = Field(
+    password: str = Field(
         ...,
         description="New password (min 8 chars, 1 uppercase, 1 number)",
         min_length=8,
@@ -210,7 +210,7 @@ class ResetPasswordRequest(BaseModel):
         json_schema_extra={"example": "NewSecurePass456"}
     )
 
-    @field_validator("new_password")
+    @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         """Validate password meets security requirements."""
@@ -220,7 +220,7 @@ class ResetPasswordRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "token": "a1b2c3d4e5f6...",
-                "new_password": "NewSecurePass456"
+                "password": "NewSecurePass456"
             }
         }
     )

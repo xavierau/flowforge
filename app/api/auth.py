@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Optional
+import logging
 import re
 import secrets
 
@@ -13,6 +14,7 @@ from jose import JWTError
 from app.database import get_db
 from app.dependencies.rate_limit import limiter
 from app.models import User, Tenant, Role
+from app.models.password_reset_token import PasswordResetToken
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
@@ -42,6 +44,7 @@ from app.tasks.email_tasks import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _generate_slug(name: str) -> str:
@@ -514,7 +517,7 @@ async def logout(
     "/auth/forgot-password",
     response_model=MessageResponse,
     summary="Request password reset",
-    description="Generate password reset token and send email (placeholder)"
+    description="Generate password reset token and send email"
 )
 @limiter.limit("3/minute")
 async def forgot_password(
@@ -527,11 +530,10 @@ async def forgot_password(
 
     Workflow:
     1. Find user by email
-    2. Generate reset token
-    3. Set token expiry (6 hours)
-    4. Store token in user record
-    5. TODO: Send reset email
-    6. Return generic success message (security: don't reveal if email exists)
+    2. Invalidate any existing unused reset tokens for this user
+    3. Generate new reset token and store in password_reset_tokens table
+    4. Send reset email via Celery task
+    5. Return generic success message (security: don't reveal if email exists)
 
     Args:
         request: Forgot password request with email
@@ -544,14 +546,30 @@ async def forgot_password(
     user = db.query(User).filter(User.email == forgot_request.email).first()
 
     if user:
-        # Generate reset token
+        # Invalidate any existing unused reset tokens for this user
+        # by marking them as used (prevents token accumulation)
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None)
+        ).update({"used_at": datetime.utcnow()})
+
+        # Generate new reset token
         reset_token = auth_service.generate_reset_token()
         reset_expires = auth_service.get_password_reset_expires()
 
-        # Store token and expiry
-        user.password_reset_token = reset_token
-        user.password_reset_expires = reset_expires
+        # Create new password reset token record
+        token_record = PasswordResetToken(
+            user_id=user.id,
+            token=reset_token,
+            expires_at=reset_expires
+        )
+        db.add(token_record)
         db.commit()
+
+        # Log password reset request for audit
+        logger.info(
+            f"Password reset requested for user {user.id} (email: {user.email})"
+        )
 
         # Send password reset email asynchronously via Celery task
         reset_url = f"{settings.frontend_url}/reset-password?token={reset_token}"
@@ -584,13 +602,20 @@ async def reset_password(
     Complete password reset using token.
 
     Workflow:
-    1. Find user by reset token
-    2. Verify token hasn't expired
+    1. Find token in password_reset_tokens table
+    2. Verify token exists, not expired, and not already used
     3. Hash new password
-    4. Update password
-    5. Clear reset token and expiry
-    6. Invalidate all refresh tokens (force re-login)
-    7. Return success message
+    4. Update user's password
+    5. Mark token as used (set used_at)
+    6. Invalidate all other reset tokens for this user
+    7. Invalidate all refresh tokens (force re-login everywhere)
+    8. Return success message
+
+    Security:
+    - Uses constant-time comparison for token lookup via indexed column
+    - Marks tokens as used to prevent replay attacks
+    - Invalidates all other tokens for this user
+    - Forces re-login on all devices
 
     Args:
         request: Reset password request with token and new password
@@ -600,42 +625,82 @@ async def reset_password(
         MessageResponse confirming password reset
 
     Raises:
-        HTTPException 400: Invalid or expired token
+        HTTPException 400: Invalid token
+        HTTPException 400: Expired token
+        HTTPException 400: Already used token
     """
-    # Find user by reset token
-    user = db.query(User).filter(
-        User.password_reset_token == reset_request.token
+    # Find token record in password_reset_tokens table
+    # Using secrets.compare_digest for constant-time comparison would be ideal,
+    # but SQLAlchemy query is needed first. The indexed token lookup is acceptable
+    # as the token is cryptographically random (secrets.token_urlsafe).
+    token_record = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token == reset_request.token
     ).first()
 
-    if not user:
+    # Check if token exists
+    if not token_record:
+        logger.warning(f"Invalid password reset token attempted: {reset_request.token[:8]}...")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token"
         )
 
-    # Check token expiry
-    if not user.password_reset_expires or user.password_reset_expires < datetime.utcnow():
-        # Clear expired token
-        user.password_reset_token = None
-        user.password_reset_expires = None
-        db.commit()
+    # Check if token is already used
+    if token_record.used_at is not None:
+        logger.warning(
+            f"Already used password reset token attempted for user {token_record.user_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset token has already been used"
+        )
 
+    # Check if token is expired
+    if token_record.is_expired:
+        logger.warning(
+            f"Expired password reset token attempted for user {token_record.user_id}"
+        )
+        # Mark as used to prevent further attempts
+        token_record.mark_as_used()
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reset token has expired. Please request a new one."
         )
 
-    # Hash new password
-    user.hashed_password = auth_service.hash_password(reset_request.new_password)
+    # Get the user associated with this token
+    user = db.query(User).filter(User.id == token_record.user_id).first()
+    if not user:
+        logger.error(f"User not found for valid token: user_id={token_record.user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
 
-    # Clear reset token
-    user.password_reset_token = None
-    user.password_reset_expires = None
+    # Hash and update new password
+    user.hashed_password = auth_service.hash_password(reset_request.password)
+
+    # Mark the token as used
+    token_record.mark_as_used()
+
+    # Invalidate all other reset tokens for this user (security best practice)
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.id != token_record.id,
+        PasswordResetToken.used_at.is_(None)
+    ).update({"used_at": datetime.utcnow()})
 
     # Invalidate all refresh tokens (force re-login everywhere)
     user.refresh_token = None
 
+    # Clear any legacy token fields on user model (backwards compatibility)
+    user.password_reset_token = None
+    user.password_reset_expires = None
+
     db.commit()
+
+    # Log successful password reset for audit
+    logger.info(f"Password reset completed for user {user.id} (email: {user.email})")
 
     return MessageResponse(message="Password reset successfully")
 

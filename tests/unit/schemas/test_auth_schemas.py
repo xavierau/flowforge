@@ -220,12 +220,12 @@ class TestResetPasswordRequest:
         """Test valid password reset request."""
         data = {
             "token": "reset-token-123",
-            "new_password": "NewSecure456"
+            "password": "NewSecure456"
         }
         request = ResetPasswordRequest(**data)
 
         assert request.token == "reset-token-123"
-        assert request.new_password == "NewSecure456"
+        assert request.password == "NewSecure456"
 
     def test_password_validation(self):
         """Test new password must meet security requirements."""
@@ -233,27 +233,27 @@ class TestResetPasswordRequest:
         with pytest.raises(ValidationError):
             ResetPasswordRequest(
                 token="token",
-                new_password="Short1"
+                password="Short1"
             )
 
         # No uppercase
         with pytest.raises(ValidationError):
             ResetPasswordRequest(
                 token="token",
-                new_password="lowercase123"
+                password="lowercase123"
             )
 
         # No number
         with pytest.raises(ValidationError):
             ResetPasswordRequest(
                 token="token",
-                new_password="NoNumbers"
+                password="NoNumbers"
             )
 
     def test_missing_fields(self):
         """Test validation fails when required fields are missing."""
         with pytest.raises(ValidationError):
-            ResetPasswordRequest(new_password="NewSecure456")
+            ResetPasswordRequest(password="NewSecure456")
 
         with pytest.raises(ValidationError):
             ResetPasswordRequest(token="token")

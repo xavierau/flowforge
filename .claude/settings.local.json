@@ -119,7 +119,10 @@
       "Bash(tee:*)",
       "Bash(done)",
       "Bash(fi)",
-      "Bash(uv run celery:*)"
+      "Bash(uv run celery:*)",
+      "WebFetch(domain:flowforge-app.phbsolution.com)",
+      "Bash(TEST_DATABASE_URL=\"postgresql+psycopg://postgres:password@localhost:5432/doc_processing\" uv run python -m pytest:*)",
+      "Bash(open:*)"
     ],
     "deny": [],
     "ask": []

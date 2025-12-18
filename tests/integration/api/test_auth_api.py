@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import User, Tenant
+from app.models.password_reset_token import PasswordResetToken
 from app.services.auth_service import auth_service
 
 
@@ -422,10 +423,15 @@ class TestForgotPasswordEndpoint:
         assert response.status_code == 200
         assert "reset link" in response.json()["message"].lower()
 
-        # Verify reset token was generated
-        db_session.refresh(test_user)
-        assert test_user.password_reset_token is not None
-        assert test_user.password_reset_expires is not None
+        # Verify reset token was created in password_reset_tokens table
+        token_record = db_session.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == test_user.id,
+            PasswordResetToken.used_at.is_(None)
+        ).first()
+        assert token_record is not None
+        assert token_record.token is not None
+        assert token_record.expires_at is not None
+        assert token_record.expires_at > datetime.utcnow()
 
     def test_forgot_password_nonexistent_user(self, client: TestClient):
         """Test password reset for non-existent user (security: same response)."""
@@ -438,6 +444,43 @@ class TestForgotPasswordEndpoint:
         assert response.status_code == 200
         assert "reset link" in response.json()["message"].lower()
 
+    def test_forgot_password_invalidates_previous_tokens(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test that requesting a new reset token invalidates previous ones."""
+        # Create an existing token
+        old_token = PasswordResetToken(
+            user_id=test_user.id,
+            token=auth_service.generate_reset_token(),
+            expires_at=auth_service.get_password_reset_expires()
+        )
+        db_session.add(old_token)
+        db_session.commit()
+        old_token_id = old_token.id
+
+        # Request new token
+        response = client.post(
+            "/api/v1/auth/forgot-password",
+            json={"email": test_user.email}
+        )
+
+        assert response.status_code == 200
+
+        # Verify old token was marked as used
+        db_session.refresh(old_token)
+        assert old_token.used_at is not None
+
+        # Verify new token exists
+        new_token = db_session.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == test_user.id,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.id != old_token_id
+        ).first()
+        assert new_token is not None
+
 
 class TestResetPasswordEndpoint:
     """Test /api/v1/auth/reset-password endpoint."""
@@ -449,10 +492,14 @@ class TestResetPasswordEndpoint:
         db_session: Session
     ):
         """Test successful password reset."""
-        # Generate reset token
+        # Generate reset token in password_reset_tokens table
         reset_token = auth_service.generate_reset_token()
-        test_user.password_reset_token = reset_token
-        test_user.password_reset_expires = auth_service.get_password_reset_expires()
+        token_record = PasswordResetToken(
+            user_id=test_user.id,
+            token=reset_token,
+            expires_at=auth_service.get_password_reset_expires()
+        )
+        db_session.add(token_record)
         test_user.refresh_token = "old-refresh-token"
         db_session.commit()
 
@@ -460,7 +507,7 @@ class TestResetPasswordEndpoint:
             "/api/v1/auth/reset-password",
             json={
                 "token": reset_token,
-                "new_password": "NewSecurePass456"
+                "password": "NewSecurePass456"
             }
         )
 
@@ -474,9 +521,9 @@ class TestResetPasswordEndpoint:
             test_user.hashed_password
         )
 
-        # Verify reset token was cleared
-        assert test_user.password_reset_token is None
-        assert test_user.password_reset_expires is None
+        # Verify token was marked as used
+        db_session.refresh(token_record)
+        assert token_record.used_at is not None
 
         # Verify refresh tokens were invalidated
         assert test_user.refresh_token is None
@@ -487,7 +534,7 @@ class TestResetPasswordEndpoint:
             "/api/v1/auth/reset-password",
             json={
                 "token": "invalid-token",
-                "new_password": "NewSecurePass456"
+                "password": "NewSecurePass456"
             }
         )
 
@@ -501,22 +548,59 @@ class TestResetPasswordEndpoint:
         db_session: Session
     ):
         """Test password reset with expired token."""
-        # Generate expired token
+        # Generate expired token in password_reset_tokens table
         reset_token = auth_service.generate_reset_token()
-        test_user.password_reset_token = reset_token
-        test_user.password_reset_expires = datetime.utcnow() - timedelta(hours=1)
+        token_record = PasswordResetToken(
+            user_id=test_user.id,
+            token=reset_token,
+            expires_at=datetime.utcnow() - timedelta(hours=1)  # Expired
+        )
+        db_session.add(token_record)
         db_session.commit()
 
         response = client.post(
             "/api/v1/auth/reset-password",
             json={
                 "token": reset_token,
-                "new_password": "NewSecurePass456"
+                "password": "NewSecurePass456"
             }
         )
 
         assert response.status_code == 400
         assert "expired" in response.json()["detail"].lower()
+
+        # Verify token was marked as used (to prevent further attempts)
+        db_session.refresh(token_record)
+        assert token_record.used_at is not None
+
+    def test_reset_password_already_used_token(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test password reset with already used token fails."""
+        # Create an already-used token
+        reset_token = auth_service.generate_reset_token()
+        token_record = PasswordResetToken(
+            user_id=test_user.id,
+            token=reset_token,
+            expires_at=auth_service.get_password_reset_expires(),
+            used_at=datetime.utcnow()  # Already used
+        )
+        db_session.add(token_record)
+        db_session.commit()
+
+        response = client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "token": reset_token,
+                "password": "NewSecurePass456"
+            }
+        )
+
+        assert response.status_code == 400
+        assert "already been used" in response.json()["detail"].lower()
 
     def test_reset_password_weak_password(
         self,
@@ -526,19 +610,64 @@ class TestResetPasswordEndpoint:
     ):
         """Test password reset with weak password fails validation."""
         reset_token = auth_service.generate_reset_token()
-        test_user.password_reset_token = reset_token
-        test_user.password_reset_expires = auth_service.get_password_reset_expires()
+        token_record = PasswordResetToken(
+            user_id=test_user.id,
+            token=reset_token,
+            expires_at=auth_service.get_password_reset_expires()
+        )
+        db_session.add(token_record)
         db_session.commit()
 
         response = client.post(
             "/api/v1/auth/reset-password",
             json={
                 "token": reset_token,
-                "new_password": "weak"  # Too weak
+                "password": "weak"  # Too weak
             }
         )
 
         assert response.status_code == 422
+
+    def test_reset_password_invalidates_other_tokens(
+        self,
+        client: TestClient,
+        test_user: User,
+        db_session: Session
+    ):
+        """Test that successful password reset invalidates all other tokens for the user."""
+        # Create multiple tokens for the same user
+        token1 = auth_service.generate_reset_token()
+        token2 = auth_service.generate_reset_token()
+
+        token_record1 = PasswordResetToken(
+            user_id=test_user.id,
+            token=token1,
+            expires_at=auth_service.get_password_reset_expires()
+        )
+        token_record2 = PasswordResetToken(
+            user_id=test_user.id,
+            token=token2,
+            expires_at=auth_service.get_password_reset_expires()
+        )
+        db_session.add_all([token_record1, token_record2])
+        db_session.commit()
+
+        # Use token1 to reset password
+        response = client.post(
+            "/api/v1/auth/reset-password",
+            json={
+                "token": token1,
+                "password": "NewSecurePass456"
+            }
+        )
+
+        assert response.status_code == 200
+
+        # Verify both tokens are now marked as used
+        db_session.refresh(token_record1)
+        db_session.refresh(token_record2)
+        assert token_record1.used_at is not None
+        assert token_record2.used_at is not None
 
 
 class TestVerifyEmailEndpoint:

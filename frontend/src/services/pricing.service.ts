@@ -156,6 +156,14 @@ export async function deactivatePricing(
 }
 
 /**
+ * Response type for supported models API
+ */
+interface SupportedModelsResponse {
+  models: string[];
+  total: number;
+}
+
+/**
  * Get list of supported models
  */
 export async function getSupportedModels(): Promise<string[]> {
@@ -167,7 +175,8 @@ export async function getSupportedModels(): Promise<string[]> {
       },
     });
 
-    return handleApiResponse<string[]>(response);
+    const data = await handleApiResponse<SupportedModelsResponse>(response);
+    return data.models;
   } catch (error) {
     if (error instanceof PricingApiError) {
       throw error;

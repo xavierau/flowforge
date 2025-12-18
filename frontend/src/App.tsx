@@ -17,6 +17,8 @@ const LoadingFallback = () => (
 // Lazy load all pages for code splitting
 const Login = lazy(() => import('@/pages/Login').then(m => ({ default: m.Login })));
 const Signup = lazy(() => import('@/pages/Signup').then(m => ({ default: m.Signup })));
+const ForgotPassword = lazy(() => import('@/pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('@/pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const AcceptInvitation = lazy(() => import('@/pages/AcceptInvitation').then(m => ({ default: m.AcceptInvitation })));
 const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const BillingDetails = lazy(() => import('@/pages/BillingDetails').then(m => ({ default: m.BillingDetails })));
@@ -54,6 +56,8 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/accept-invitation" element={<AcceptInvitation />} />
           <Route
             path="/dashboard"

@@ -13,6 +13,10 @@ import type {
   SignupRequest,
   SignupResponse,
   AcceptInvitationRequest,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
   AuthError,
   ValidationError,
 } from '@/types/auth';
@@ -142,6 +146,66 @@ export async function acceptInvitation(data: AcceptInvitationRequest): Promise<L
     });
 
     return handleApiResponse<LoginResponse>(response);
+  } catch (error) {
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
+
+    // Network or other errors
+    throw new AuthApiError(
+      'Network error. Please check your connection.',
+      0
+    );
+  }
+}
+
+/**
+ * Request password reset email
+ * Sends a password reset link to the user's email
+ */
+export async function forgotPassword(
+  data: ForgotPasswordRequest
+): Promise<ForgotPasswordResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    return handleApiResponse<ForgotPasswordResponse>(response);
+  } catch (error) {
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
+
+    // Network or other errors
+    throw new AuthApiError(
+      'Network error. Please check your connection.',
+      0
+    );
+  }
+}
+
+/**
+ * Reset password with token
+ * Sets a new password using the reset token from the email link
+ */
+export async function resetPassword(
+  data: ResetPasswordRequest
+): Promise<ResetPasswordResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    return handleApiResponse<ResetPasswordResponse>(response);
   } catch (error) {
     if (error instanceof AuthApiError) {
       throw error;

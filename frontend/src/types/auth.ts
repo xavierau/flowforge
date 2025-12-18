@@ -56,3 +56,23 @@ export interface AcceptInvitationRequest {
   password: string;
   full_name?: string;
 }
+
+/**
+ * Password reset request types
+ */
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}

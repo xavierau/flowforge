@@ -44,6 +44,9 @@ from app.models.workflow_credential import WorkflowCredential
 from app.models.review_request import ReviewRequest
 from app.models.review_correction import ReviewCorrection
 
+# Password Reset Token model
+from app.models.password_reset_token import PasswordResetToken
+
 __all__ = [
     "Document",
     "DocumentPage",
@@ -79,4 +82,6 @@ __all__ = [
     "ReviewCorrection",
     # Model Pricing
     "ModelPricing",
+    # Password Reset
+    "PasswordResetToken",
 ]
