@@ -6,6 +6,7 @@ import type {
   DragCancelEvent,
   UniqueIdentifier,
 } from '@dnd-kit/core';
+import { useShallow } from 'zustand/react/shallow';
 import { useSchemaStore, findPropertyById, type Property } from '@/store/schemaStore';
 import {
   canMoveProperty,
@@ -74,10 +75,12 @@ const initialDragState: DragState = {
 export function useSchemaDnd(): UseSchemaDndResult {
   const [dragState, setDragState] = useState<DragState>(initialDragState);
 
-  const { properties, moveProperty } = useSchemaStore((state) => ({
-    properties: state.properties,
-    moveProperty: state.moveProperty,
-  }));
+  const { properties, moveProperty } = useSchemaStore(
+    useShallow((state) => ({
+      properties: state.properties,
+      moveProperty: state.moveProperty,
+    }))
+  );
 
   /**
    * Reset drag state to initial values
@@ -112,7 +115,7 @@ export function useSchemaDnd(): UseSchemaDndResult {
    * Handle drag over event
    */
   const onDragOver = useCallback((event: DragOverEvent) => {
-    const { over } = event;
+    const { active, over } = event;
 
     if (!over) {
       setDragState((prev) => ({
@@ -129,24 +132,14 @@ export function useSchemaDnd(): UseSchemaDndResult {
     const overProperty = overData?.property;
     const overParentId = overData?.parentId ?? null;
 
-    // Calculate drop position based on cursor position
+    // Calculate drop position based on the dragged element's current position
     let dropPosition: DropPosition = null;
 
-    if (over.rect && event.activatorEvent) {
-      // Get cursor Y position from the event
-      let clientY = 0;
-      const activatorEvent = event.activatorEvent;
-
-      if ('clientY' in activatorEvent && typeof activatorEvent.clientY === 'number') {
-        // MouseEvent
-        clientY = activatorEvent.clientY;
-      } else if (
-        'touches' in activatorEvent &&
-        (activatorEvent as TouchEvent).touches?.length > 0
-      ) {
-        // TouchEvent
-        clientY = (activatorEvent as TouchEvent).touches[0].clientY;
-      }
+    if (over.rect && active.rect.current.translated) {
+      // Use the center Y of the dragged element's current translated position
+      // This gives us the actual position during dragging, not the initial position
+      const activeRect = active.rect.current.translated;
+      const activeCenterY = activeRect.top + activeRect.height / 2;
 
       // Determine if the over element can have children
       const canHaveChildren =
@@ -154,7 +147,7 @@ export function useSchemaDnd(): UseSchemaDndResult {
         (overProperty.type === 'object' || overProperty.type === 'array');
 
       dropPosition = getDropPosition(
-        clientY,
+        activeCenterY,
         over.rect.top,
         over.rect.height,
         !!canHaveChildren

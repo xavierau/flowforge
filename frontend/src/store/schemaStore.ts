@@ -85,8 +85,8 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
     const state = get();
     const level = calculateLevel(state.properties, parentId);
 
-    if (level > 3) {
-      throw new Error('Maximum nesting depth (3 levels) reached');
+    if (level > SCHEMA_CONFIG.MAX_NESTING_LEVEL) {
+      throw new Error(`Maximum nesting depth (${SCHEMA_CONFIG.MAX_NESTING_LEVEL} levels) reached`);
     }
 
     const newProperty: Property = {

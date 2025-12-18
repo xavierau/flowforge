@@ -223,6 +223,12 @@ export function PropertyEditor({ property, isOpen, isCreating, onClose }: Proper
                         handleConstraintChange('enum', enumValues.length > 0 ? enumValues : undefined);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      // Prevent Enter from closing the dialog
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                    }}
                     placeholder="Enter one value per line&#10;e.g.:&#10;pending&#10;approved&#10;rejected"
                     rows={4}
                   />
