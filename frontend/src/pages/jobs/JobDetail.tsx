@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,18 +21,34 @@ export function JobDetail() {
   const [job, setJob] = useState<Job | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Use ref to track status for polling without triggering re-renders
+  const jobStatusRef = useRef<string | null>(null);
+
+  // Update ref whenever job status changes
+  useEffect(() => {
+    jobStatusRef.current = job?.status ?? null;
+  }, [job?.status]);
+
+  // Initial load - only runs when id changes
   useEffect(() => {
     if (id) {
       loadJob(id);
-      // Poll for updates if job is in progress
-      const interval = setInterval(() => {
-        if (job?.status === 'queued' || job?.status === 'processing') {
-          loadJob(id);
-        }
-      }, 3000);
-      return () => clearInterval(interval);
     }
-  }, [id, job?.status]);
+  }, [id]);
+
+  // Separate polling effect - only depends on id
+  useEffect(() => {
+    if (!id) return;
+
+    const interval = setInterval(() => {
+      // Check ref instead of state to avoid stale closure
+      if (jobStatusRef.current === 'queued' || jobStatusRef.current === 'processing') {
+        loadJob(id);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [id]);
 
   const loadJob = async (jobId: string) => {
     try {

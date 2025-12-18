@@ -122,7 +122,11 @@
       "Bash(uv run celery:*)",
       "WebFetch(domain:flowforge-app.phbsolution.com)",
       "Bash(TEST_DATABASE_URL=\"postgresql+psycopg://postgres:password@localhost:5432/doc_processing\" uv run python -m pytest:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "WebFetch(domain:docs.dndkit.com)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__get-library-docs",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []

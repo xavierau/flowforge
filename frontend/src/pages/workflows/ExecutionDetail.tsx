@@ -177,21 +177,21 @@ export function ExecutionDetail() {
   /**
    * Auto-refresh for running executions
    * Polls every 2 seconds while execution is in progress
+   * Only depends on execution.status to avoid unnecessary re-renders
    */
   useEffect(() => {
-    if (!execution) return;
-
+    // Only check status, not entire execution object
     const isInProgress =
-      execution.status === WorkflowExecutionStatus.Running ||
-      execution.status === WorkflowExecutionStatus.Pending;
+      execution?.status === WorkflowExecutionStatus.Running ||
+      execution?.status === WorkflowExecutionStatus.Pending;
 
-    if (!isInProgress) return;
+    if (!isInProgress || !id) return;
 
     const intervalId = setInterval(async () => {
       try {
         const [executionData, nodeExecData] = await Promise.all([
-          getExecutionStatus(id!),
-          getNodeExecutions(id!),
+          getExecutionStatus(id),
+          getNodeExecutions(id),
         ]);
         setExecution(executionData);
         setNodeExecutions(nodeExecData);
@@ -202,7 +202,7 @@ export function ExecutionDetail() {
     }, 2000);
 
     return () => clearInterval(intervalId);
-  }, [execution, id]);
+  }, [execution?.status, id]);
 
   /**
    * Cancel a running execution
