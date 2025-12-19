@@ -160,6 +160,7 @@ def seed_permissions(db_session: Session) -> dict[str, Permission]:
         ("users:read", "users", "read", "Read users"),
         ("users:update", "users", "update", "Update users"),
         ("users:delete", "users", "delete", "Delete users"),
+        ("models:read", "models", "read", "View available AI models"),
     ]
 
     permissions = {}
@@ -199,7 +200,8 @@ def seed_role_permissions(
     # Member gets read/create permissions
     member_perms = [
         "documents:create", "documents:read",
-        "schemas:create", "schemas:read"
+        "schemas:create", "schemas:read",
+        "models:read"
     ]
     for perm_name in member_perms:
         role_perm = RolePermission(
@@ -209,7 +211,7 @@ def seed_role_permissions(
         db_session.add(role_perm)
 
     # Viewer gets only read permissions
-    viewer_perms = ["documents:read", "schemas:read"]
+    viewer_perms = ["documents:read", "schemas:read", "models:read"]
     for perm_name in viewer_perms:
         role_perm = RolePermission(
             role_id=seed_roles["viewer"].id,

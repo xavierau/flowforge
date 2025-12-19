@@ -4,7 +4,7 @@ Loads pricing from database with Redis caching (1 hour TTL).
 Falls back to hardcoded defaults if DB unavailable.
 """
 from datetime import datetime, timezone
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import json
 import logging
 import redis
@@ -340,3 +340,120 @@ class PricingService:
                 logger.warning(f"Failed to get models from database: {e}")
 
         return sorted(list(models))
+
+    def get_models_for_extraction(self) -> List[Dict]:
+        """Get active models that support extraction (vision capability).
+
+        Returns:
+            List of model dictionaries suitable for frontend dropdown.
+        """
+        if not self.db:
+            return []
+        models = (
+            self.db.query(ModelPricing)
+            .filter(ModelPricing.is_active == True)
+            .filter(ModelPricing.supports_vision == True)
+            .order_by(ModelPricing.provider, ModelPricing.model_name)
+            .all()
+        )
+        return [m.to_available_model() for m in models]
+
+    def get_models_for_markdown(self) -> List[Dict]:
+        """Get active models that support markdown conversion.
+
+        Returns:
+            List of model dictionaries suitable for frontend dropdown.
+        """
+        if not self.db:
+            return []
+        models = (
+            self.db.query(ModelPricing)
+            .filter(ModelPricing.is_active == True)
+            .filter(ModelPricing.supports_markdown_conversion == True)
+            .order_by(ModelPricing.provider, ModelPricing.model_name)
+            .all()
+        )
+        return [m.to_available_model() for m in models]
+
+    def get_models_for_llm(self) -> List[Dict]:
+        """Get active models suitable for LLM completion.
+
+        Returns:
+            List of model dictionaries suitable for frontend dropdown.
+        """
+        if not self.db:
+            return []
+        models = (
+            self.db.query(ModelPricing)
+            .filter(ModelPricing.is_active == True)
+            .filter(ModelPricing.supports_text == True)
+            .order_by(ModelPricing.provider, ModelPricing.model_name)
+            .all()
+        )
+        return [m.to_available_model() for m in models]
+
+    def get_default_model(self, use_case: str) -> Optional[Dict]:
+        """Get the default model for a specific use case.
+
+        Args:
+            use_case: One of 'extraction', 'markdown', or 'llm'
+
+        Returns:
+            Model dict or None if no default set
+        """
+        if not self.db:
+            return None
+
+        field_map = {
+            "extraction": ModelPricing.is_default_extraction,
+            "markdown": ModelPricing.is_default_markdown,
+            "llm": ModelPricing.is_default_llm,
+        }
+
+        if use_case not in field_map:
+            return None
+
+        model = (
+            self.db.query(ModelPricing)
+            .filter(ModelPricing.is_active == True)
+            .filter(field_map[use_case] == True)
+            .first()
+        )
+
+        return model.to_available_model() if model else None
+
+    def get_models_by_provider(self, provider: str) -> List[Dict]:
+        """Get all active models for a specific provider.
+
+        Args:
+            provider: Provider name (e.g., 'google', 'openai')
+
+        Returns:
+            List of model dictionaries for the provider.
+        """
+        if not self.db:
+            return []
+        models = (
+            self.db.query(ModelPricing)
+            .filter(ModelPricing.is_active == True)
+            .filter(ModelPricing.provider == provider.lower())
+            .order_by(ModelPricing.model_name)
+            .all()
+        )
+        return [m.to_available_model() for m in models]
+
+    def get_available_providers(self) -> List[str]:
+        """Get list of providers with active models.
+
+        Returns:
+            Sorted list of provider names.
+        """
+        if not self.db:
+            return []
+        providers = (
+            self.db.query(ModelPricing.provider)
+            .filter(ModelPricing.is_active == True)
+            .distinct()
+            .all()
+        )
+        return sorted([p[0] for p in providers])

@@ -45,7 +45,6 @@ import {
   isLLMNode,
   isHumanReviewNode,
   type HttpHeader,
-  type LLMProvider,
   type HumanReviewPriority,
 } from '@/types/workflow';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -56,6 +55,8 @@ import {
   resolveExpressions,
   hasExpressions,
 } from '@/lib/expression-parser';
+import { getAvailableModels } from '@/services/model.service';
+import type { AvailableModel } from '@/types/workflow';
 
 export function NodeConfigPanel() {
   const {
@@ -282,6 +283,38 @@ function ExtractionConfig({
 }) {
   const { updateNodeData } = useWorkflowStore();
 
+  // State for available models
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+  // Fetch available models on mount
+  useEffect(() => {
+    async function loadModels() {
+      setIsLoadingModels(true);
+      try {
+        const response = await getAvailableModels('extraction');
+        setAvailableModels(response.models);
+      } catch (error) {
+        console.error('Failed to load models:', error);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    }
+    loadModels();
+  }, []);
+
+  // Group models by provider
+  const modelsByProvider = useMemo(() => {
+    const grouped: Record<string, AvailableModel[]> = {};
+    for (const model of availableModels) {
+      if (!grouped[model.provider]) {
+        grouped[model.provider] = [];
+      }
+      grouped[model.provider].push(model);
+    }
+    return grouped;
+  }, [availableModels]);
+
   const availableNodes = useMemo(
     () => getAvailableNodes(nodeId, allNodes, edges),
     [nodeId, allNodes, edges]
@@ -304,6 +337,22 @@ function ExtractionConfig({
   const handleExpressionInsert = (expression: string) => {
     const currentPrompt = data.config.prompt;
     handleConfigChange('prompt', currentPrompt + expression);
+  };
+
+  // Helper to format provider name for display
+  const formatProviderName = (provider: string): string => {
+    switch (provider) {
+      case 'google':
+        return 'Google (Gemini)';
+      case 'openai':
+        return 'OpenAI (GPT)';
+      case 'qwen':
+        return 'Qwen';
+      case 'deepseek':
+        return 'DeepSeek';
+      default:
+        return provider.charAt(0).toUpperCase() + provider.slice(1);
+    }
   };
 
   return (
@@ -392,6 +441,105 @@ function ExtractionConfig({
             <SelectItem value="custom">Custom Schema</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Model Configuration Section */}
+      <div className="space-y-4 pt-4 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
+        <h4 className="text-sm font-medium">Model Configuration</h4>
+        <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          Leave empty to use workflow defaults
+        </p>
+
+        {/* Provider Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="extraction-provider">Provider</Label>
+          <Select
+            value={data.config?.provider || ''}
+            onValueChange={(value) => {
+              handleConfigChange('provider', value || undefined);
+              handleConfigChange('model', undefined); // Reset model when provider changes
+            }}
+            disabled={isLoadingModels}
+          >
+            <SelectTrigger id="extraction-provider">
+              <SelectValue placeholder={isLoadingModels ? 'Loading...' : 'Use workflow default'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Use workflow default</SelectItem>
+              {Object.keys(modelsByProvider).map((provider) => (
+                <SelectItem key={provider} value={provider}>
+                  {formatProviderName(provider)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Model Selection - only show when provider is selected */}
+        {data.config?.provider && (
+          <div className="space-y-2">
+            <Label htmlFor="extraction-model">Model</Label>
+            <Select
+              value={data.config?.model || ''}
+              onValueChange={(value) => handleConfigChange('model', value || undefined)}
+            >
+              <SelectTrigger id="extraction-model">
+                <SelectValue placeholder="Select model..." />
+              </SelectTrigger>
+              <SelectContent>
+                {modelsByProvider[data.config.provider]?.map((model) => (
+                  <SelectItem key={model.modelName} value={model.modelName}>
+                    {model.displayName}
+                    {model.isDefaultExtraction && ' (Default)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Processing Mode Toggle */}
+        <div className="space-y-2">
+          <Label htmlFor="processing-mode">Processing Mode</Label>
+          <Select
+            value={data.config?.processingMode || 'batch'}
+            onValueChange={(value) => handleConfigChange('processingMode', value)}
+          >
+            <SelectTrigger id="processing-mode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="batch">Direct Vision (Recommended)</SelectItem>
+              <SelectItem value="markdown">Markdown Pipeline</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
+            Markdown mode converts images to text first, useful for complex layouts
+          </p>
+        </div>
+
+        {/* Markdown Converter Settings - only show when markdown mode */}
+        {data.config?.processingMode === 'markdown' && (
+          <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: 'hsl(var(--border))' }}>
+            <div className="space-y-2">
+              <Label>Markdown Converter</Label>
+              <Select
+                value={data.config?.markdownConverter || ''}
+                onValueChange={(value) => handleConfigChange('markdownConverter', value || undefined)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Use default converter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Use default</SelectItem>
+                  <SelectItem value="gemini_vision">Gemini Vision</SelectItem>
+                  <SelectItem value="gpt4v">GPT-4 Vision</SelectItem>
+                  <SelectItem value="qwen_vision">Qwen Vision</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1186,6 +1334,51 @@ function LLMConfig({
 }) {
   const { updateNodeData } = useWorkflowStore();
 
+  // State for API-fetched models
+  const [availableModels, setAvailableModels] = useState<
+    import('@/services/model.service').AvailableModel[]
+  >([]);
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+  // Load models from API on mount
+  useEffect(() => {
+    async function loadModels() {
+      setIsLoadingModels(true);
+      try {
+        const { getAvailableModels } = await import('@/services/model.service');
+        const response = await getAvailableModels('llm');
+        setAvailableModels(response.models);
+        setAvailableProviders(response.providers);
+      } catch (error) {
+        console.error('Failed to load LLM models:', error);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    }
+    loadModels();
+  }, []);
+
+  // Group models by provider
+  const modelsByProvider = useMemo(() => {
+    const grouped: Record<
+      string,
+      import('@/services/model.service').AvailableModel[]
+    > = {};
+    for (const model of availableModels) {
+      if (!grouped[model.provider]) {
+        grouped[model.provider] = [];
+      }
+      grouped[model.provider].push(model);
+    }
+    return grouped;
+  }, [availableModels]);
+
+  // Get models for currently selected provider
+  const currentModels = data.config?.provider
+    ? modelsByProvider[data.config.provider] || []
+    : [];
+
   const availableNodes = useMemo(
     () => getAvailableNodes(nodeId, allNodes, edges),
     [nodeId, allNodes, edges]
@@ -1210,15 +1403,13 @@ function LLMConfig({
     handleConfigChange('prompt', currentPrompt + expression);
   };
 
-  // Available models per provider
-  const modelOptions: Record<LLMProvider, string[]> = {
-    google: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-    openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  // Provider display name mapping
+  const providerDisplayNames: Record<string, string> = {
+    google: 'Google (Gemini)',
+    openai: 'OpenAI (GPT)',
+    qwen: 'Qwen',
+    deepseek: 'DeepSeek',
   };
-
-  const currentModels = data.config?.provider
-    ? modelOptions[data.config.provider as LLMProvider] || []
-    : [];
 
   return (
     <div className="space-y-4">
@@ -1232,13 +1423,19 @@ function LLMConfig({
             // Reset model when provider changes
             handleConfigChange('model', '');
           }}
+          disabled={isLoadingModels}
         >
           <SelectTrigger id="llm-provider">
-            <SelectValue placeholder="Select provider..." />
+            <SelectValue
+              placeholder={isLoadingModels ? 'Loading providers...' : 'Select provider...'}
+            />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="google">Google (Gemini)</SelectItem>
-            <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+            {availableProviders.map((provider) => (
+              <SelectItem key={provider} value={provider}>
+                {providerDisplayNames[provider] || provider}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -1249,15 +1446,24 @@ function LLMConfig({
         <Select
           value={data.config?.model || ''}
           onValueChange={(value) => handleConfigChange('model', value)}
-          disabled={!data.config?.provider}
+          disabled={!data.config?.provider || isLoadingModels}
         >
           <SelectTrigger id="llm-model">
-            <SelectValue placeholder={data.config?.provider ? "Select model..." : "Select provider first"} />
+            <SelectValue
+              placeholder={
+                isLoadingModels
+                  ? 'Loading models...'
+                  : data.config?.provider
+                    ? 'Select model...'
+                    : 'Select provider first'
+              }
+            />
           </SelectTrigger>
           <SelectContent>
             {currentModels.map((model) => (
-              <SelectItem key={model} value={model}>
-                {model}
+              <SelectItem key={model.modelName} value={model.modelName}>
+                {model.displayName}
+                {model.isDefaultLlm && ' (Default)'}
               </SelectItem>
             ))}
           </SelectContent>

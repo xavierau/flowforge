@@ -3,10 +3,12 @@
 import sys
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Tenant, Role, Permission, RolePermission, User
+from app.models.model_pricing import ModelPricing
 from app.services.auth_service import auth_service
 
 
@@ -81,6 +83,9 @@ def create_permissions(db: Session) -> dict[str, Permission]:
         ("workflows:update", "workflows", "update", "Modify workflow definitions"),
         ("workflows:delete", "workflows", "delete", "Delete workflows"),
         ("workflows:execute", "workflows", "execute", "Execute workflows and manage executions"),
+
+        # Model permissions
+        ("models:read", "models", "read", "View available AI models and pricing"),
     ]
 
     permissions_map = {}
@@ -123,7 +128,8 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "users:invite", "users:read", "users:update", "users:delete",
                 "tenant:manage", "tenant:billing",
                 "platform:super_admin",
-                "workflows:create", "workflows:read", "workflows:update", "workflows:delete", "workflows:execute"
+                "workflows:create", "workflows:read", "workflows:update", "workflows:delete", "workflows:execute",
+                "models:read"
             ]
         },
         "tenant_admin": {
@@ -137,7 +143,8 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "schemas:create", "schemas:read", "schemas:update", "schemas:delete", "schemas:share",
                 "users:invite", "users:read", "users:update", "users:delete",
                 "tenant:manage", "tenant:billing",
-                "workflows:create", "workflows:read", "workflows:update", "workflows:delete", "workflows:execute"
+                "workflows:create", "workflows:read", "workflows:update", "workflows:delete", "workflows:execute",
+                "models:read"
             ]
         },
         "member": {
@@ -149,7 +156,8 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "documents:create", "documents:read", "documents:update", "documents:share", "documents:export",
                 "extraction:create", "jobs:read",
                 "schemas:create", "schemas:read", "schemas:update",
-                "workflows:create", "workflows:read", "workflows:execute"
+                "workflows:create", "workflows:read", "workflows:execute",
+                "models:read"
             ]
         },
         "viewer": {
@@ -161,7 +169,8 @@ def create_roles(db: Session, permissions_map: dict[str, Permission]) -> dict[st
                 "documents:read", "documents:export",
                 "jobs:read",
                 "schemas:read",
-                "workflows:read"
+                "workflows:read",
+                "models:read"
             ]
         }
     }
@@ -239,6 +248,107 @@ def create_platform_admin_user(
     return user
 
 
+def create_model_pricing(db: Session, admin_user_id: uuid.UUID) -> dict[str, ModelPricing]:
+    """Create default model pricing entries with capabilities."""
+    # Model pricing data: (provider, model_name, display_name, input_price, output_price,
+    #                      supports_vision, supports_markdown, supports_json, is_default_*)
+    models_data = [
+        # Google models
+        ("google", "gemini-2.5-flash", "Gemini 2.5 Flash",
+         Decimal("0.15"), Decimal("0.60"),
+         True, True, True, True, True, False),  # default for extraction and markdown
+        ("google", "gemini-2.5-pro", "Gemini 2.5 Pro",
+         Decimal("1.25"), Decimal("5.00"),
+         True, True, True, False, False, False),
+        ("google", "gemini-1.5-flash", "Gemini 1.5 Flash",
+         Decimal("0.075"), Decimal("0.30"),
+         True, False, True, False, False, False),
+        ("google", "gemini-1.5-pro", "Gemini 1.5 Pro",
+         Decimal("1.25"), Decimal("5.00"),
+         True, False, True, False, False, False),
+
+        # OpenAI models
+        ("openai", "gpt-4o", "GPT-4o",
+         Decimal("5.00"), Decimal("15.00"),
+         True, True, True, False, False, True),  # default for LLM
+        ("openai", "gpt-4o-mini", "GPT-4o Mini",
+         Decimal("0.15"), Decimal("0.60"),
+         True, True, True, False, False, False),
+        ("openai", "gpt-4-vision-preview", "GPT-4 Vision",
+         Decimal("10.00"), Decimal("30.00"),
+         True, True, True, False, False, False),
+        ("openai", "gpt-4-turbo", "GPT-4 Turbo",
+         Decimal("10.00"), Decimal("30.00"),
+         True, False, True, False, False, False),
+        ("openai", "gpt-3.5-turbo", "GPT-3.5 Turbo",
+         Decimal("0.50"), Decimal("1.50"),
+         False, False, True, False, False, False),
+
+        # Qwen models
+        ("qwen", "qwen3-vl-8b-instruct", "Qwen3 VL 8B",
+         Decimal("0.10"), Decimal("0.30"),
+         True, True, False, False, False, False),
+
+        # DeepSeek models
+        ("deepseek", "deepseek-chat", "DeepSeek Chat",
+         Decimal("0.27"), Decimal("1.10"),
+         False, False, False, False, False, False),
+    ]
+
+    models_map = {}
+    created_count = 0
+
+    for (provider, model_name, display_name, input_price, output_price,
+         supports_vision, supports_markdown, supports_json,
+         is_default_extraction, is_default_markdown, is_default_llm) in models_data:
+
+        # Check if model already exists
+        existing = db.query(ModelPricing).filter(
+            ModelPricing.provider == provider,
+            ModelPricing.model_name == model_name
+        ).first()
+
+        if existing:
+            # Update capabilities if needed
+            existing.display_name = display_name
+            existing.supports_vision = supports_vision
+            existing.supports_markdown_conversion = supports_markdown
+            existing.supports_json_mode = supports_json
+            existing.is_default_extraction = is_default_extraction
+            existing.is_default_markdown = is_default_markdown
+            existing.is_default_llm = is_default_llm
+            models_map[model_name] = existing
+        else:
+            model = ModelPricing(
+                provider=provider,
+                model_name=model_name,
+                display_name=display_name,
+                input_price_per_million=input_price,
+                output_price_per_million=output_price,
+                supports_vision=supports_vision,
+                supports_text=True,
+                supports_markdown_conversion=supports_markdown,
+                supports_json_mode=supports_json,
+                is_default_extraction=is_default_extraction,
+                is_default_markdown=is_default_markdown,
+                is_default_llm=is_default_llm,
+                is_active=True,
+                created_by=admin_user_id,
+            )
+            db.add(model)
+            models_map[model_name] = model
+            created_count += 1
+
+    db.commit()
+
+    if created_count > 0:
+        print(f"✓ Created {created_count} model pricing entries")
+    else:
+        print("✓ Model pricing entries already exist (updated capabilities)")
+
+    return models_map
+
+
 def seed_database(create_admin: bool = True):
     """Main seeding function."""
     print("\n" + "="*60)
@@ -260,6 +370,9 @@ def seed_database(create_admin: bool = True):
         if create_admin:
             print("\nStep 4: Creating platform admin user...")
             user = create_platform_admin_user(db, tenant, roles_map)
+
+            print("\nStep 5: Creating model pricing entries...")
+            create_model_pricing(db, user.id)
 
         print("\n" + "="*60)
         print("✓ Database seeding completed successfully!")

@@ -35,6 +35,7 @@ class ExtractionJob(Base):
 
     # Markdown pipeline fields
     markdown_converter = Column(String(50), nullable=True)  # Converter used (gemini_vision, gpt4v)
+    markdown_converter_model = Column(String(100), nullable=True)  # Model used for markdown conversion step
     markdown_format = Column(String(50), nullable=True)  # Format style (standard, table_heavy, layout_preserved)
 
     status = Column(

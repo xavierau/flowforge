@@ -193,6 +193,29 @@ class WorkflowDefinition(BaseModel):
 
 
 # ============================================================================
+# Model Default Configuration Schemas
+# ============================================================================
+
+
+class ModelDefaultConfig(BaseModel):
+    """Model configuration for a specific pipeline stage."""
+
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    converter: Optional[str] = None  # For markdown_converter stage
+
+
+class WorkflowModelDefaults(BaseModel):
+    """Default model settings for workflow pipeline nodes."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    extraction: Optional[ModelDefaultConfig] = None
+    markdown_converter: Optional[ModelDefaultConfig] = Field(None, alias="markdownConverter")
+    llm: Optional[ModelDefaultConfig] = None
+
+
+# ============================================================================
 # Workflow CRUD Schemas
 # ============================================================================
 
@@ -200,9 +223,12 @@ class WorkflowDefinition(BaseModel):
 class WorkflowCreateRequest(BaseModel):
     """Request to create a new workflow."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     definition: WorkflowDefinition
+    model_defaults: Optional[WorkflowModelDefaults] = Field(None, alias="modelDefaults")
 
 
 class WorkflowUpdateRequest(BaseModel):
@@ -213,6 +239,7 @@ class WorkflowUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     definition: Optional[WorkflowDefinition] = None
+    model_defaults: Optional[WorkflowModelDefaults] = Field(None, alias="modelDefaults")
     is_active: Optional[bool] = Field(None, alias="isActive")
     is_archived: Optional[bool] = Field(None, alias="isArchived")
 
@@ -226,6 +253,7 @@ class WorkflowVersionResponse(BaseModel):
     workflow_id: UUID = Field(alias="workflowId")
     version_number: int = Field(alias="versionNumber")
     definition: WorkflowDefinition
+    model_defaults: Optional[WorkflowModelDefaults] = Field(None, alias="modelDefaults")
     conductor_workflow_name: Optional[str] = Field(None, alias="conductorWorkflowName")
     created_at: datetime = Field(alias="createdAt")
 

@@ -23,17 +23,20 @@ class TestWorkflowTranslatorNodeTranslation:
 
     def test_translate_extraction_node(self, translator):
         """
-        GIVEN an Extraction node definition
+        GIVEN an Extraction node definition with config
         WHEN translating to Conductor
         THEN returns SIMPLE task with document_extraction worker
         """
         node_id = "node_1"
         node_data = {
+            "config": {
+                "provider": "google",
+                "model": "gemini-2.5-flash",
+                "processingMode": "batch",
+                "schema": {"type": "object", "properties": {}}
+            },
             "inputs": {
                 "documentId": "{{$('Trigger').output.documentId}}",
-                "schema": {"type": "object", "properties": {}},
-                "provider": "google",
-                "model": "gemini-2.5-flash"
             }
         }
 
@@ -45,18 +48,103 @@ class TestWorkflowTranslatorNodeTranslation:
         assert "document_id" in result["inputParameters"]
         assert "schema" in result["inputParameters"]
         assert result["inputParameters"]["provider"] == "google"
+        assert result["inputParameters"]["model"] == "gemini-2.5-flash"
+        assert result["inputParameters"]["processing_mode"] == "batch"
 
     def test_translate_extraction_node_defaults(self, translator):
         """
         GIVEN an Extraction node with minimal data
         WHEN translating
-        THEN uses default values
+        THEN uses empty strings for provider/model (worker applies system defaults)
         """
         result = translator._translate_extraction_node("node_2", {})
 
         assert result["name"] == "document_extraction"
-        assert result["inputParameters"]["provider"] == "google"
+        # Empty strings allow worker to apply system defaults
+        assert result["inputParameters"]["provider"] == ""
+        assert result["inputParameters"]["model"] == ""
+        assert result["inputParameters"]["processing_mode"] == "batch"
         assert result["inputParameters"]["document_id"] == "${workflow.input.documentId}"
+
+    def test_translate_extraction_node_with_workflow_defaults(self, translator):
+        """
+        GIVEN an Extraction node with no config
+        AND workflow-level model defaults are set
+        WHEN translating
+        THEN uses workflow defaults
+        """
+        # Set workflow-level defaults
+        translator.workflow_definition = {
+            "modelDefaults": {
+                "extraction": {
+                    "provider": "openai",
+                    "model": "gpt-4o"
+                },
+                "markdownConverter": {
+                    "converter": "marker",
+                    "model": "marker-v2"
+                }
+            }
+        }
+
+        result = translator._translate_extraction_node("node_3", {})
+
+        assert result["inputParameters"]["provider"] == "openai"
+        assert result["inputParameters"]["model"] == "gpt-4o"
+        assert result["inputParameters"]["markdown_converter"] == "marker"
+        assert result["inputParameters"]["markdown_converter_model"] == "marker-v2"
+
+    def test_translate_extraction_node_config_overrides_workflow_defaults(self, translator):
+        """
+        GIVEN an Extraction node with config
+        AND workflow-level model defaults are set
+        WHEN translating
+        THEN node config takes priority over workflow defaults
+        """
+        # Set workflow-level defaults
+        translator.workflow_definition = {
+            "modelDefaults": {
+                "extraction": {
+                    "provider": "openai",
+                    "model": "gpt-4o"
+                }
+            }
+        }
+
+        node_data = {
+            "config": {
+                "provider": "google",
+                "model": "gemini-2.5-flash"
+            }
+        }
+
+        result = translator._translate_extraction_node("node_4", node_data)
+
+        # Node config should override workflow defaults
+        assert result["inputParameters"]["provider"] == "google"
+        assert result["inputParameters"]["model"] == "gemini-2.5-flash"
+
+    def test_translate_extraction_node_with_markdown_settings(self, translator):
+        """
+        GIVEN an Extraction node with markdown converter settings
+        WHEN translating
+        THEN includes markdown converter parameters
+        """
+        node_data = {
+            "config": {
+                "provider": "google",
+                "model": "gemini-2.5-flash",
+                "processingMode": "streaming",
+                "markdownConverter": "docling",
+                "markdownConverterModel": "docling-v1"
+            }
+        }
+
+        result = translator._translate_extraction_node("node_5", node_data)
+
+        assert result["inputParameters"]["processing_mode"] == "streaming"
+        assert result["inputParameters"]["markdown_converter"] == "docling"
+        assert result["inputParameters"]["markdown_converter_model"] == "docling-v1"
 
     def test_translate_python_runner_node(self, translator):
         """

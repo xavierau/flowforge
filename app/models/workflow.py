@@ -100,6 +100,15 @@ class WorkflowVersion(Base):
     # }
     definition = Column(JSONB, nullable=False)
 
+    # Default model settings for pipeline nodes
+    # Structure:
+    # {
+    #   "extraction": {"provider": "google", "model": "gemini-2.5-flash"},
+    #   "markdown_converter": {"converter": "gemini_vision", "model": "gemini-2.5-flash"},
+    #   "llm": {"provider": "google", "model": "gemini-2.5-flash"}
+    # }
+    model_defaults = Column(JSONB, nullable=True)
+
     # Netflix Conductor workflow name (generated from workflow name + version)
     conductor_workflow_name = Column(String(255), nullable=True, index=True)
 

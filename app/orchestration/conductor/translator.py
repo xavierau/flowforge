@@ -28,6 +28,10 @@ class WorkflowTranslator:
     - HumanReview → SIMPLE task (HUMAN_REVIEW worker with IN_PROGRESS pattern)
     """
 
+    def __init__(self):
+        """Initialize the translator with empty workflow definition."""
+        self.workflow_definition: Dict[str, Any] = {}
+
     # Node type to Conductor task type mapping
     NODE_TYPE_MAPPING = {
         "HttpTrigger": None,  # Not a task, provides workflow input
@@ -77,6 +81,9 @@ class WorkflowTranslator:
         Returns:
             Conductor workflow definition (JSON)
         """
+        # Store workflow definition for access by translation methods
+        self.workflow_definition = workflow_definition
+
         nodes = workflow_definition.get("nodes", [])
         edges = workflow_definition.get("edges", [])
 
@@ -234,18 +241,47 @@ class WorkflowTranslator:
         node_id: str,
         node_data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Translate Extraction node to SIMPLE task."""
+        """
+        Translate Extraction node to SIMPLE task.
+
+        Model configuration priority:
+        1. Node config (highest priority)
+        2. Workflow-level model defaults
+        3. Empty string (worker applies system defaults)
+        """
+        config = node_data.get("config", {})
         inputs = node_data.get("inputs", {})
+
+        # Get workflow-level model defaults (if available)
+        workflow_defaults = self.workflow_definition.get("modelDefaults", {})
+        extraction_defaults = workflow_defaults.get("extraction", {})
+        markdown_defaults = workflow_defaults.get("markdownConverter", {})
+
+        # Model selection priority: Node config -> Workflow defaults -> empty (worker uses system defaults)
+        provider = config.get("provider") or extraction_defaults.get("provider") or ""
+        model = config.get("model") or extraction_defaults.get("model") or ""
+
+        # Processing mode and markdown settings
+        processing_mode = config.get("processingMode", "batch")
+        markdown_converter = config.get("markdownConverter") or markdown_defaults.get("converter") or ""
+        markdown_converter_model = config.get("markdownConverterModel") or markdown_defaults.get("model") or ""
+
+        # Build input parameters - combine config and inputs, preferring config
+        document_id = inputs.get("documentId", "${workflow.input.documentId}")
+        schema = config.get("schema") or inputs.get("schema", {})
 
         return {
             "name": "document_extraction",
             "taskReferenceName": f"extraction_{node_id}",
             "type": "SIMPLE",
             "inputParameters": {
-                "document_id": inputs.get("documentId", "${workflow.input.documentId}"),
-                "schema": inputs.get("schema", {}),
-                "provider": inputs.get("provider", "google"),
-                "model": inputs.get("model"),
+                "document_id": document_id,
+                "schema": schema,
+                "provider": provider,
+                "model": model,
+                "processing_mode": processing_mode,
+                "markdown_converter": markdown_converter,
+                "markdown_converter_model": markdown_converter_model,
             }
         }
 
@@ -391,8 +427,13 @@ class WorkflowTranslator:
         """
         Translate LLM node to SIMPLE task using llm_completion worker.
 
+        Model configuration priority:
+        1. Node config (highest priority)
+        2. Workflow-level model defaults
+        3. Empty string (worker applies system defaults)
+
         LLM node config:
-        - provider: "google" or "openai" (default: "google")
+        - provider: "google" or "openai"
         - model: Model name (e.g., "gemini-2.5-flash", "gpt-4o")
         - prompt: The prompt text (expressions already resolved)
         - systemPrompt: Optional system prompt
@@ -410,9 +451,14 @@ class WorkflowTranslator:
         config = node_data.get("config", {})
         inputs = node_data.get("inputs", {})
 
-        # Get configuration from either config or inputs
-        provider = config.get("provider") or inputs.get("provider", "google")
-        model = config.get("model") or inputs.get("model", "gemini-2.5-flash")
+        # Get workflow-level model defaults (if available)
+        workflow_defaults = self.workflow_definition.get("modelDefaults", {})
+        llm_defaults = workflow_defaults.get("llm", {})
+
+        # Model selection priority: Node config -> Workflow defaults -> empty (worker uses system defaults)
+        provider = config.get("provider") or inputs.get("provider") or llm_defaults.get("provider") or ""
+        model = config.get("model") or inputs.get("model") or llm_defaults.get("model") or ""
+
         prompt = config.get("prompt") or inputs.get("prompt", "")
         system_prompt = config.get("systemPrompt") or inputs.get("systemPrompt", "")
         temperature = config.get("temperature") or inputs.get("temperature", 0.7)

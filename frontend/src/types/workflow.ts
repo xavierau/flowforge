@@ -66,6 +66,15 @@ export interface HttpTriggerNodeData extends BaseNodeData {
 }
 
 /**
+ * Extraction node input data structure
+ */
+export interface ExtractionNodeInputs {
+  fileUrl?: string;
+  base64?: string;
+  prompt?: string;
+}
+
+/**
  * Extraction node configuration
  */
 export interface ExtractionNodeData extends BaseNodeData {
@@ -74,7 +83,16 @@ export interface ExtractionNodeData extends BaseNodeData {
     fileSource: 'previous_node' | 'url' | 'base64';
     prompt: string;
     schemaId: string; // Reference to schema in system
+    // Model configuration (optional - uses workflow defaults if not set)
+    provider?: string;
+    model?: string;
+    // Processing mode
+    processingMode?: 'batch' | 'markdown';
+    // Markdown conversion settings (when processingMode === 'markdown')
+    markdownConverter?: string;
+    markdownConverterModel?: string;
   };
+  inputs?: ExtractionNodeInputs;
 }
 
 /**
@@ -395,12 +413,63 @@ export function isHumanReviewNode(data: WorkflowNodeData): data is HumanReviewNo
 // ============================================================================
 
 /**
+ * Workflow-level default model settings.
+ * Individual nodes can override these.
+ */
+export interface WorkflowModelDefaults {
+  extraction?: {
+    provider: string;
+    model: string;
+  };
+  markdownConverter?: {
+    converter: string;
+    model: string;
+  };
+  llm?: {
+    provider: string;
+    model: string;
+  };
+}
+
+/**
+ * Model returned from /api/v1/models/available endpoint.
+ */
+export interface AvailableModel {
+  id: string;
+  provider: string;
+  modelName: string;
+  displayName: string;
+  supportsVision: boolean;
+  supportsMarkdownConversion: boolean;
+  supportsJsonMode: boolean;
+  inputPricePerMillion: number;
+  outputPricePerMillion: number;
+  isDefaultExtraction: boolean;
+  isDefaultMarkdown: boolean;
+  isDefaultLlm: boolean;
+}
+
+/**
+ * Response from /api/v1/models/available endpoint.
+ */
+export interface AvailableModelsResponse {
+  models: AvailableModel[];
+  defaults: {
+    extraction: AvailableModel | null;
+    markdown: AvailableModel | null;
+    llm: AvailableModel | null;
+  };
+  providers: string[];
+}
+
+/**
  * Workflow definition structure (nodes and edges)
  * Used in WorkflowVersionResponse
  */
 export interface WorkflowDefinition {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
+  modelDefaults?: WorkflowModelDefaults;
 }
 
 /**
@@ -518,3 +587,14 @@ export interface ExecuteWorkflowRequest {
   inputData?: Record<string, unknown>;
   versionNumber?: number;
 }
+
+// ============================================================================
+// Model Types (for extraction node configuration)
+// NOTE: AvailableModel and AvailableModelsResponse are defined above (lines 437-463)
+// ModelDefaults uses the same structure as defaults in AvailableModelsResponse
+// ============================================================================
+
+/**
+ * Default models by use case (alias for AvailableModelsResponse.defaults)
+ */
+export type ModelDefaults = AvailableModelsResponse['defaults'];
