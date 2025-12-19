@@ -26,14 +26,14 @@ logger = logging.getLogger(__name__)
 class QwenMarkdownConverter(IImageToMarkdownConverter):
     """Qwen vision-based markdown converter.
 
-    Uses Qwen3-VL-8B-Instruct via Dashscope OpenAI-compatible API.
+    Uses Qwen3-VL-32B-Instruct via Dashscope OpenAI-compatible API.
     Supports special QwenVL formats with positional information and standard markdown.
     """
 
     def __init__(
         self,
         api_key: str,
-        model: str = "qwen3-vl-8b-instruct",
+        model: str = "qwen3-vl-32b-instruct",
         min_pixels: int = 512 * 32 * 32,
         max_pixels: int = 2048 * 32 * 32,
     ):
@@ -41,7 +41,7 @@ class QwenMarkdownConverter(IImageToMarkdownConverter):
 
         Args:
             api_key: Dashscope API key
-            model: Model name (default: qwen3-vl-8b-instruct)
+            model: Model name (default: qwen3-vl-32b-instruct)
             min_pixels: Minimum pixel threshold for image processing
             max_pixels: Maximum pixel threshold for image processing
         """
