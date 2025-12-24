@@ -339,13 +339,13 @@ class ConverterFactory:
         Returns:
             Dictionary with lists of available converter names:
             {
-                "image_converters": ["gemini_vision", "gpt4v"],
+                "markdown_converters": ["gemini_vision", "gpt4v"],
                 "document_converters": ["llamaparse"],
                 "json_extractors": ["gemini", "openai"]
             }
         """
         return {
-            "image_converters": sorted(self._available_markdown_converters),
+            "markdown_converters": sorted(self._available_markdown_converters),
             "document_converters": sorted(self._available_document_converters),
             "json_extractors": list(self._json_extractors.keys()),
         }
