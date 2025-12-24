@@ -9,13 +9,104 @@ import logging
 
 from app.tasks.celery_app import celery_app
 from app.tasks.callback import send_extraction_callback
+from app.config import settings
 from app.database import SessionLocal
 from app.models import ExtractionJob, ExtractionResult, DocumentPage, Document
+from app.models.enums import LlamaExtractMode, LlamaExtractTarget
 from app.services.storage import get_storage_service
 from app.services.vllm_service import get_vllm_service
 from app.services.hitl_service import HITLService
 
 logger = logging.getLogger(__name__)
+
+
+def _is_llamaextract_provider(job: ExtractionJob) -> bool:
+    """Check if the job uses LlamaExtract provider."""
+    return job.model_provider == "llamaextract"
+
+
+def _create_llamaextract_provider(job: ExtractionJob):
+    """Create LlamaExtract provider with job-specific configuration.
+
+    Args:
+        job: ExtractionJob with LlamaExtract configuration
+
+    Returns:
+        LlamaExtractVLLMProvider instance
+
+    Raises:
+        ValueError: If LlamaExtract API key is not configured
+    """
+    from app.services.llamaextract_provider import LlamaExtractVLLMProvider
+
+    if not settings.llamaextract_api_key:
+        raise ValueError("LlamaExtract API key not configured")
+
+    mode = LlamaExtractMode(job.llamaextract_mode or "standard")
+    target = LlamaExtractTarget(job.llamaextract_target or "per_doc")
+
+    return LlamaExtractVLLMProvider(
+        api_key=settings.llamaextract_api_key,
+        mode=mode,
+        target=target,
+    )
+
+
+async def _extract_with_llamaextract(
+    job: ExtractionJob,
+    document: Document,
+    storage_svc,
+) -> dict:
+    """Extract data using LlamaExtract provider.
+
+    For PDF documents, uses the original file directly.
+    For images, converts to base64 and uses standard extraction.
+
+    Args:
+        job: ExtractionJob with configuration
+        document: Document to extract from
+        storage_svc: Storage service for file access
+
+    Returns:
+        Extraction result dictionary
+    """
+    provider = _create_llamaextract_provider(job)
+
+    if document.mime_type == "application/pdf":
+        logger.info(
+            f"Using LlamaExtract PDF extraction for document {document.id}"
+        )
+        pdf_bytes = storage_svc.download_file_sync(document.file_path)
+        extracted_data, input_tokens, output_tokens, processing_time_ms = (
+            await provider.extract_from_pdf(
+                pdf_bytes=pdf_bytes,
+                schema=job.extraction_schema,
+                prompt=job.custom_prompt or "",
+            )
+        )
+    else:
+        logger.info(
+            f"Using LlamaExtract image extraction for document {document.id}"
+        )
+        image_bytes = storage_svc.download_file_sync(document.file_path)
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        extracted_data, input_tokens, output_tokens, processing_time_ms = (
+            await provider.extract(
+                image_base64=image_base64,
+                schema=job.extraction_schema,
+                prompt=job.custom_prompt or "",
+            )
+        )
+
+    return {
+        "extracted_data": extracted_data,
+        "confidence_score": 1.0,
+        "model_used": provider.model_name,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "tokens_used": input_tokens + output_tokens,
+        "processing_time_ms": processing_time_ms,
+    }
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=False)
@@ -359,8 +450,38 @@ def process_extraction_job(self: Task, extraction_job_id: str) -> dict:
         # Get document
         document = job.document
 
-        # Get pages to process
-        if document.mime_type == "application/pdf":
+        # Check if using LlamaExtract provider - handles PDF/images differently
+        if _is_llamaextract_provider(job):
+            logger.info(
+                f"Processing job {extraction_job_id} with LlamaExtract provider "
+                f"(mode={job.llamaextract_mode}, target={job.llamaextract_target})"
+            )
+
+            storage_svc = get_storage_service()
+
+            # LlamaExtract handles the entire document directly
+            result = asyncio.run(
+                _extract_with_llamaextract(job, document, storage_svc)
+            )
+
+            # Store result
+            extraction_result = ExtractionResult(
+                extraction_job_id=job.id,
+                document_page_id=None,  # LlamaExtract processes entire document
+                extracted_data=result["extracted_data"],
+                confidence_score=result["confidence_score"],
+                model_used=result["model_used"],
+                input_tokens=result["input_tokens"],
+                output_tokens=result["output_tokens"],
+                tokens_used=result["tokens_used"],
+                processing_time_ms=result["processing_time_ms"],
+            )
+
+            db.add(extraction_result)
+            results = [result]
+
+        # Standard VLLM extraction flow
+        elif document.mime_type == "application/pdf":
             # Multi-page PDF
             pages = (
                 db.query(DocumentPage)

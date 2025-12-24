@@ -273,3 +273,75 @@ class PricingStatus(str, Enum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
     DEACTIVATED = "deactivated"
+
+
+class PricingType(str, Enum):
+    """
+    Pricing type for model/converter pricing.
+
+    Controls how credits are calculated:
+    - TOKEN: Charged based on input/output tokens (default for LLMs)
+    - PAGE: Charged per page processed (for document converters like LlamaParse)
+    - DOCUMENT: Charged per document (flat rate per document)
+    """
+    TOKEN = "token"
+    PAGE = "page"
+    DOCUMENT = "document"
+
+
+class ConverterType(str, Enum):
+    """
+    Converter types for document processing.
+
+    - IMAGE_TO_MARKDOWN: Converts images to markdown (vision models)
+    - DOCUMENT_TO_MARKDOWN: Converts entire documents to markdown (LlamaParse, etc.)
+    """
+    IMAGE_TO_MARKDOWN = "image_to_markdown"
+    DOCUMENT_TO_MARKDOWN = "document_to_markdown"
+
+
+class LlamaExtractMode(str, Enum):
+    """
+    LlamaExtract extraction quality modes.
+
+    Our simplified modes map to LlamaExtract internal modes:
+    - STANDARD: Maps to BALANCED (10 LlamaExtract credits/page)
+    - PREMIUM: Maps to PREMIUM (60 LlamaExtract credits/page)
+
+    Credit pricing (our internal credits):
+    - STANDARD: 1 credit per page
+    - PREMIUM: 2 credits per page
+    """
+    STANDARD = "standard"
+    PREMIUM = "premium"
+
+
+class LlamaExtractTarget(str, Enum):
+    """
+    LlamaExtract extraction target scope.
+
+    - PER_DOC: Schema applied to entire document, returns single JSON object
+    - PER_PAGE: Schema applied to each page, returns array of JSON objects
+    """
+    PER_DOC = "per_doc"
+    PER_PAGE = "per_page"
+
+
+class Provider(str, Enum):
+    """
+    Valid model/service providers.
+
+    Centralized enum for all provider names used across the system.
+    This ensures type safety and consistent provider validation.
+    """
+    GOOGLE = "google"
+    OPENAI = "openai"
+    DEEPSEEK = "deepseek"
+    LLAMAINDEX = "llamaindex"  # For LlamaParse document conversion
+    LLAMAEXTRACT = "llamaextract"  # For LlamaExtract structured extraction
+    QWEN = "qwen"
+
+    @classmethod
+    def values(cls) -> set[str]:
+        """Get all valid provider values as a set."""
+        return {p.value for p in cls}

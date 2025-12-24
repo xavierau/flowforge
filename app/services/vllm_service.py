@@ -474,6 +474,16 @@ class VLLMService:
                 model="gemini-2.5-flash",
             )
 
+        # Initialize LlamaExtract if configured
+        if settings.llamaextract_api_key:
+            from app.models.enums import LlamaExtractMode
+            from app.services.llamaextract_provider import LlamaExtractVLLMProvider
+
+            self.providers["llamaextract"] = LlamaExtractVLLMProvider(
+                api_key=settings.llamaextract_api_key,
+                mode=LlamaExtractMode.STANDARD,
+            )
+
     def get_provider(self, provider_name: str) -> VLLMProvider:
         """
         Get a VLLM provider by name.

@@ -2,14 +2,19 @@
 
 Provides centralized access to converter instances with dependency injection
 based on available API keys from application settings.
+
+Supports two types of converters:
+1. Image-to-Markdown (vision models): Process individual page images
+2. Document-to-Markdown (LlamaParse, etc.): Process entire documents directly
 """
 
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 import logging
 
 from app.config import settings
 from app.services.converters.base import (
     IImageToMarkdownConverter,
+    IDocumentToMarkdownConverter,
     IMarkdownToJsonExtractor,
 )
 from app.services.converters.gemini_markdown_converter import GeminiMarkdownConverter
@@ -22,15 +27,24 @@ logger = logging.getLogger(__name__)
 # Global singleton instance
 _factory_instance: Optional["ConverterFactory"] = None
 
-# Valid converter names
+# Valid image-to-markdown converter names
 VALID_MARKDOWN_CONVERTERS = {"gemini_vision", "gpt4v", "qwen_vision"}
 
-# Fallback default models when DB lookup fails
-FALLBACK_DEFAULT_MODELS = {
-    "gemini_vision": "gemini-2.5-flash",
-    "gpt4v": "gpt-4-vision-preview",
-    "qwen_vision": "qwen3-vl-8b-instruct",
-}
+# Valid document-to-markdown converter names
+VALID_DOCUMENT_CONVERTERS = {"llamaparse"}
+
+# Fallback default models when DB lookup fails (loaded from settings)
+def _get_fallback_default_models() -> Dict[str, str]:
+    """Get fallback default models from settings.
+
+    Returns a mapping of converter names to default model names.
+    This allows default models to be configured via environment variables.
+    """
+    return {
+        "gemini_vision": settings.default_gemini_vision_model,
+        "gpt4v": settings.default_gpt4v_model,
+        "qwen_vision": settings.default_qwen_vision_model,
+    }
 
 # Map converter names to providers
 CONVERTER_TO_PROVIDER = {
@@ -39,17 +53,27 @@ CONVERTER_TO_PROVIDER = {
     "qwen_vision": "qwen",
 }
 
+# Map document converter names to providers
+DOCUMENT_CONVERTER_TO_PROVIDER = {
+    "llamaparse": "llamaindex",
+}
+
 
 class ConverterFactory:
     """Factory for creating and managing converter instances.
 
     Implements singleton pattern to ensure only one factory instance exists.
     Tracks available providers based on API keys and creates converters on-demand.
+
+    Supports two types of markdown converters:
+    1. Image-to-Markdown: Vision models that process page images
+    2. Document-to-Markdown: Services like LlamaParse that process documents directly
     """
 
     def __init__(self):
         """Initialize factory and register available providers."""
         self._available_markdown_converters: Set[str] = set()
+        self._available_document_converters: Set[str] = set()
         self._json_extractors: Dict[str, IMarkdownToJsonExtractor] = {}
         self._register_converters()
 
@@ -60,16 +84,19 @@ class ConverterFactory:
         but does NOT pre-create converter instances. Converters are created
         on-demand in get_markdown_converter() with the specified model.
 
-        Markdown Converters (on-demand):
+        Image-to-Markdown Converters (on-demand):
         - gemini_vision: Requires GOOGLE_API_KEY
         - gpt4v: Requires OPENAI_API_KEY
         - qwen_vision: Requires DASHSCOPE_API_KEY
 
+        Document-to-Markdown Converters (on-demand):
+        - llamaparse: Requires LLAMAPARSE_API_KEY
+
         JSON Extractors (pre-created):
-        - gemini: Requires GOOGLE_API_KEY (uses Gemini 2.0 Flash text model)
-        - openai: Requires OPENAI_API_KEY (uses GPT-4o-mini text model)
+        - gemini: Requires GOOGLE_API_KEY (model configured via DEFAULT_GEMINI_JSON_MODEL env var)
+        - openai: Requires OPENAI_API_KEY (model configured via DEFAULT_OPENAI_JSON_MODEL env var)
         """
-        # Track available markdown converters (vision models) - created on-demand
+        # Track available image-to-markdown converters (vision models) - created on-demand
         if settings.google_api_key:
             self._available_markdown_converters.add("gemini_vision")
             logger.info("Gemini vision markdown converter available")
@@ -82,15 +109,20 @@ class ConverterFactory:
             self._available_markdown_converters.add("qwen_vision")
             logger.info("Qwen vision markdown converter available")
 
-        # Register JSON extractors (text models) - pre-created with default models
+        # Track available document-to-markdown converters - created on-demand
+        if settings.llamaparse_api_key:
+            self._available_document_converters.add("llamaparse")
+            logger.info("LlamaParse document converter available")
+
+        # Register JSON extractors (text models) - pre-created with configured default models
         if settings.google_api_key:
             try:
                 self._json_extractors["gemini"] = MarkdownJsonExtractor(
                     provider="google",
-                    model="gemini-2.5-flash",
+                    model=settings.default_gemini_json_model,
                     api_key=settings.google_api_key,
                 )
-                logger.info("Registered Gemini JSON extractor")
+                logger.info(f"Registered Gemini JSON extractor (model: {settings.default_gemini_json_model})")
             except Exception as e:
                 logger.error(f"Failed to register Gemini JSON extractor: {e}")
 
@@ -98,17 +130,18 @@ class ConverterFactory:
             try:
                 self._json_extractors["openai"] = MarkdownJsonExtractor(
                     provider="openai",
-                    model="gpt-4o-mini",
+                    model=settings.default_openai_json_model,
                     api_key=settings.openai_api_key,
                 )
-                logger.info("Registered OpenAI JSON extractor")
+                logger.info(f"Registered OpenAI JSON extractor (model: {settings.default_openai_json_model})")
             except Exception as e:
                 logger.error(f"Failed to register OpenAI JSON extractor: {e}")
 
         # Log registration summary
         logger.info(
             f"Converter factory initialized: "
-            f"{len(self._available_markdown_converters)} markdown converters available, "
+            f"{len(self._available_markdown_converters)} image converters, "
+            f"{len(self._available_document_converters)} document converters, "
             f"{len(self._json_extractors)} JSON extractors"
         )
 
@@ -116,17 +149,18 @@ class ConverterFactory:
         """Get default model for a converter from database or fallback.
 
         Queries the ModelPricing table to find the default markdown model
-        for the given converter's provider. Falls back to hardcoded defaults
-        if database lookup fails.
+        for the given converter's provider. Falls back to configured defaults
+        from settings if database lookup fails.
 
         Args:
             converter_name: Name of the converter (gemini_vision, gpt4v, qwen_vision)
 
         Returns:
-            Model name string (e.g., "gemini-2.5-flash")
+            Model name string (e.g., "gemini-3-flash")
         """
         provider = CONVERTER_TO_PROVIDER.get(converter_name)
-        fallback = FALLBACK_DEFAULT_MODELS.get(converter_name, "gemini-2.5-flash")
+        fallback_models = _get_fallback_default_models()
+        fallback = fallback_models.get(converter_name, settings.default_gemini_vision_model)
 
         if not provider:
             logger.warning(
@@ -237,18 +271,82 @@ class ConverterFactory:
             )
         return self._json_extractors[name]
 
+    def get_document_converter(
+        self, name: str, options: Optional[Dict[str, Any]] = None
+    ) -> IDocumentToMarkdownConverter:
+        """Get a document-to-markdown converter by name.
+
+        Document converters process entire documents (PDF, DOCX, etc.) directly
+        rather than individual images. They typically charge per page or per document.
+
+        Args:
+            name: Converter name (currently only "llamaparse")
+            options: Optional converter-specific options:
+                - For llamaparse: num_workers, language, verbose, result_type
+
+        Returns:
+            IDocumentToMarkdownConverter instance
+
+        Raises:
+            ValueError: If converter not available or not configured
+        """
+        # Validate converter name
+        if name not in VALID_DOCUMENT_CONVERTERS:
+            raise ValueError(
+                f"Unknown document converter '{name}'. "
+                f"Valid options: {sorted(VALID_DOCUMENT_CONVERTERS)}"
+            )
+
+        # Check if API key is available
+        if name not in self._available_document_converters:
+            available = sorted(self._available_document_converters)
+            raise ValueError(
+                f"Document converter '{name}' not available. "
+                f"Available: {available}. "
+                f"Check API keys in settings."
+            )
+
+        options = options or {}
+
+        # Create and return converter
+        if name == "llamaparse":
+            from app.services.converters.llamaparse_converter import LlamaParseConverter
+            return LlamaParseConverter(
+                api_key=settings.llamaparse_api_key,
+                num_workers=options.get("num_workers", 4),
+                language=options.get("language", "en"),
+                verbose=options.get("verbose", False),
+                result_type=options.get("result_type", "markdown"),
+            )
+
+        # Should not reach here, but handle gracefully
+        raise ValueError(f"Document converter '{name}' is not implemented")
+
+    def is_document_converter_available(self, name: str) -> bool:
+        """Check if a document converter is available.
+
+        Args:
+            name: Converter name to check
+
+        Returns:
+            True if converter is available, False otherwise
+        """
+        return name in self._available_document_converters
+
     def list_available_converters(self) -> Dict[str, List[str]]:
         """List all available converters and extractors.
 
         Returns:
             Dictionary with lists of available converter names:
             {
-                "markdown_converters": ["gemini_vision", "gpt4v"],
+                "image_converters": ["gemini_vision", "gpt4v"],
+                "document_converters": ["llamaparse"],
                 "json_extractors": ["gemini", "openai"]
             }
         """
         return {
-            "markdown_converters": sorted(self._available_markdown_converters),
+            "image_converters": sorted(self._available_markdown_converters),
+            "document_converters": sorted(self._available_document_converters),
             "json_extractors": list(self._json_extractors.keys()),
         }
 

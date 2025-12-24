@@ -32,10 +32,23 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     openai_api_key: str = ""
     dashscope_api_key: str = ""
+    llamaextract_api_key: str = ""  # LlamaCloud API key for LlamaExtract extraction
+
+    # Document Converters
+    llamaparse_api_key: str = ""  # LlamaCloud API key for LlamaParse (llx-...)
 
     # Default VLLM Configuration
     default_model_provider: str = "google"
     default_model_name: str = "gemini-2.5-flash"
+
+    # Default Models per Provider (for markdown conversion - vision models)
+    default_gemini_vision_model: str = "gemini-3-flash-preview"
+    default_gpt4v_model: str = "gpt-4-vision-preview"
+    default_qwen_vision_model: str = "qwen3-vl-32b-instruct"
+
+    # Default Models for JSON Extraction (text models)
+    default_gemini_json_model: str = "gemini-3-flash-preview"
+    default_openai_json_model: str = "gpt-4o-mini"
 
     # API
     api_host: str = "0.0.0.0"

@@ -51,6 +51,14 @@ class ParseRequest(BaseModel):
         default="table_heavy",
         description="Markdown format style (only for markdown mode): 'standard', 'table_heavy', or 'layout_preserved'"
     )
+    llamaextract_mode: Optional[str] = Field(
+        default="standard",
+        description="LlamaExtract extraction mode: 'standard' (1 credit/page) or 'premium' (2 credits/page)"
+    )
+    llamaextract_target: Optional[str] = Field(
+        default="per_doc",
+        description="LlamaExtract extraction target: 'per_doc' (single JSON) or 'per_page' (array of JSON per page)"
+    )
     callback_url: Optional[str] = Field(
         None, description="Optional webhook URL to POST results to when job completes"
     )
@@ -142,6 +150,14 @@ class ExtractRequest(BaseModel):
     markdown_format: Optional[str] = Field(
         default="table_heavy",
         description="Markdown format style (only for markdown mode): 'standard', 'table_heavy', or 'layout_preserved'"
+    )
+    llamaextract_mode: Optional[str] = Field(
+        default="standard",
+        description="LlamaExtract extraction mode: 'standard' (1 credit/page) or 'premium' (2 credits/page)"
+    )
+    llamaextract_target: Optional[str] = Field(
+        default="per_doc",
+        description="LlamaExtract extraction target: 'per_doc' (single JSON) or 'per_page' (array of JSON per page)"
     )
     callback_url: Optional[str] = Field(
         None, description="Optional webhook URL to POST results to when job completes"

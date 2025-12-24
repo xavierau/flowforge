@@ -191,7 +191,7 @@ async def parse_document(
         raise HTTPException(status_code=400, detail="Invalid JSON schema")
 
     # Validate provider
-    valid_providers = ["google", "openai"]
+    valid_providers = ["google", "openai", "llamaextract"]
     if request.model_provider_config.provider not in valid_providers:
         raise HTTPException(
             status_code=400,
@@ -235,6 +235,22 @@ async def parse_document(
                 detail=f"Invalid markdown_format. Must be one of: {', '.join(valid_formats)}"
             )
 
+    # Validate LlamaExtract configuration
+    if request.model_provider_config.provider == "llamaextract":
+        valid_llamaextract_modes = ["standard", "premium"]
+        if request.llamaextract_mode and request.llamaextract_mode not in valid_llamaextract_modes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid llamaextract_mode. Must be one of: {', '.join(valid_llamaextract_modes)}"
+            )
+
+        valid_llamaextract_targets = ["per_doc", "per_page"]
+        if request.llamaextract_target and request.llamaextract_target not in valid_llamaextract_targets:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid llamaextract_target. Must be one of: {', '.join(valid_llamaextract_targets)}"
+            )
+
     # --- SYNCHRONOUS CREDIT DEDUCTION ---
     # Use shared ExtractionCreditValidator service (DRY principle)
     # This service handles pessimistic locking, balance checking, and transaction creation
@@ -253,6 +269,8 @@ async def parse_document(
             processing_mode=request.processing_mode,
             markdown_converter=request.markdown_converter if request.processing_mode == "markdown" else None,
             markdown_format=request.markdown_format if request.processing_mode == "markdown" else None,
+            llamaextract_mode=request.llamaextract_mode if request.model_provider_config.provider == "llamaextract" else None,
+            llamaextract_target=request.llamaextract_target if request.model_provider_config.provider == "llamaextract" else None,
             callback_url=request.callback_url,
             status="queued",
             credits_cost=document.page_count or 1,
@@ -269,7 +287,8 @@ async def parse_document(
             document_id=document.id,
             user_id=current_user.id,
             model_provider=request.model_provider_config.provider,
-            model_name=request.model_provider_config.model
+            model_name=request.model_provider_config.model,
+            llamaextract_mode=request.llamaextract_mode if request.model_provider_config.provider == "llamaextract" else None,
         )
 
         # Link transaction to job

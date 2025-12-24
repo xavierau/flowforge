@@ -139,9 +139,9 @@ class TestInputValidation:
         assert "exceeds maximum" in str(exc_info.value.detail)
 
     def test_model_provider_whitelist_valid(self):
-        """Valid providers (google, openai, deepseek) should pass validation."""
+        """Valid providers (google, openai, deepseek, llamaextract) should pass validation."""
         # Arrange
-        valid_providers = ["google", "openai", "deepseek"]
+        valid_providers = ["google", "openai", "deepseek", "llamaextract"]
 
         for provider in valid_providers:
             mock_db = MagicMock()
@@ -859,3 +859,505 @@ class TestEdgeCases:
             assert metadata['page_count'] == 5
             assert metadata['model_provider'] == "google"
             assert metadata['model_name'] == "gemini-2.5-flash"
+
+
+class TestLlamaExtractPricing:
+    """Tests for LlamaExtract mode-based credit calculation."""
+
+    def test_llamaextract_standard_mode_1_credit_per_page(self):
+        """LlamaExtract standard mode charges 1 credit per page."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction):
+            # Act - 5 pages with standard mode = 5 credits
+            transaction, cost = validator.validate_and_deduct_credits(
+                tenant_id=uuid4(),
+                page_count=5,
+                job_id=uuid4(),
+                document_id=uuid4(),
+                user_id=uuid4(),
+                model_provider="llamaextract",
+                model_name="llamaextract",
+                llamaextract_mode="standard"
+            )
+
+            # Assert
+            assert cost == 5  # 5 pages * 1 credit/page
+
+    def test_llamaextract_premium_mode_2_credits_per_page(self):
+        """LlamaExtract premium mode charges 2 credits per page."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction):
+            # Act - 5 pages with premium mode = 10 credits
+            transaction, cost = validator.validate_and_deduct_credits(
+                tenant_id=uuid4(),
+                page_count=5,
+                job_id=uuid4(),
+                document_id=uuid4(),
+                user_id=uuid4(),
+                model_provider="llamaextract",
+                model_name="llamaextract",
+                llamaextract_mode="premium"
+            )
+
+            # Assert
+            assert cost == 10  # 5 pages * 2 credits/page
+
+    def test_llamaextract_defaults_to_standard_mode(self):
+        """LlamaExtract defaults to standard mode when mode not specified."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction):
+            # Act - 5 pages without mode = defaults to standard = 5 credits
+            transaction, cost = validator.validate_and_deduct_credits(
+                tenant_id=uuid4(),
+                page_count=5,
+                job_id=uuid4(),
+                document_id=uuid4(),
+                user_id=uuid4(),
+                model_provider="llamaextract",
+                model_name="llamaextract"
+            )
+
+            # Assert - defaults to standard mode (1 credit/page)
+            assert cost == 5
+
+    def test_llamaextract_is_valid_provider(self):
+        """LlamaExtract is a valid model provider."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction):
+            # Act - should not raise for llamaextract provider
+            transaction, cost = validator.validate_and_deduct_credits(
+                tenant_id=uuid4(),
+                page_count=1,
+                job_id=uuid4(),
+                document_id=uuid4(),
+                user_id=uuid4(),
+                model_provider="llamaextract",
+                model_name="llamaextract"
+            )
+
+            # Assert
+            assert transaction == mock_transaction
+
+    def test_llamaextract_metadata_includes_mode(self):
+        """LlamaExtract metadata includes the mode used."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        tenant_id = uuid4()
+        job_id = uuid4()
+        document_id = uuid4()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = tenant_id
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction) as mock_deduct:
+            # Act
+            validator.validate_and_deduct_credits(
+                tenant_id=tenant_id,
+                page_count=5,
+                job_id=job_id,
+                document_id=document_id,
+                user_id=uuid4(),
+                model_provider="llamaextract",
+                model_name="llamaextract",
+                llamaextract_mode="premium"
+            )
+
+            # Assert - verify metadata includes llamaextract_mode
+            call_kwargs = mock_deduct.call_args[1]
+            metadata = call_kwargs['metadata']
+            assert metadata['llamaextract_mode'] == "premium"
+            assert metadata['credits_per_page'] == 2
+
+
+class TestPageBasedPricing:
+    """Tests for page-based pricing (e.g., LlamaParse document converters)."""
+
+    def test_page_based_credits_calculated_from_pricing_table(self):
+        """Page-based credits use credit_rate_per_page from ModelPricing."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        # Mock pricing lookup to return 2 credits per page
+        pricing_snapshot = {
+            "converter": "llamaparse",
+            "pricing_type": "page",
+            "pricing_id": str(uuid4()),
+            "page_count": 5,
+            "credit_rate_per_page": 2.0,
+            "credits_calculated": 10,
+        }
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction):
+            with patch('app.services.extraction_service.PricingService') as MockPricingService:
+                mock_pricing = MagicMock()
+                mock_pricing.calculate_page_based_credits.return_value = (10, pricing_snapshot)
+                MockPricingService.return_value = mock_pricing
+
+                # Act
+                transaction, cost, snapshot = validator.validate_and_deduct_page_based_credits(
+                    tenant_id=uuid4(),
+                    page_count=5,
+                    job_id=uuid4(),
+                    document_id=uuid4(),
+                    user_id=uuid4(),
+                    converter_name="llamaparse"
+                )
+
+                # Assert - 5 pages * 2 credits/page = 10 credits
+                assert cost == 10
+                assert snapshot["credit_rate_per_page"] == 2.0
+                mock_pricing.calculate_page_based_credits.assert_called_once_with(
+                    converter_name="llamaparse",
+                    page_count=5,
+                )
+
+    def test_page_based_negative_page_count_rejected(self):
+        """Negative page count raises HTTPException 400."""
+        # Arrange
+        mock_db = MagicMock()
+        validator = ExtractionCreditValidator(mock_db)
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            validator.validate_and_deduct_page_based_credits(
+                tenant_id=uuid4(),
+                page_count=-1,
+                job_id=uuid4(),
+                document_id=uuid4(),
+                user_id=uuid4(),
+                converter_name="llamaparse"
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "page_count" in str(exc_info.value.detail)
+
+    def test_page_based_exceeds_maximum_rejected(self):
+        """Page count > 10000 raises HTTPException 400."""
+        # Arrange
+        mock_db = MagicMock()
+        validator = ExtractionCreditValidator(mock_db)
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            validator.validate_and_deduct_page_based_credits(
+                tenant_id=uuid4(),
+                page_count=10001,
+                job_id=uuid4(),
+                document_id=uuid4(),
+                user_id=uuid4(),
+                converter_name="llamaparse"
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "exceeds maximum" in str(exc_info.value.detail)
+
+    def test_page_based_converter_not_found(self):
+        """Unknown converter raises HTTPException 400."""
+        # Arrange
+        mock_db = MagicMock()
+        validator = ExtractionCreditValidator(mock_db)
+
+        with patch('app.services.extraction_service.PricingService') as MockPricingService:
+            mock_pricing = MagicMock()
+            mock_pricing.calculate_page_based_credits.side_effect = ValueError(
+                "No pricing configured for document converter: unknown_converter"
+            )
+            MockPricingService.return_value = mock_pricing
+
+            # Act & Assert
+            with pytest.raises(HTTPException) as exc_info:
+                validator.validate_and_deduct_page_based_credits(
+                    tenant_id=uuid4(),
+                    page_count=5,
+                    job_id=uuid4(),
+                    document_id=uuid4(),
+                    user_id=uuid4(),
+                    converter_name="unknown_converter"
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "converter_name" in str(exc_info.value.detail)
+
+    def test_page_based_insufficient_credits(self):
+        """Insufficient credits raises HTTPException 402."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 5  # Only 5 credits, need 10
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        pricing_snapshot = {
+            "converter": "llamaparse",
+            "pricing_type": "page",
+            "pricing_id": str(uuid4()),
+            "page_count": 5,
+            "credit_rate_per_page": 2.0,
+            "credits_calculated": 10,
+        }
+
+        with patch('app.services.extraction_service.PricingService') as MockPricingService:
+            mock_pricing = MagicMock()
+            mock_pricing.calculate_page_based_credits.return_value = (10, pricing_snapshot)
+            MockPricingService.return_value = mock_pricing
+
+            # Act & Assert
+            with pytest.raises(HTTPException) as exc_info:
+                validator.validate_and_deduct_page_based_credits(
+                    tenant_id=uuid4(),
+                    page_count=5,
+                    job_id=uuid4(),
+                    document_id=uuid4(),
+                    user_id=uuid4(),
+                    converter_name="llamaparse"
+                )
+
+            assert exc_info.value.status_code == 402
+
+    def test_page_based_metadata_includes_pricing_info(self):
+        """Metadata includes pricing type and rate information."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        pricing_id = str(uuid4())
+        pricing_snapshot = {
+            "converter": "llamaparse",
+            "pricing_type": "page",
+            "pricing_id": pricing_id,
+            "page_count": 5,
+            "credit_rate_per_page": 2.0,
+            "credits_calculated": 10,
+        }
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction) as mock_deduct:
+            with patch('app.services.extraction_service.PricingService') as MockPricingService:
+                mock_pricing = MagicMock()
+                mock_pricing.calculate_page_based_credits.return_value = (10, pricing_snapshot)
+                MockPricingService.return_value = mock_pricing
+
+                # Act
+                validator.validate_and_deduct_page_based_credits(
+                    tenant_id=uuid4(),
+                    page_count=5,
+                    job_id=uuid4(),
+                    document_id=uuid4(),
+                    user_id=uuid4(),
+                    converter_name="llamaparse"
+                )
+
+                # Assert
+                call_kwargs = mock_deduct.call_args[1]
+                metadata = call_kwargs['metadata']
+                assert metadata['pricing_type'] == "page"
+                assert metadata['converter'] == "llamaparse"
+                assert metadata['credit_rate_per_page'] == 2.0
+                assert metadata['pricing_id'] == pricing_id
+
+    def test_page_based_tenant_not_found(self):
+        """HTTPException 404 raised when tenant not found."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = None  # Tenant not found
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        pricing_snapshot = {
+            "converter": "llamaparse",
+            "pricing_type": "page",
+            "pricing_id": str(uuid4()),
+            "page_count": 5,
+            "credit_rate_per_page": 2.0,
+            "credits_calculated": 10,
+        }
+
+        with patch('app.services.extraction_service.PricingService') as MockPricingService:
+            mock_pricing = MagicMock()
+            mock_pricing.calculate_page_based_credits.return_value = (10, pricing_snapshot)
+            MockPricingService.return_value = mock_pricing
+
+            # Act & Assert
+            with pytest.raises(HTTPException) as exc_info:
+                validator.validate_and_deduct_page_based_credits(
+                    tenant_id=uuid4(),
+                    page_count=5,
+                    job_id=uuid4(),
+                    document_id=uuid4(),
+                    user_id=uuid4(),
+                    converter_name="llamaparse"
+                )
+
+            assert exc_info.value.status_code == 404
+
+    def test_page_based_returns_pricing_snapshot(self):
+        """Method returns pricing snapshot for audit trail."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_tenant = MagicMock()
+        mock_tenant.cached_balance = 100
+        mock_tenant.id = uuid4()
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.with_for_update.return_value = mock_query
+        mock_query.first.return_value = mock_tenant
+        mock_db.query.return_value = mock_query
+        mock_db.execute = MagicMock()
+
+        mock_transaction = MagicMock()
+        mock_transaction.id = uuid4()
+
+        validator = ExtractionCreditValidator(mock_db)
+
+        pricing_snapshot = {
+            "converter": "llamaparse",
+            "pricing_type": "page",
+            "pricing_id": str(uuid4()),
+            "page_count": 5,
+            "credit_rate_per_page": 2.0,
+            "credits_calculated": 10,
+            "calculated_at": "2025-12-23T10:00:00+00:00",
+        }
+
+        with patch.object(validator.credit_service, 'deduct_credits', return_value=mock_transaction):
+            with patch('app.services.extraction_service.PricingService') as MockPricingService:
+                mock_pricing = MagicMock()
+                mock_pricing.calculate_page_based_credits.return_value = (10, pricing_snapshot)
+                MockPricingService.return_value = mock_pricing
+
+                # Act
+                transaction, cost, returned_snapshot = validator.validate_and_deduct_page_based_credits(
+                    tenant_id=uuid4(),
+                    page_count=5,
+                    job_id=uuid4(),
+                    document_id=uuid4(),
+                    user_id=uuid4(),
+                    converter_name="llamaparse"
+                )
+
+                # Assert
+                assert returned_snapshot == pricing_snapshot
+                assert returned_snapshot["credits_calculated"] == 10
+                assert returned_snapshot["calculated_at"] is not None

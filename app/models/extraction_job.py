@@ -68,6 +68,11 @@ class ExtractionJob(Base):
     estimated_cost_usd = Column(Numeric(10, 6), nullable=True)  # Total estimated cost in USD
     pricing_snapshot = Column(JSONB, nullable=True)  # Pricing details at time of calculation
 
+    # LlamaExtract-specific fields
+    llamaextract_mode = Column(String(20), nullable=True)  # standard or premium
+    llamaextract_target = Column(String(20), nullable=True)  # per_doc or per_page
+    llamaextract_job_id = Column(String(100), nullable=True)  # External job ID for tracking
+
     # Relationships
     document = relationship("Document", back_populates="extraction_jobs")
     schema_definition = relationship("SchemaDefinition", backref="extraction_jobs")

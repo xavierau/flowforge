@@ -41,6 +41,7 @@ dependencies = [
     "conductor-python>=1.0.0",
     "slowapi>=0.1.9",
     "sendgrid>=6.12.5",
+    "pdfplumber>=0.11.8",
 ]
 
 [project.optional-dependencies]

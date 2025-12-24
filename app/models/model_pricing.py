@@ -15,6 +15,7 @@ from sqlalchemy.orm import relationship, validates
 import uuid
 
 from app.database import Base
+from app.models.enums import PricingType, ConverterType, Provider
 
 
 # Maximum allowed price per 1M tokens (USD)
@@ -23,8 +24,17 @@ from app.database import Base
 # setting extremely high prices that could cause billing issues
 MAX_PRICE_PER_MILLION_TOKENS = Decimal("10000.0000")
 
-# Valid provider names
-VALID_PROVIDERS = {"google", "openai", "qwen", "deepseek"}
+# Maximum allowed credit rate per page
+MAX_CREDIT_RATE_PER_PAGE = Decimal("1000.0000")
+
+# Valid provider names - using centralized Provider enum
+VALID_PROVIDERS = Provider.values()
+
+# Valid pricing types
+VALID_PRICING_TYPES = {t.value for t in PricingType}
+
+# Valid converter types
+VALID_CONVERTER_TYPES = {t.value for t in ConverterType}
 
 
 class ModelPricing(Base):
@@ -63,6 +73,15 @@ class ModelPricing(Base):
     max_output_tokens = Column(Integer, nullable=True)  # Max tokens model can generate
     context_window = Column(Integer, nullable=True)  # Total context window size
 
+    # Pricing type and page-based pricing
+    pricing_type = Column(String(20), nullable=False, default="token")  # token, page, document
+    credit_rate_per_page = Column(Numeric(10, 4), nullable=True)  # Credits per page (for page-based pricing)
+    credit_rate_per_document = Column(Numeric(10, 4), nullable=True)  # Credits per document (for document-based pricing)
+
+    # Converter type (for document converters like LlamaParse)
+    converter_type = Column(String(50), nullable=True)  # image_to_markdown, document_to_markdown
+    is_document_converter = Column(Boolean, nullable=False, default=False)  # True for LlamaParse, etc.
+
     # Use case defaults (only one model per use case should be True)
     is_default_extraction = Column(Boolean, nullable=False, default=False)
     is_default_markdown = Column(Boolean, nullable=False, default=False)
@@ -98,10 +117,22 @@ class ModelPricing(Base):
             'input_price_per_million <= 10000.0000 AND output_price_per_million <= 10000.0000',
             name='model_pricing_max_prices'
         ),
+        # Constraint for page-based pricing (0 to 1000 credits per page)
+        CheckConstraint(
+            'credit_rate_per_page IS NULL OR (credit_rate_per_page >= 0 AND credit_rate_per_page <= 1000.0000)',
+            name='model_pricing_valid_page_rate'
+        ),
+        # Constraint for document-based pricing
+        CheckConstraint(
+            'credit_rate_per_document IS NULL OR (credit_rate_per_document >= 0 AND credit_rate_per_document <= 10000.0000)',
+            name='model_pricing_valid_document_rate'
+        ),
         # Index for efficient provider-based lookups
         Index('idx_model_pricing_provider', 'provider'),
         Index('idx_model_pricing_is_active', 'is_active'),
         Index('idx_model_pricing_provider_model', 'provider', 'model_name'),
+        # Index for document converter lookups
+        Index('idx_model_pricing_is_document_converter', 'is_document_converter'),
     )
 
     @validates('input_price_per_million', 'output_price_per_million')
@@ -135,6 +166,56 @@ class ModelPricing(Base):
             raise ValueError(f"provider must be one of: {', '.join(sorted(VALID_PROVIDERS))}")
         return value_lower
 
+    @validates('pricing_type')
+    def validate_pricing_type(self, key: str, value: str) -> str:
+        """Validate pricing type is one of the allowed values."""
+        if not value:
+            return PricingType.TOKEN.value  # Default to token-based
+        if isinstance(value, PricingType):
+            return value.value
+        value_lower = value.strip().lower()
+        if value_lower not in VALID_PRICING_TYPES:
+            raise ValueError(f"pricing_type must be one of: {', '.join(sorted(VALID_PRICING_TYPES))}")
+        return value_lower
+
+    @validates('converter_type')
+    def validate_converter_type(self, key: str, value: Optional[str]) -> Optional[str]:
+        """Validate converter type is one of the allowed values."""
+        if value is None:
+            return None
+        if isinstance(value, ConverterType):
+            return value.value
+        value_lower = value.strip().lower()
+        if value_lower not in VALID_CONVERTER_TYPES:
+            raise ValueError(f"converter_type must be one of: {', '.join(sorted(VALID_CONVERTER_TYPES))}")
+        return value_lower
+
+    @validates('credit_rate_per_page')
+    def validate_credit_rate_per_page(self, key: str, value) -> Optional[Decimal]:
+        """Validate credit rate per page is non-negative and within bounds."""
+        if value is None:
+            return None
+        decimal_value = Decimal(str(value))
+        if decimal_value < 0:
+            raise ValueError("credit_rate_per_page must be non-negative")
+        if decimal_value > MAX_CREDIT_RATE_PER_PAGE:
+            raise ValueError(
+                f"credit_rate_per_page cannot exceed {MAX_CREDIT_RATE_PER_PAGE} credits per page"
+            )
+        return decimal_value
+
+    @validates('credit_rate_per_document')
+    def validate_credit_rate_per_document(self, key: str, value) -> Optional[Decimal]:
+        """Validate credit rate per document is non-negative."""
+        if value is None:
+            return None
+        decimal_value = Decimal(str(value))
+        if decimal_value < 0:
+            raise ValueError("credit_rate_per_document must be non-negative")
+        if decimal_value > Decimal("10000.0000"):
+            raise ValueError("credit_rate_per_document cannot exceed 10000 credits per document")
+        return decimal_value
+
     @property
     def is_current(self) -> bool:
         """Check if this pricing is currently active (no end date or future end date)."""
@@ -161,6 +242,13 @@ class ModelPricing(Base):
             # Limits
             "max_output_tokens": self.max_output_tokens,
             "context_window": self.context_window,
+            # Pricing type and rates
+            "pricing_type": self.pricing_type,
+            "credit_rate_per_page": float(self.credit_rate_per_page) if self.credit_rate_per_page else None,
+            "credit_rate_per_document": float(self.credit_rate_per_document) if self.credit_rate_per_document else None,
+            # Converter info
+            "converter_type": self.converter_type,
+            "is_document_converter": self.is_document_converter,
             # Defaults
             "is_default_extraction": self.is_default_extraction,
             "is_default_markdown": self.is_default_markdown,
@@ -178,18 +266,25 @@ class ModelPricing(Base):
 
     def to_pricing_snapshot(self) -> dict:
         """Create a pricing snapshot for storage in extraction_jobs."""
-        return {
+        snapshot = {
             "pricing_id": str(self.id),
             "provider": self.provider,
             "model": self.model_name,
             "input_price_per_million": float(self.input_price_per_million),
             "output_price_per_million": float(self.output_price_per_million),
             "effective_from": self.effective_from.isoformat() if self.effective_from else None,
+            "pricing_type": self.pricing_type,
         }
+        # Add page/document rate if applicable
+        if self.pricing_type == PricingType.PAGE.value and self.credit_rate_per_page:
+            snapshot["credit_rate_per_page"] = float(self.credit_rate_per_page)
+        if self.pricing_type == PricingType.DOCUMENT.value and self.credit_rate_per_document:
+            snapshot["credit_rate_per_document"] = float(self.credit_rate_per_document)
+        return snapshot
 
     def to_available_model(self) -> dict:
         """Convert to a simplified dict for frontend model selection dropdown."""
-        return {
+        result = {
             "id": str(self.id),
             "provider": self.provider,
             "model_name": self.model_name,
@@ -202,7 +297,15 @@ class ModelPricing(Base):
             "is_default_extraction": self.is_default_extraction,
             "is_default_markdown": self.is_default_markdown,
             "is_default_llm": self.is_default_llm,
+            "pricing_type": self.pricing_type,
+            "is_document_converter": self.is_document_converter,
         }
+        # Add rate info based on pricing type
+        if self.pricing_type == PricingType.PAGE.value and self.credit_rate_per_page:
+            result["credit_rate_per_page"] = float(self.credit_rate_per_page)
+        if self.pricing_type == PricingType.DOCUMENT.value and self.credit_rate_per_document:
+            result["credit_rate_per_document"] = float(self.credit_rate_per_document)
+        return result
 
     def __repr__(self) -> str:
         return (

@@ -457,3 +457,210 @@ class PricingService:
             .all()
         )
         return sorted([p[0] for p in providers])
+
+    def get_document_converter_pricing(
+        self, converter_name: str
+    ) -> Optional[Dict]:
+        """Get pricing for a document converter (e.g., LlamaParse).
+
+        Document converters use page-based or document-based pricing
+        instead of token-based pricing.
+
+        Args:
+            converter_name: Converter name (e.g., 'llamaparse')
+
+        Returns:
+            Dictionary with pricing info or None if not found:
+            {
+                "pricing_id": str,
+                "provider": str,
+                "model_name": str,
+                "pricing_type": str,  # 'page' or 'document'
+                "credit_rate_per_page": float (if page-based),
+                "credit_rate_per_document": float (if document-based),
+            }
+        """
+        # Input validation - early return for invalid input
+        if not converter_name or not converter_name.strip():
+            return None
+        if len(converter_name) > 100:
+            return None
+        converter_name = converter_name.strip().lower()
+
+        if not self.db:
+            return None
+
+        from app.models.enums import PricingType
+
+        try:
+            now = datetime.now(timezone.utc)
+            pricing = (
+                self.db.query(ModelPricing)
+                .filter(ModelPricing.is_active == True)
+                .filter(ModelPricing.is_document_converter == True)
+                .filter(ModelPricing.model_name == converter_name)
+                .filter(ModelPricing.effective_from <= now)
+                .filter(
+                    (ModelPricing.effective_until.is_(None)) |
+                    (ModelPricing.effective_until > now)
+                )
+                .order_by(ModelPricing.effective_from.desc())
+                .first()
+            )
+
+            if not pricing:
+                return None
+
+            result = {
+                "pricing_id": str(pricing.id),
+                "provider": pricing.provider,
+                "model_name": pricing.model_name,
+                "pricing_type": pricing.pricing_type,
+            }
+
+            if pricing.pricing_type == PricingType.PAGE.value:
+                result["credit_rate_per_page"] = float(
+                    pricing.credit_rate_per_page or 0
+                )
+            elif pricing.pricing_type == PricingType.DOCUMENT.value:
+                result["credit_rate_per_document"] = float(
+                    pricing.credit_rate_per_document or 0
+                )
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Document converter pricing lookup failed: {e}")
+            return None
+
+    def calculate_page_based_credits(
+        self,
+        converter_name: str,
+        page_count: int,
+    ) -> Tuple[int, Dict]:
+        """Calculate credits for page-based pricing.
+
+        Used for document converters like LlamaParse that charge per page.
+
+        Args:
+            converter_name: Name of the document converter
+            page_count: Number of pages to process
+
+        Returns:
+            Tuple of (credits_required, pricing_snapshot)
+            - credits_required: Integer credits to charge
+            - pricing_snapshot: Dict with pricing details for audit
+
+        Raises:
+            ValueError: If converter not found or pricing not configured
+        """
+        from app.models.enums import PricingType
+        from decimal import Decimal, ROUND_CEILING
+
+        pricing = self.get_document_converter_pricing(converter_name)
+
+        if not pricing:
+            raise ValueError(
+                f"No pricing configured for document converter: {converter_name}"
+            )
+
+        if pricing["pricing_type"] != PricingType.PAGE.value:
+            raise ValueError(
+                f"Converter {converter_name} uses {pricing['pricing_type']} pricing, "
+                f"not page-based pricing"
+            )
+
+        rate = Decimal(str(pricing.get("credit_rate_per_page", 0)))
+        if rate <= 0:
+            raise ValueError(
+                f"Invalid credit_rate_per_page for {converter_name}: {rate}"
+            )
+
+        # Calculate credits (always round up to ensure we don't undercharge)
+        total_credits = (rate * page_count).quantize(
+            Decimal("1"), rounding=ROUND_CEILING
+        )
+
+        snapshot = {
+            "converter": converter_name,
+            "pricing_type": PricingType.PAGE.value,
+            "pricing_id": pricing["pricing_id"],
+            "page_count": page_count,
+            "credit_rate_per_page": float(rate),
+            "credits_calculated": int(total_credits),
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return int(total_credits), snapshot
+
+    def calculate_document_based_credits(
+        self,
+        converter_name: str,
+    ) -> Tuple[int, Dict]:
+        """Calculate credits for document-based (flat rate) pricing.
+
+        Used for converters that charge per document regardless of page count.
+
+        Args:
+            converter_name: Name of the document converter
+
+        Returns:
+            Tuple of (credits_required, pricing_snapshot)
+
+        Raises:
+            ValueError: If converter not found or pricing not configured
+        """
+        from app.models.enums import PricingType
+        from decimal import Decimal, ROUND_CEILING
+
+        pricing = self.get_document_converter_pricing(converter_name)
+
+        if not pricing:
+            raise ValueError(
+                f"No pricing configured for document converter: {converter_name}"
+            )
+
+        if pricing["pricing_type"] != PricingType.DOCUMENT.value:
+            raise ValueError(
+                f"Converter {converter_name} uses {pricing['pricing_type']} pricing, "
+                f"not document-based pricing"
+            )
+
+        rate = Decimal(str(pricing.get("credit_rate_per_document", 0)))
+        if rate <= 0:
+            raise ValueError(
+                f"Invalid credit_rate_per_document for {converter_name}: {rate}"
+            )
+
+        # Round up for flat rate
+        credits = int(rate.quantize(Decimal("1"), rounding=ROUND_CEILING))
+
+        snapshot = {
+            "converter": converter_name,
+            "pricing_type": PricingType.DOCUMENT.value,
+            "pricing_id": pricing["pricing_id"],
+            "credit_rate_per_document": float(rate),
+            "credits_calculated": credits,
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return credits, snapshot
+
+    def get_document_converters(self) -> List[Dict]:
+        """Get all active document converters with their pricing.
+
+        Returns:
+            List of document converter dictionaries for frontend selection.
+        """
+        if not self.db:
+            return []
+
+        converters = (
+            self.db.query(ModelPricing)
+            .filter(ModelPricing.is_active == True)
+            .filter(ModelPricing.is_document_converter == True)
+            .order_by(ModelPricing.provider, ModelPricing.model_name)
+            .all()
+        )
+
+        return [c.to_available_model() for c in converters]

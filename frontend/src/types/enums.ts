@@ -88,6 +88,7 @@ export enum MarkdownConverter {
   GEMINI_VISION = "gemini_vision",
   GPT4V = "gpt4v",
   QWEN_VISION = "qwen_vision",
+  LLAMAPARSE = "llamaparse",
 }
 
 /**
@@ -174,6 +175,7 @@ export function getMarkdownConverterLabel(converter: MarkdownConverter): string 
     [MarkdownConverter.GEMINI_VISION]: "Gemini Vision",
     [MarkdownConverter.GPT4V]: "GPT-4 Vision",
     [MarkdownConverter.QWEN_VISION]: "Qwen Vision",
+    [MarkdownConverter.LLAMAPARSE]: "LlamaParse",
   };
   return labels[converter];
 }
@@ -183,6 +185,7 @@ export function getMarkdownConverterDescription(converter: MarkdownConverter): s
     [MarkdownConverter.GEMINI_VISION]: "Google Gemini 2.5 Flash - Fast, accurate, good for most documents",
     [MarkdownConverter.GPT4V]: "OpenAI GPT-4 Vision - High quality, higher cost",
     [MarkdownConverter.QWEN_VISION]: "Qwen3-VL-8B - Cost-effective ($0.72/M tokens), supports special QwenVL formats",
+    [MarkdownConverter.LLAMAPARSE]: "LlamaParse - Specialized document parser, charged per page (not tokens)",
   };
   return descriptions[converter];
 }
@@ -243,4 +246,97 @@ export function getJobSourceColor(source: JobSource): string {
     [JobSource.API]: "bg-purple-100 text-purple-800",
   };
   return colors[source];
+}
+
+/**
+ * Model pricing record status.
+ * CRITICAL: Values MUST match backend app/models/enums.py exactly.
+ */
+export enum PricingStatus {
+  ACTIVE = "active",
+  SUPERSEDED = "superseded",
+  DEACTIVATED = "deactivated",
+}
+
+/**
+ * Pricing type for model/converter pricing.
+ * CRITICAL: Values MUST match backend app/models/enums.py exactly.
+ */
+export enum PricingType {
+  TOKEN = "token",
+  PAGE = "page",
+  DOCUMENT = "document",
+}
+
+/**
+ * Converter types for document processing.
+ * CRITICAL: Values MUST match backend app/models/enums.py exactly.
+ */
+export enum ConverterType {
+  IMAGE_TO_MARKDOWN = "image_to_markdown",
+  DOCUMENT_TO_MARKDOWN = "document_to_markdown",
+}
+
+/**
+ * LlamaExtract extraction quality modes.
+ * CRITICAL: Values MUST match backend app/models/enums.py exactly.
+ */
+export enum LlamaExtractMode {
+  STANDARD = "standard",
+  PREMIUM = "premium",
+}
+
+/**
+ * LlamaExtract extraction target scope.
+ * CRITICAL: Values MUST match backend app/models/enums.py exactly.
+ */
+export enum LlamaExtractTarget {
+  PER_DOC = "per_doc",
+  PER_PAGE = "per_page",
+}
+
+/**
+ * Helper functions for new enums
+ */
+
+export function getPricingStatusLabel(status: PricingStatus): string {
+  const labels: Record<PricingStatus, string> = {
+    [PricingStatus.ACTIVE]: "Active",
+    [PricingStatus.SUPERSEDED]: "Superseded",
+    [PricingStatus.DEACTIVATED]: "Deactivated",
+  };
+  return labels[status];
+}
+
+export function getPricingTypeLabel(type: PricingType): string {
+  const labels: Record<PricingType, string> = {
+    [PricingType.TOKEN]: "Token-based",
+    [PricingType.PAGE]: "Per Page",
+    [PricingType.DOCUMENT]: "Per Document",
+  };
+  return labels[type];
+}
+
+export function getConverterTypeLabel(type: ConverterType): string {
+  const labels: Record<ConverterType, string> = {
+    [ConverterType.IMAGE_TO_MARKDOWN]: "Image to Markdown",
+    [ConverterType.DOCUMENT_TO_MARKDOWN]: "Document to Markdown",
+  };
+  return labels[type];
+}
+
+export function getLlamaExtractModeLabel(mode: LlamaExtractMode): string {
+  const labels: Record<LlamaExtractMode, string> = {
+    [LlamaExtractMode.STANDARD]: "Standard (1 credit/page)",
+    [LlamaExtractMode.PREMIUM]: "Premium (2 credits/page)",
+  };
+  return labels[mode];
+}
+
+export function getLlamaExtractTargetLabel(target: LlamaExtractTarget): string {
+  const labels: Record<LlamaExtractTarget, string> = {
+    [LlamaExtractTarget.PER_DOC]: "Per Document",
+    [LlamaExtractTarget.PER_PAGE]: "Per Page",
+  };
+  return labels[target];
 }

@@ -24,16 +24,16 @@ logger = logging.getLogger(__name__)
 class GeminiMarkdownConverter(IImageToMarkdownConverter):
     """Gemini vision-based markdown converter.
 
-    Uses Google Gemini 2.5 Flash vision model for high-quality markdown conversion.
+    Uses Google Gemini 3 Flash vision model for high-quality markdown conversion.
     Configured with extended timeouts to handle large preprocessed images.
     """
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-3-flash-preview"):
         """Initialize Gemini converter with timeout configuration.
 
         Args:
             api_key: Google API key
-            model: Model name (default: gemini-2.5-flash)
+            model: Model name (default: gemini-3-flash-preview)
         """
         import httpx
 

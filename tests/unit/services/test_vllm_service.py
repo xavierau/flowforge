@@ -29,6 +29,7 @@ def mock_settings():
     with patch("app.services.vllm_service.settings") as mock:
         mock.openai_api_key = "test-openai-key"
         mock.google_api_key = "test-google-key"
+        mock.llamaextract_api_key = ""
         yield mock
 
 
@@ -38,6 +39,7 @@ def mock_settings_no_keys():
     with patch("app.services.vllm_service.settings") as mock:
         mock.openai_api_key = ""
         mock.google_api_key = ""
+        mock.llamaextract_api_key = ""
         yield mock
 
 
@@ -47,6 +49,7 @@ def mock_settings_google_only():
     with patch("app.services.vllm_service.settings") as mock:
         mock.openai_api_key = ""
         mock.google_api_key = "test-google-key"
+        mock.llamaextract_api_key = ""
         yield mock
 
 
@@ -56,6 +59,7 @@ def mock_settings_openai_only():
     with patch("app.services.vllm_service.settings") as mock:
         mock.openai_api_key = "test-openai-key"
         mock.google_api_key = ""
+        mock.llamaextract_api_key = ""
         yield mock
 
 

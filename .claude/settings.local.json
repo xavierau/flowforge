@@ -128,7 +128,10 @@
       "mcp__plugin_context7_context7__get-library-docs",
       "Bash(git merge:*)",
       "Bash(npm ls:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "WebFetch(domain:developers.llamaindex.ai)",
+      "WebFetch(domain:docs.cloud.llamaindex.ai)",
+      "Skill(clean-architecture-skill)"
     ],
     "deny": [],
     "ask": []
