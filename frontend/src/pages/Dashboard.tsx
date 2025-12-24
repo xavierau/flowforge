@@ -1,7 +1,7 @@
 /**
  * Dashboard Page
  *
- * Main metrics dashboard showing job statistics, token usage, and model distribution.
+ * Main metrics dashboard showing job statistics and model distribution.
  * Follows React best practices:
  * - Proper useEffect with cleanup and dependencies
  * - Single data fetching effect with error handling
@@ -16,7 +16,6 @@ import {
   StatsCard,
   JobsChart,
   PagesChart,
-  TokensChart,
   ModelDistributionChart,
   RecentJobsWidget,
 } from '@/components/metrics';
@@ -32,7 +31,6 @@ import type { Job } from '@/types/job';
 import {
   FileText,
   FileStack,
-  Coins,
   DollarSign,
   AlertCircle,
 } from 'lucide-react';
@@ -41,8 +39,8 @@ import {
  * Dashboard Component
  *
  * Displays comprehensive metrics dashboard with:
- * - 4 stat cards (jobs, pages, tokens, cost)
- * - 4 charts (jobs over time, pages over time, tokens breakdown, model distribution)
+ * - 3 stat cards (jobs, pages, cost)
+ * - 3 charts (jobs over time, pages over time, model distribution)
  * - Date range selector
  * - Loading and error states
  *
@@ -212,7 +210,7 @@ export function Dashboard() {
         {/* Stats Cards Grid */}
         {metrics && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
               <StatsCard
                 title="Total Jobs"
                 value={metrics.stats.total_jobs}
@@ -228,13 +226,6 @@ export function Dashboard() {
                 format="number"
               />
               <StatsCard
-                title="Total Tokens"
-                value={metrics.stats.total_tokens}
-                icon={Coins}
-                description={`Last ${dateRange} days`}
-                format="number"
-              />
-              <StatsCard
                 title="Estimated Cost"
                 value={metrics.stats.estimated_cost}
                 icon={DollarSign}
@@ -244,7 +235,7 @@ export function Dashboard() {
             </div>
 
             {/* Charts Grid */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <JobsChart
                 data={metrics.jobs_over_time}
                 title="Jobs Processed Over Time"
@@ -252,10 +243,6 @@ export function Dashboard() {
               <PagesChart
                 data={metrics.pages_over_time}
                 title="Pages Processed Over Time"
-              />
-              <TokensChart
-                data={metrics.tokens_over_time}
-                title="Token Usage Over Time"
               />
               <ModelDistributionChart
                 data={metrics.model_distribution}

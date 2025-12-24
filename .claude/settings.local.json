@@ -131,7 +131,8 @@
       "Bash(uv run:*)",
       "WebFetch(domain:developers.llamaindex.ai)",
       "WebFetch(domain:docs.cloud.llamaindex.ai)",
-      "Skill(clean-architecture-skill)"
+      "Skill(clean-architecture-skill)",
+      "mcp__chrome-devtools__get_console_message"
     ],
     "deny": [],
     "ask": []
