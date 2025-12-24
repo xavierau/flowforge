@@ -109,9 +109,10 @@ def upgrade() -> None:
     connection = op.get_bind()
     result = connection.execute(
         sa.text("""
-            SELECT id FROM users
-            WHERE role = 'owner' OR role = 'admin'
-            ORDER BY created_at ASC
+            SELECT u.id FROM users u
+            JOIN roles r ON u.role_id = r.id
+            WHERE r.name = 'owner' OR r.name = 'admin'
+            ORDER BY u.created_at ASC
             LIMIT 1
         """)
     )
