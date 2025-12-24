@@ -127,36 +127,52 @@ class S3StorageBackend(StorageBackend):
             region_name=region,
         )
 
-    async def upload(self, file: BinaryIO, path: str) -> str:
-        """Upload file to S3."""
+    def upload_sync(self, file: BinaryIO, path: str) -> str:
+        """Upload file to S3 (synchronous)."""
         try:
             self.s3_client.upload_fileobj(file, self.bucket, path)
             return path
         except self.ClientError as e:
             raise Exception(f"Failed to upload to S3: {e}")
 
-    async def download(self, path: str) -> bytes:
-        """Download file from S3."""
+    async def upload(self, file: BinaryIO, path: str) -> str:
+        """Upload file to S3."""
+        return self.upload_sync(file, path)
+
+    def download_sync(self, path: str) -> bytes:
+        """Download file from S3 (synchronous)."""
         try:
             response = self.s3_client.get_object(Bucket=self.bucket, Key=path)
             return response["Body"].read()
         except self.ClientError as e:
             raise Exception(f"Failed to download from S3: {e}")
 
-    async def delete(self, path: str) -> None:
-        """Delete file from S3."""
+    async def download(self, path: str) -> bytes:
+        """Download file from S3."""
+        return self.download_sync(path)
+
+    def delete_sync(self, path: str) -> None:
+        """Delete file from S3 (synchronous)."""
         try:
             self.s3_client.delete_object(Bucket=self.bucket, Key=path)
         except self.ClientError as e:
             raise Exception(f"Failed to delete from S3: {e}")
 
-    async def exists(self, path: str) -> bool:
-        """Check if file exists in S3."""
+    async def delete(self, path: str) -> None:
+        """Delete file from S3."""
+        self.delete_sync(path)
+
+    def exists_sync(self, path: str) -> bool:
+        """Check if file exists in S3 (synchronous)."""
         try:
             self.s3_client.head_object(Bucket=self.bucket, Key=path)
             return True
         except self.ClientError:
             return False
+
+    async def exists(self, path: str) -> bool:
+        """Check if file exists in S3."""
+        return self.exists_sync(path)
 
     def get_url(self, path: str) -> str:
         """Get S3 URL."""
@@ -234,7 +250,7 @@ class StorageService:
 
     def download_file_sync(self, path: str) -> bytes:
         """
-        Download a file (synchronous - for Celery tasks).
+        Download a file (synchronous - for Celery tasks and sync contexts).
 
         Args:
             path: File path
@@ -244,9 +260,8 @@ class StorageService:
         """
         if hasattr(self.backend, "download_sync"):
             return self.backend.download_sync(path)
-        # Fallback for backends without sync methods (like S3)
-        import asyncio
-        return asyncio.run(self.backend.download(path))
+        # Fallback - should not happen with current backends
+        raise NotImplementedError("Backend does not support sync download")
 
     async def download_file(self, path: str) -> bytes:
         """
@@ -262,7 +277,7 @@ class StorageService:
 
     def upload_bytes_sync(self, content: bytes, filename: str, prefix: str = "documents") -> str:
         """
-        Upload bytes content (synchronous - for Celery tasks).
+        Upload bytes content (synchronous - for Celery tasks and sync contexts).
 
         Args:
             content: File content as bytes
@@ -279,9 +294,8 @@ class StorageService:
 
         if hasattr(self.backend, "upload_sync"):
             return self.backend.upload_sync(file_obj, path)
-        # Fallback for backends without sync methods (like S3)
-        import asyncio
-        return asyncio.run(self.backend.upload(file_obj, path))
+        # Fallback - should not happen with current backends
+        raise NotImplementedError("Backend does not support sync upload")
 
     async def delete_file(self, path: str) -> None:
         """
@@ -291,6 +305,18 @@ class StorageService:
             path: File path
         """
         await self.backend.delete(path)
+
+    def delete_file_sync(self, path: str) -> None:
+        """
+        Delete a file (synchronous - for Celery tasks and sync contexts).
+
+        Args:
+            path: File path
+        """
+        if hasattr(self.backend, "delete_sync"):
+            return self.backend.delete_sync(path)
+        # Fallback - should not happen with current backends
+        raise NotImplementedError("Backend does not support sync delete")
 
     async def file_exists(self, path: str) -> bool:
         """
@@ -303,6 +329,21 @@ class StorageService:
             True if file exists
         """
         return await self.backend.exists(path)
+
+    def file_exists_sync(self, path: str) -> bool:
+        """
+        Check if file exists (synchronous - for Celery tasks and sync contexts).
+
+        Args:
+            path: File path
+
+        Returns:
+            True if file exists
+        """
+        if hasattr(self.backend, "exists_sync"):
+            return self.backend.exists_sync(path)
+        # Fallback - should not happen with current backends
+        raise NotImplementedError("Backend does not support sync exists")
 
     def get_file_url(self, path: str) -> str:
         """
