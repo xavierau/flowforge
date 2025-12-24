@@ -1,6 +1,6 @@
 """add_page_pricing_to_model_pricing
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: f8a9b0c1d2e3
 Revises: 4fcf8d68cda2
 Create Date: 2025-12-23 10:00:00.000000
 
@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
+revision: str = 'f8a9b0c1d2e3'
 down_revision: Union[str, None] = '4fcf8d68cda2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
