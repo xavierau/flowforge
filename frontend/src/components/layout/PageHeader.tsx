@@ -13,12 +13,13 @@
  */
 
 import { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
+import type { ReactNode } from 'react';
 
 interface PageHeaderProps {
   /**
-   * Page title (renders as h1)
+   * Page title (renders as h1) - can be string or ReactNode for custom content
    */
-  title: string;
+  title: ReactNode;
 
   /**
    * Optional subtitle or description
