@@ -14,7 +14,7 @@ from app.domain.metrics.pricing_service import PricingService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/models", tags=["models"])
+router = APIRouter(prefix="/models")
 
 
 class AvailableModel(BaseModel):

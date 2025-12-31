@@ -22,7 +22,7 @@ from app.services.credit_service import CreditService
 from app.dependencies.auth import require_permission, get_current_active_user
 from app.exceptions.credits import CreditOperationError, InsufficientCreditsError
 
-router = APIRouter(prefix="/api/v1/credits", tags=["Credits"])
+router = APIRouter(prefix="/api/v1/credits")
 
 
 @router.get("/balance", response_model=CreditBalanceResponse)

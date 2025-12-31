@@ -13,7 +13,7 @@ from app.schemas.metrics import DashboardMetricsResponse, CompletedJobsResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/metrics", tags=["metrics"])
+router = APIRouter(prefix="/metrics")
 
 
 def _log_tenant_info(endpoint: str, current_user: User) -> None:

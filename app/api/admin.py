@@ -41,7 +41,7 @@ from app.schemas.admin import (
 )
 from app.exceptions.auth import AuthorizationError
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin")
 
 
 # ============================================================================
