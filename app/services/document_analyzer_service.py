@@ -268,9 +268,8 @@ class DocumentAnalyzerService:
         if use_tesseract_for_rotation:
             rotation_result = detect_rotation_tesseract(image)
             rotation_needed = rotation_result["rotation_needed"]
-            rotation_confidence = self._map_rotation_confidence(
-                rotation_result.get("confidence", 0)
-            )
+            # detect_rotation_tesseract already returns confidence as string
+            rotation_confidence = rotation_result.get("confidence", "low")
             rotation_method = "tesseract_osd"
 
             if "error" in rotation_result:
