@@ -42,6 +42,9 @@ dependencies = [
     "slowapi>=0.1.9",
     "sendgrid>=6.12.5",
     "pdfplumber>=0.11.8",
+    "matplotlib>=3.10.8",
+    "pytesseract>=0.3.13",
+    "asyncer>=0.0.12",
 ]
 
 [project.optional-dependencies]

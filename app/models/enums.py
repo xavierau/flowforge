@@ -345,3 +345,47 @@ class Provider(str, Enum):
     def values(cls) -> set[str]:
         """Get all valid provider values as a set."""
         return {p.value for p in cls}
+
+
+class SplitJobStatus(str, Enum):
+    """
+    Split job status lifecycle.
+
+    State machine:
+    queued → analyzing → splitting → completed
+               ↓           ↓
+             failed      failed
+    """
+    QUEUED = "queued"
+    ANALYZING = "analyzing"  # Analyzing document boundaries
+    SPLITTING = "splitting"  # Creating child documents
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class BoundaryConfidence(str, Enum):
+    """
+    Confidence level for document boundary detection.
+
+    Indicates how confident the model is that a page is the start of a new document:
+    - HIGH: Clear indicators (headers, document numbers, new formatting)
+    - MEDIUM: Some indicators but not definitive
+    - LOW: Uncertain, may need manual review
+    """
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class RotationConfidence(str, Enum):
+    """
+    Confidence level for page rotation detection.
+
+    Based on Tesseract OSD (Orientation and Script Detection):
+    - HIGH: Tesseract confident in orientation
+    - MEDIUM: Some uncertainty in detection
+    - LOW: Unable to determine reliably
+    """
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"

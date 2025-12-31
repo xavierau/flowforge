@@ -33,6 +33,19 @@ class Document(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Document splitting parent-child relationship
+    parent_document_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    split_job_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("split_jobs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    split_sequence = Column(Integer, nullable=True)  # Order within parent: 1, 2, 3...
+
     # Relationships
     tenant = relationship("Tenant", back_populates="documents")
     pages = relationship("DocumentPage", back_populates="document", cascade="all, delete-orphan")
@@ -40,11 +53,20 @@ class Document(Base):
         "ExtractionJob", back_populates="document", cascade="all, delete-orphan"
     )
 
+    # Self-referential relationship for parent/child documents
+    parent_document = relationship(
+        "Document",
+        remote_side=[id],
+        backref="child_documents",
+        foreign_keys=[parent_document_id],
+    )
+
     # Indexes
     __table_args__ = (
         Index("idx_documents_tenant_id", "tenant_id"),
         Index("idx_documents_status", "status"),
         Index("idx_documents_created_at", "created_at"),
+        Index("idx_documents_parent_document_id", "parent_document_id"),
     )
 
 

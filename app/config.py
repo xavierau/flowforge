@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     enable_markdown_caching: bool = True
     markdown_pipeline_enabled: bool = True  # Feature flag
 
+    # Document Split Configuration
+    dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    split_max_image_size: int = 2048  # Max dimension for API calls
+    split_default_dpi: int = 150  # DPI for PDF to image conversion
+
     # Rate Limiting
     # Set to False in tests to disable rate limiting
     rate_limit_enabled: bool = True

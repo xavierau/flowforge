@@ -47,6 +47,9 @@ from app.models.review_correction import ReviewCorrection
 # Password Reset Token model
 from app.models.password_reset_token import PasswordResetToken
 
+# Document Split models
+from app.models.document_split import SplitJob, SplitResult
+
 __all__ = [
     "Document",
     "DocumentPage",
@@ -84,4 +87,7 @@ __all__ = [
     "ModelPricing",
     # Password Reset
     "PasswordResetToken",
+    # Document Split
+    "SplitJob",
+    "SplitResult",
 ]
