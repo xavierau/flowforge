@@ -10,8 +10,9 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Index,
+    Numeric,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
 import uuid
 
@@ -51,6 +52,10 @@ class SplitJob(Base):
     # Token tracking
     total_input_tokens = Column(Integer, nullable=False, default=0)
     total_output_tokens = Column(Integer, nullable=False, default=0)
+
+    # Cost tracking (calculated from tokens using PricingService)
+    estimated_cost = Column(Numeric(10, 6), nullable=True)  # USD cost
+    pricing_snapshot = Column(JSONB, nullable=True)  # Immutable pricing snapshot for audit
 
     # Error handling
     error_message = Column(Text, nullable=True)

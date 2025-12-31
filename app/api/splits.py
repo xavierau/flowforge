@@ -220,7 +220,8 @@ async def get_split_job_status(
     if split_job.source_document:
         total_pages = split_job.source_document.page_count
 
-    # Build progress info
+    # Build progress info with cost
+    estimated_cost = float(split_job.estimated_cost) if split_job.estimated_cost else None
     progress = SplitJobProgress(
         total_pages=total_pages,
         pages_analyzed=split_job.pages_analyzed,
@@ -228,6 +229,7 @@ async def get_split_job_status(
         pages_rotated=split_job.pages_rotated,
         total_input_tokens=split_job.total_input_tokens,
         total_output_tokens=split_job.total_output_tokens,
+        estimated_cost=estimated_cost,
     )
 
     return SplitJobStatusResponse(
@@ -241,6 +243,7 @@ async def get_split_job_status(
         started_at=split_job.started_at,
         completed_at=split_job.completed_at,
         created_at=split_job.created_at,
+        pricing_snapshot=split_job.pricing_snapshot,
     )
 
 
@@ -305,13 +308,15 @@ async def get_split_job_results(
         for r in split_results
     ]
 
-    # Build summary
+    # Build summary with cost
+    estimated_cost = float(split_job.estimated_cost) if split_job.estimated_cost else None
     summary = SplitJobSummary(
         total_pages=split_job.pages_analyzed,
         documents_created=split_job.documents_created,
         pages_rotated=split_job.pages_rotated,
         total_input_tokens=split_job.total_input_tokens,
         total_output_tokens=split_job.total_output_tokens,
+        estimated_cost=estimated_cost,
     )
 
     return SplitJobResultsResponse(

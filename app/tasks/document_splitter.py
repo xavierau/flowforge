@@ -163,6 +163,35 @@ def analyze_document_boundaries(
         split_job.pages_rotated = pages_rotated
         split_job.total_input_tokens = total_input_tokens
         split_job.total_output_tokens = total_output_tokens
+
+        # Calculate cost using PricingService
+        if total_input_tokens > 0 or total_output_tokens > 0:
+            try:
+                from app.domain.metrics.pricing_service import PricingService
+                from app.domain.metrics.value_objects import TokenUsage
+
+                token_usage = TokenUsage(
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                )
+                model_used = split_job.dspy_model or settings.default_qwen_vision_model
+
+                pricing_service = PricingService(db)
+                cost_estimate, pricing_snapshot = pricing_service.calculate_and_snapshot(
+                    token_usage, model_used
+                )
+
+                split_job.estimated_cost = cost_estimate.amount
+                split_job.pricing_snapshot = pricing_snapshot
+
+                logger.info(
+                    f"Split job {split_job_id} cost calculated: ${cost_estimate.amount:.6f} "
+                    f"({total_input_tokens} input + {total_output_tokens} output tokens)"
+                )
+            except Exception as e:
+                # Don't fail the job if cost calculation fails
+                logger.warning(f"Failed to calculate cost for split job {split_job_id}: {e}")
+
         db.commit()
 
         # Calculate starting indices and rotation map

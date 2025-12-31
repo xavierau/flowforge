@@ -1,7 +1,7 @@
 """Document split-related Pydantic schemas."""
 
 from datetime import datetime
-from typing import List, Literal, Optional, Set
+from typing import Any, Dict, List, Literal, Optional, Set
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -94,6 +94,7 @@ class SplitJobProgress(BaseModel):
                 "pages_rotated": 2,
                 "total_input_tokens": 10240,
                 "total_output_tokens": 1280,
+                "estimated_cost": 0.012345,
             }
         }
     )
@@ -106,6 +107,7 @@ class SplitJobProgress(BaseModel):
     pages_rotated: int = Field(0, description="Number of pages that needed rotation")
     total_input_tokens: int = Field(0, description="Total input tokens used")
     total_output_tokens: int = Field(0, description="Total output tokens used")
+    estimated_cost: Optional[float] = Field(None, description="Estimated cost in USD")
 
 
 class SplitJobStatusResponse(BaseModel):
@@ -125,6 +127,7 @@ class SplitJobStatusResponse(BaseModel):
                     "pages_rotated": 2,
                     "total_input_tokens": 10240,
                     "total_output_tokens": 1280,
+                    "estimated_cost": 0.012345,
                 },
                 "started_at": "2025-11-02T10:31:05Z",
                 "created_at": "2025-11-02T10:31:00Z",
@@ -143,6 +146,9 @@ class SplitJobStatusResponse(BaseModel):
     completed_at: Optional[datetime] = Field(None, description="Job completion time")
     created_at: datetime = Field(..., description="Job creation time")
     error_message: Optional[str] = Field(None, description="Sanitized error message if failed")
+    pricing_snapshot: Optional[Dict[str, Any]] = Field(
+        None, description="Pricing snapshot for cost calculation audit"
+    )
 
 
 class PageAnalysisResult(BaseModel):
@@ -198,6 +204,7 @@ class SplitJobSummary(BaseModel):
     pages_rotated: int = Field(..., description="Number of pages that were rotated")
     total_input_tokens: int = Field(..., description="Total input tokens used")
     total_output_tokens: int = Field(..., description="Total output tokens used")
+    estimated_cost: Optional[float] = Field(None, description="Estimated cost in USD")
 
 
 class SplitJobResultsResponse(BaseModel):

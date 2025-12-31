@@ -1,0 +1,74 @@
+[
+  {
+    "is_starting_page": true,
+    "confidence": "high",
+    "reason": "Document contains company header, invoice number, date, and title at the top, with no page numbers or continuation indicators, indicating it is the first page of a new invoice.",
+    "document_type": "invoice",
+    "rotation_needed": 0,
+    "rotation_confidence": "high",
+    "rotation_reason": "Tesseract OSD detected 0\u00b0 rotation (confidence: 6.7)",
+    "rotation_method": "tesseract_osd",
+    "token_usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0
+    },
+    "analysis_method": "dspy",
+    "page_number": 1,
+    "page_index": 0
+  },
+  {
+    "is_starting_page": true,
+    "confidence": "high",
+    "reason": "The document has a clear header with company name and logo, a date, and explicit page numbering 'PAGE 1 of 1', indicating it is the first and only page of the document.",
+    "document_type": "receipt",
+    "rotation_needed": 90,
+    "rotation_confidence": "high",
+    "rotation_reason": "Tesseract OSD detected 90\u00b0 rotation (confidence: 10.1)",
+    "rotation_method": "tesseract_osd",
+    "token_usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0
+    },
+    "analysis_method": "dspy",
+    "page_number": 2,
+    "page_index": 1
+  },
+  {
+    "is_starting_page": true,
+    "confidence": "high",
+    "reason": "The document displays a company logo, invoice title, invoice number, date, and explicit page indicator '1/1', all characteristic of a first page. No continuation markers are present.",
+    "document_type": "invoice",
+    "rotation_needed": 0,
+    "rotation_confidence": "high",
+    "rotation_reason": "Tesseract OSD detected 0\u00b0 rotation (confidence: 6.0)",
+    "rotation_method": "tesseract_osd",
+    "token_usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0
+    },
+    "analysis_method": "dspy",
+    "page_number": 3,
+    "page_index": 2
+  },
+  {
+    "is_starting_page": true,
+    "confidence": "high",
+    "reason": "The document contains a clear header with company name, logo, and 'SALES INVOICE' title. It includes invoice date, invoice number, and explicitly states 'Page 1/1', indicating it is the first and only page. No continuation indicators are present.",
+    "document_type": "invoice",
+    "rotation_needed": 0,
+    "rotation_confidence": "high",
+    "rotation_reason": "Tesseract OSD detected 0\u00b0 rotation (confidence: 8.5)",
+    "rotation_method": "tesseract_osd",
+    "token_usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0
+    },
+    "analysis_method": "dspy",
+    "page_number": 4,
+    "page_index": 3
+  }
+]
