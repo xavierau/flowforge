@@ -400,7 +400,7 @@ async def extract_from_file(
         # Queue split_and_extract task
         task = split_and_extract.delay(
             str(split_job.id),
-            str(current_user.id),
+            str(current_user.tenant_id),
             extraction_config
         )
 
