@@ -1,5 +1,6 @@
 """Job status and results endpoints."""
 
+from datetime import datetime
 from uuid import UUID
 import logging
 
@@ -404,6 +405,8 @@ async def extract_from_file(
             "user_id": str(current_user.id),
             # Pass parent's credit transaction so child jobs inherit credit status
             "parent_credit_transaction_id": str(job.credit_transaction_id) if job.credit_transaction_id else None,
+            # Pass parent extraction job ID so child jobs can update parent status when complete
+            "parent_extraction_job_id": str(job.id),
         }
         if schema_definition_id:
             extraction_config["schema_definition_id"] = schema_definition_id
@@ -423,6 +426,8 @@ async def extract_from_file(
         # Update split job with celery task ID
         split_job.celery_task_id = task.id
         job.celery_task_id = task.id  # Also set on extraction job for tracking
+        job.status = "processing"  # Mark parent job as processing
+        job.started_at = datetime.utcnow()
         db.commit()
 
         message = "Document uploaded and split+extract pipeline queued (auto split mode)"

@@ -61,14 +61,15 @@ class DocumentStatus(str, Enum):
 
     State machine:
     uploaded → processing → ready_for_extraction → completed
-                  ↓
-                failed
+                  ↓              ↓
+                failed         split (for auto-split parent documents)
     """
     UPLOADED = "uploaded"
     PROCESSING = "processing"
     READY_FOR_EXTRACTION = "ready_for_extraction"
     COMPLETED = "completed"
     FAILED = "failed"
+    SPLIT = "split"  # Parent document has been split into children
 
 
 class UserRole(str, Enum):

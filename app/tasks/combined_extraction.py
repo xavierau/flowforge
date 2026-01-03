@@ -17,6 +17,78 @@ from app.tasks.markdown_pipeline import process_markdown_extraction_pipeline
 logger = logging.getLogger(__name__)
 
 
+def _update_parent_job_status(db, child_job: ExtractionJob) -> None:
+    """
+    Check if all sibling jobs are complete and update parent job status.
+
+    Called after each child job completes to aggregate status to parent.
+
+    Args:
+        db: Database session
+        child_job: The child job that just completed
+    """
+    if not child_job.parent_extraction_job_id:
+        return
+
+    parent_job = (
+        db.query(ExtractionJob)
+        .filter(ExtractionJob.id == child_job.parent_extraction_job_id)
+        .first()
+    )
+
+    if not parent_job:
+        logger.warning(
+            f"Parent job {child_job.parent_extraction_job_id} not found for child {child_job.id}"
+        )
+        return
+
+    # Get all sibling jobs (same parent)
+    sibling_jobs = (
+        db.query(ExtractionJob)
+        .filter(ExtractionJob.parent_extraction_job_id == parent_job.id)
+        .all()
+    )
+
+    if not sibling_jobs:
+        logger.warning(f"No sibling jobs found for parent {parent_job.id}")
+        return
+
+    # Check status of all siblings
+    all_statuses = [j.status for j in sibling_jobs]
+    completed_count = sum(1 for s in all_statuses if s == "completed")
+    failed_count = sum(1 for s in all_statuses if s == "failed")
+    total_count = len(all_statuses)
+
+    logger.info(
+        f"Parent job {parent_job.id} status check: "
+        f"{completed_count}/{total_count} completed, {failed_count} failed"
+    )
+
+    # All children completed successfully
+    if completed_count == total_count:
+        parent_job.status = "completed"
+        parent_job.completed_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"Parent job {parent_job.id} marked as completed (all children done)")
+        return
+
+    # At least one failed and all are terminal (completed or failed)
+    terminal_count = completed_count + failed_count
+    if terminal_count == total_count and failed_count > 0:
+        parent_job.status = "failed"
+        parent_job.error_message = f"{failed_count} of {total_count} child extraction jobs failed"
+        parent_job.completed_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"Parent job {parent_job.id} marked as failed ({failed_count} children failed)")
+        return
+
+    # Still processing (some jobs not in terminal state)
+    logger.debug(
+        f"Parent job {parent_job.id} still processing: "
+        f"{terminal_count}/{total_count} in terminal state"
+    )
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def process_extraction(
     self: Task,
@@ -36,6 +108,7 @@ def process_extraction(
     tenant_id: Optional[str] = None,
     user_id: Optional[str] = None,
     parent_credit_transaction_id: Optional[str] = None,
+    parent_extraction_job_id: Optional[str] = None,
 ) -> dict:
     """
     Create extraction job for a document and process it.
@@ -60,6 +133,7 @@ def process_extraction(
         tenant_id: Tenant UUID for validation
         user_id: User UUID for credit tracking
         parent_credit_transaction_id: Parent job's credit transaction ID (for child jobs)
+        parent_extraction_job_id: Parent extraction job ID (for updating parent status)
 
     Returns:
         Dictionary with job ID and status
@@ -124,6 +198,8 @@ def process_extraction(
             # Child jobs inherit credit status from parent
             credits_deducted=True if parent_credit_transaction_id else False,
             credit_transaction_id=UUID(parent_credit_transaction_id) if parent_credit_transaction_id else None,
+            # Link to parent extraction job for status aggregation
+            parent_extraction_job_id=UUID(parent_extraction_job_id) if parent_extraction_job_id else None,
         )
 
         db.add(job)
@@ -140,6 +216,11 @@ def process_extraction(
         # Delegate to process_document_and_extract for actual processing
         result = process_document_and_extract(job_id)
 
+        # Refresh job to get final status and update parent if needed
+        db.refresh(job)
+        if job.parent_extraction_job_id:
+            _update_parent_job_status(db, job)
+
         return {
             "extraction_job_id": job_id,
             "document_id": document_id,
@@ -152,6 +233,16 @@ def process_extraction(
             exc_info=True
         )
         db.rollback()
+
+        # If job was created and has parent, update parent status on final failure
+        if 'job' in locals() and job and job.parent_extraction_job_id:
+            if self.request.retries >= self.max_retries:
+                # Final failure - refresh job and update parent
+                try:
+                    db.refresh(job)
+                    _update_parent_job_status(db, job)
+                except Exception as update_err:
+                    logger.error(f"Failed to update parent job status: {update_err}")
 
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))

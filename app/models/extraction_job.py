@@ -46,6 +46,14 @@ class ExtractionJob(Base):
         nullable=True
     )
 
+    # Link to parent extraction job for child jobs created during auto-split
+    # This enables tracking child job completion to update parent job status
+    parent_extraction_job_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("extraction_jobs.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
     enable_thinking = Column(Boolean, nullable=False, default=False)  # Enable AI thinking mode
     thinking_budget = Column(Integer, nullable=False, default=0)  # Token budget for thinking (0=disabled)
 
@@ -103,6 +111,12 @@ class ExtractionJob(Base):
         cascade="all, delete-orphan"
     )
     parent_split_job = relationship("SplitJob", foreign_keys=[parent_split_job_id])
+    parent_extraction_job = relationship(
+        "ExtractionJob",
+        remote_side=[id],
+        foreign_keys=[parent_extraction_job_id],
+        backref="child_extraction_jobs"
+    )
 
     # Indexes
     __table_args__ = (
@@ -115,6 +129,7 @@ class ExtractionJob(Base):
         Index("idx_extraction_jobs_parent_split_job_id", "parent_split_job_id"),
         Index("idx_extraction_jobs_split_mode", "split_mode"),
         Index("idx_extraction_jobs_extraction_mode", "extraction_mode"),
+        Index("idx_extraction_jobs_parent_extraction_job_id", "parent_extraction_job_id"),
     )
 
     @validates('source')

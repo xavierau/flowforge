@@ -24,7 +24,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import Document, DocumentPage
 from app.models.document_split import SplitJob, SplitResult
-from app.models.enums import SplitJobStatus
+from app.models.enums import SplitJobStatus, DocumentStatus
 from app.services.document_analyzer_service import DocumentAnalyzerService
 from app.services.storage import get_storage_service
 from app.tasks.celery_app import celery_app
@@ -409,6 +409,11 @@ def split_and_create_documents(self: Task, analysis_result: Dict) -> Dict:
         split_job.documents_created = len(split_pdfs)
         split_job.status = SplitJobStatus.COMPLETED.value
         split_job.completed_at = datetime.utcnow()
+
+        # Update parent document status to SPLIT
+        # This indicates the document has been split into children and
+        # extraction should happen on child documents instead
+        source_doc.status = DocumentStatus.SPLIT.value
         db.commit()
 
         result = {

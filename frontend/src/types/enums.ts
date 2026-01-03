@@ -47,6 +47,7 @@ export enum DocumentStatus {
   READY_FOR_EXTRACTION = "ready_for_extraction",
   COMPLETED = "completed",
   FAILED = "failed",
+  SPLIT = "split",  // Parent document has been split into children (auto-split mode)
 }
 
 /**
