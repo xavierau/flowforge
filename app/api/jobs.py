@@ -366,7 +366,7 @@ async def extract_from_file(
 
         # Create SplitJob record
         split_job = SplitJob(
-            document_id=document.id,
+            source_document_id=document.id,
             tenant_id=current_user.tenant_id,
             dspy_model=f"{model_provider}/{model_name}",  # Use same model for splitting
             status="queued",
