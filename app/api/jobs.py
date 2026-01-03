@@ -363,7 +363,11 @@ async def extract_from_file(
         # Auto split mode: Create SplitJob and trigger split_and_extract pipeline
         from celery import chain
         from app.models.document_split import SplitJob
-        from app.tasks.document_splitter import process_split_job, split_and_extract
+        from app.tasks.document_splitter import (
+            analyze_document_boundaries,
+            split_and_create_documents,
+            split_and_extract,
+        )
 
         # Create SplitJob record
         # Note: Splitting uses Dashscope/Qwen VL models via DSPy, not the extraction model
@@ -404,12 +408,14 @@ async def extract_from_file(
         if schema_definition_id:
             extraction_config["schema_definition_id"] = schema_definition_id
 
-        # Chain: process_split_job (analyze + split) -> split_and_extract (queue extractions)
-        # process_split_job chains analyze_document_boundaries -> split_and_create_documents
-        # split_and_extract waits for completion then queues extraction for each child doc
-        # Use .si() (immutable signature) for split_and_extract to ignore process_split_job result
+        # Chain all split tasks sequentially:
+        # 1. analyze_document_boundaries - detect page boundaries and rotation
+        # 2. split_and_create_documents - create child documents from boundaries
+        # 3. split_and_extract - queue extraction for each child document
+        # Using a single chain ensures proper sequencing (no nested async chains)
         workflow = chain(
-            process_split_job.s(str(split_job.id), str(current_user.tenant_id)),
+            analyze_document_boundaries.s(str(split_job.id), str(current_user.tenant_id)),
+            split_and_create_documents.s(),  # receives analysis result
             split_and_extract.si(str(split_job.id), str(current_user.tenant_id), extraction_config),
         )
         task = workflow.apply_async()
