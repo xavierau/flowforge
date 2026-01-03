@@ -366,10 +366,12 @@ async def extract_from_file(
         from app.tasks.document_splitter import process_split_job, split_and_extract
 
         # Create SplitJob record
+        # Note: Splitting uses Dashscope/Qwen VL models via DSPy, not the extraction model
+        # The default qwen_vision_model will be used for boundary detection
         split_job = SplitJob(
             source_document_id=document.id,
             tenant_id=current_user.tenant_id,
-            dspy_model=f"{model_provider}/{model_name}",  # Use same model for splitting
+            dspy_model=None,  # Use default Qwen VL model for splitting
             status="queued",
         )
         db.add(split_job)
