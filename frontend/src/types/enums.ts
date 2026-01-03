@@ -71,8 +71,9 @@ export enum SubscriptionStatus {
 }
 
 /**
- * Processing mode for extraction jobs
+ * Processing mode for extraction jobs (DEPRECATED)
  * CRITICAL: Values MUST match backend validation in app/api/jobs.py
+ * @deprecated Use SplitMode and ExtractionMode instead
  */
 export enum ProcessingMode {
   PER_PAGE = "per_page",  // Direct: Per-page vision→JSON
@@ -81,14 +82,35 @@ export enum ProcessingMode {
 }
 
 /**
- * Markdown converter providers
- * CRITICAL: Values MUST match backend converter_factory.py keys
+ * Split mode - how document pages are grouped for extraction
+ * CRITICAL: Values MUST match backend app/models/enums.py SplitMode
+ */
+export enum SplitMode {
+  PER_PAGE = "per_page",   // Each page processed individually (N API calls)
+  BATCH = "batch",          // All pages processed together (1 API call, recommended)
+  AUTO = "auto",            // LLM detects document boundaries, separate jobs per child
+}
+
+/**
+ * Extraction mode - how extraction is performed
+ * CRITICAL: Values MUST match backend app/models/enums.py ExtractionMode
+ */
+export enum ExtractionMode {
+  VLLM = "vllm",            // Vision LLM extracts directly from images
+  MARKDOWN = "markdown",    // Convert to markdown first, then extract (better for tables)
+}
+
+/**
+ * Markdown converter types for image-to-markdown conversion.
+ * CRITICAL: Values MUST match backend app/models/enums.py MarkdownConverter exactly.
+ *
+ * These converters use vision models to generate markdown from images:
+ * - GEMINI_VISION: Google Gemini 2.5 Flash vision model
+ * - GPT4V: OpenAI GPT-4 Vision model
  */
 export enum MarkdownConverter {
   GEMINI_VISION = "gemini_vision",
   GPT4V = "gpt4v",
-  QWEN_VISION = "qwen_vision",
-  LLAMAPARSE = "llamaparse",
 }
 
 /**
@@ -170,12 +192,75 @@ export function getProcessingModeColor(mode: ProcessingMode): string {
   return colors[mode];
 }
 
+/**
+ * Split mode helper functions
+ */
+export function getSplitModeLabel(mode: SplitMode): string {
+  const labels: Record<SplitMode, string> = {
+    [SplitMode.PER_PAGE]: "Per Page",
+    [SplitMode.BATCH]: "Batch",
+    [SplitMode.AUTO]: "Auto (LLM Split)",
+  };
+  return labels[mode];
+}
+
+export function getSplitModeDescription(mode: SplitMode): string {
+  const descriptions: Record<SplitMode, string> = {
+    [SplitMode.PER_PAGE]: "Process each page individually (N API calls)",
+    [SplitMode.BATCH]: "Process all pages together (1 API call, recommended)",
+    [SplitMode.AUTO]: "LLM detects document boundaries, creates separate jobs per document (costs extra credits)",
+  };
+  return descriptions[mode];
+}
+
+export function getSplitModeColor(mode: SplitMode): string {
+  const colors: Record<SplitMode, string> = {
+    [SplitMode.PER_PAGE]: "text-purple-600",
+    [SplitMode.BATCH]: "text-blue-600",
+    [SplitMode.AUTO]: "text-orange-600",
+  };
+  return colors[mode];
+}
+
+export function isSplitMode(value: string): value is SplitMode {
+  return Object.values(SplitMode).includes(value as SplitMode);
+}
+
+/**
+ * Extraction mode helper functions
+ */
+export function getExtractionModeLabel(mode: ExtractionMode): string {
+  const labels: Record<ExtractionMode, string> = {
+    [ExtractionMode.VLLM]: "Vision LLM",
+    [ExtractionMode.MARKDOWN]: "Markdown Pipeline",
+  };
+  return labels[mode];
+}
+
+export function getExtractionModeDescription(mode: ExtractionMode): string {
+  const descriptions: Record<ExtractionMode, string> = {
+    [ExtractionMode.VLLM]: "Direct extraction from page images using vision model",
+    [ExtractionMode.MARKDOWN]: "Convert to markdown first, then extract (better for tables)",
+  };
+  return descriptions[mode];
+}
+
+export function getExtractionModeColor(mode: ExtractionMode): string {
+  const colors: Record<ExtractionMode, string> = {
+    [ExtractionMode.VLLM]: "text-blue-600",
+    [ExtractionMode.MARKDOWN]: "text-green-600",
+  };
+  return colors[mode];
+}
+
+export function isExtractionMode(value: string): value is ExtractionMode {
+  return Object.values(ExtractionMode).includes(value as ExtractionMode);
+}
+
 export function getMarkdownConverterLabel(converter: MarkdownConverter): string {
   const labels: Record<MarkdownConverter, string> = {
     [MarkdownConverter.GEMINI_VISION]: "Gemini Vision",
     [MarkdownConverter.GPT4V]: "GPT-4 Vision",
-    [MarkdownConverter.QWEN_VISION]: "Qwen Vision",
-    [MarkdownConverter.LLAMAPARSE]: "LlamaParse",
   };
   return labels[converter];
 }
@@ -184,8 +269,6 @@ export function getMarkdownConverterDescription(converter: MarkdownConverter): s
   const descriptions: Record<MarkdownConverter, string> = {
     [MarkdownConverter.GEMINI_VISION]: "Google Gemini 2.5 Flash - Fast, accurate, good for most documents",
     [MarkdownConverter.GPT4V]: "OpenAI GPT-4 Vision - High quality, higher cost",
-    [MarkdownConverter.QWEN_VISION]: "Qwen3-VL-8B - Cost-effective ($0.72/M tokens), supports special QwenVL formats",
-    [MarkdownConverter.LLAMAPARSE]: "LlamaParse - Specialized document parser, charged per page (not tokens)",
   };
   return descriptions[converter];
 }

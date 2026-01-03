@@ -37,17 +37,36 @@ import { extractFromFile, listSchemas } from '@/lib/api';
 import type { ApiSchema } from '@/types/api-schema';
 import { Badge } from '@/components/ui/badge';
 import { MarkdownPipelineConfig } from '@/components/markdown/MarkdownPipelineConfig';
-import { ProcessingMode, MarkdownConverter, MarkdownFormat } from '@/types/enums';
+import {
+  SplitMode,
+  ExtractionMode,
+  MarkdownConverter,
+  MarkdownFormat,
+  getSplitModeDescription,
+  getExtractionModeDescription,
+} from '@/types/enums';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
+const PDF_MIME_TYPE = 'application/pdf';
+
+/**
+ * Check if a file is a PDF based on MIME type
+ */
+function isPdfFile(file: File | null): boolean {
+  return file?.type === PDF_MIME_TYPE;
+}
 
 interface FormData {
   file: File | null;
   schemaId: string;
   customSchema: string;
   customPrompt: string;
-  processingMode: ProcessingMode;
+  // New granular mode fields
+  splitMode: SplitMode;
+  extractionMode: ExtractionMode;
   markdownConverter: MarkdownConverter;
   markdownFormat: MarkdownFormat;
   callbackUrl: string;
@@ -65,7 +84,9 @@ export function JobCreate() {
     schemaId: '',
     customSchema: '',
     customPrompt: '',
-    processingMode: ProcessingMode.BATCH,
+    // New granular mode fields (defaults)
+    splitMode: SplitMode.BATCH,
+    extractionMode: ExtractionMode.VLLM,
     markdownConverter: MarkdownConverter.GEMINI_VISION,
     markdownFormat: MarkdownFormat.TABLE_HEAVY,
     callbackUrl: '',
@@ -131,8 +152,17 @@ export function JobCreate() {
       return;
     }
 
-    setFormData(prev => ({ ...prev, file }));
-  }, []);
+    // Auto-reset split mode to BATCH if non-PDF file is selected while Auto is active
+    const isNewFilePdf = file.type === PDF_MIME_TYPE;
+    if (!isNewFilePdf && formData.splitMode === SplitMode.AUTO) {
+      toast.info('Split mode changed', {
+        description: 'Auto split mode only works with PDF files. Changed to Batch mode.',
+      });
+      setFormData(prev => ({ ...prev, file, splitMode: SplitMode.BATCH }));
+    } else {
+      setFormData(prev => ({ ...prev, file }));
+    }
+  }, [formData.splitMode]);
 
   // Remove selected file
   const handleRemoveFile = useCallback(() => {
@@ -146,6 +176,11 @@ export function JobCreate() {
   const validateForm = useCallback((): string | null => {
     if (!formData.file) {
       return 'Please select a file to upload';
+    }
+
+    // Validate auto split mode only works with PDF files
+    if (formData.splitMode === SplitMode.AUTO && !isPdfFile(formData.file)) {
+      return 'Auto split mode is only supported for PDF files. Please select a PDF or choose a different split mode.';
     }
 
     if (!useCustomSchema && !formData.schemaId) {
@@ -182,12 +217,14 @@ export function JobCreate() {
     setIsSubmitting(true);
 
     try {
-      // Build extract request
+      // Build extract request with new granular mode fields
       const extractRequest: any = {
         file: formData.file,
         model_provider: 'google',
         model_name: 'gemini-2.5-flash',
-        processing_mode: formData.processingMode,
+        // New granular mode fields
+        split_mode: formData.splitMode,
+        extraction_mode: formData.extractionMode,
       };
 
       // Add schema configuration
@@ -197,8 +234,8 @@ export function JobCreate() {
         extractRequest.schema_definition_id = formData.schemaId;
       }
 
-      // Add markdown pipeline configuration if markdown mode
-      if (formData.processingMode === ProcessingMode.MARKDOWN) {
+      // Add markdown pipeline configuration if markdown extraction mode
+      if (formData.extractionMode === ExtractionMode.MARKDOWN) {
         extractRequest.markdown_converter = formData.markdownConverter;
         extractRequest.markdown_format = formData.markdownFormat;
       }
@@ -400,43 +437,90 @@ export function JobCreate() {
             <CardHeader>
               <CardTitle>Extraction Settings</CardTitle>
               <CardDescription>
-                Configure processing mode and custom instructions
+                Configure how the document is split and how extraction is performed
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Split Mode Selection */}
               <div className="space-y-2">
-                <Label htmlFor="processing-mode">Processing Mode</Label>
+                <Label htmlFor="split-mode">Document Split Mode</Label>
                 <Select
-                  value={formData.processingMode}
+                  value={formData.splitMode}
                   onValueChange={(value) =>
-                    setFormData(prev => ({ ...prev, processingMode: value as ProcessingMode }))
+                    setFormData(prev => ({ ...prev, splitMode: value as SplitMode }))
                   }
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger id="processing-mode">
+                  <SelectTrigger id="split-mode">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ProcessingMode.PER_PAGE}>
-                      Direct (Per-page vision → JSON)
+                    <SelectItem value={SplitMode.BATCH}>
+                      Batch (1 call - recommended)
                     </SelectItem>
-                    <SelectItem value={ProcessingMode.BATCH}>
-                      Batch (All pages vision → JSON - faster)
+                    <SelectItem value={SplitMode.PER_PAGE}>
+                      Per Page (N calls)
                     </SelectItem>
-                    <SelectItem value={ProcessingMode.MARKDOWN}>
-                      Markdown Pipeline (Vision → Markdown → JSON - reusable)
+                    <SelectItem
+                      value={SplitMode.AUTO}
+                      disabled={formData.file !== null && !isPdfFile(formData.file)}
+                    >
+                      Auto (LLM Split - costs extra credits){formData.file && !isPdfFile(formData.file) ? ' - PDF only' : ''}
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {formData.processingMode === ProcessingMode.PER_PAGE && 'Processes each page individually with vision model'}
-                  {formData.processingMode === ProcessingMode.BATCH && 'Processes all pages together in one API call (recommended for most cases)'}
-                  {formData.processingMode === ProcessingMode.MARKDOWN && 'Two-stage: generates reusable markdown first, then extracts JSON (best for 3+ pages)'}
+                  {getSplitModeDescription(formData.splitMode)}
+                </p>
+                {/* Inline error when Auto is selected with non-PDF file */}
+                {formData.splitMode === SplitMode.AUTO && formData.file && !isPdfFile(formData.file) && (
+                  <p className="text-sm text-destructive font-medium">
+                    Auto split mode requires a PDF file. Please upload a PDF or select a different split mode.
+                  </p>
+                )}
+              </div>
+
+              {/* Warning for Auto split mode */}
+              {formData.splitMode === SplitMode.AUTO && (
+                <Alert variant="default" className="border-orange-200 bg-orange-50">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <AlertDescription className="text-orange-800">
+                    Auto split uses LLM to detect document boundaries. This costs additional credits
+                    and creates separate extraction jobs for each detected document.
+                    {isPdfFile(formData.file) ? '' : ' Only works with PDF files.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Extraction Mode Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="extraction-mode">Extraction Method</Label>
+                <Select
+                  value={formData.extractionMode}
+                  onValueChange={(value) =>
+                    setFormData(prev => ({ ...prev, extractionMode: value as ExtractionMode }))
+                  }
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger id="extraction-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ExtractionMode.VLLM}>
+                      Vision LLM (direct image extraction)
+                    </SelectItem>
+                    <SelectItem value={ExtractionMode.MARKDOWN}>
+                      Markdown Pipeline (better for tables)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {getExtractionModeDescription(formData.extractionMode)}
                 </p>
               </div>
 
-              {/* Show markdown configuration only when markdown mode is selected */}
-              {formData.processingMode === ProcessingMode.MARKDOWN && (
+              {/* Show markdown configuration only when markdown extraction mode is selected */}
+              {formData.extractionMode === ExtractionMode.MARKDOWN && (
                 <MarkdownPipelineConfig
                   converter={formData.markdownConverter}
                   format={formData.markdownFormat}

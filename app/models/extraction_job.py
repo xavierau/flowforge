@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship, validates
 import uuid
 
 from app.database import Base
-from app.models.enums import JobSource
+from app.models.enums import JobSource, SplitMode, ExtractionMode
 
 
 class ExtractionJob(Base):
@@ -29,7 +29,23 @@ class ExtractionJob(Base):
     model_name = Column(String(100), nullable=False)
     processing_mode = Column(
         String(50), nullable=False, default="batch"
-    )  # batch (all pages in one call) or per_page (individual page processing) or markdown (vision → markdown → JSON)
+    )  # DEPRECATED: Use split_mode + extraction_mode instead
+
+    # New granular mode fields (replace processing_mode)
+    split_mode = Column(
+        String(20), nullable=False, default="batch"
+    )  # per_page, batch, auto - how pages are grouped
+    extraction_mode = Column(
+        String(20), nullable=False, default="vllm"
+    )  # vllm, markdown - how extraction is performed
+
+    # Link to parent split job when using auto split mode
+    parent_split_job_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("split_jobs.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
     enable_thinking = Column(Boolean, nullable=False, default=False)  # Enable AI thinking mode
     thinking_budget = Column(Integer, nullable=False, default=0)  # Token budget for thinking (0=disabled)
 
@@ -86,6 +102,7 @@ class ExtractionJob(Base):
         uselist=False,
         cascade="all, delete-orphan"
     )
+    parent_split_job = relationship("SplitJob", foreign_keys=[parent_split_job_id])
 
     # Indexes
     __table_args__ = (
@@ -95,6 +112,9 @@ class ExtractionJob(Base):
         Index("idx_extraction_jobs_status", "status"),
         Index("idx_extraction_jobs_celery_task_id", "celery_task_id"),
         Index("idx_extraction_jobs_source", "source"),
+        Index("idx_extraction_jobs_parent_split_job_id", "parent_split_job_id"),
+        Index("idx_extraction_jobs_split_mode", "split_mode"),
+        Index("idx_extraction_jobs_extraction_mode", "extraction_mode"),
     )
 
     @validates('source')
@@ -104,4 +124,22 @@ class ExtractionJob(Base):
             return value.value
         if value not in [s.value for s in JobSource]:
             raise ValueError(f"Invalid source: {value}. Must be one of: {[s.value for s in JobSource]}")
+        return value
+
+    @validates('split_mode')
+    def validate_split_mode(self, key, value):
+        """Validate split_mode field against SplitMode enum."""
+        if isinstance(value, SplitMode):
+            return value.value
+        if value not in [m.value for m in SplitMode]:
+            raise ValueError(f"Invalid split_mode: {value}. Must be one of: {[m.value for m in SplitMode]}")
+        return value
+
+    @validates('extraction_mode')
+    def validate_extraction_mode(self, key, value):
+        """Validate extraction_mode field against ExtractionMode enum."""
+        if isinstance(value, ExtractionMode):
+            return value.value
+        if value not in [m.value for m in ExtractionMode]:
+            raise ValueError(f"Invalid extraction_mode: {value}. Must be one of: {[m.value for m in ExtractionMode]}")
         return value

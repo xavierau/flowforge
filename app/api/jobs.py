@@ -27,7 +27,8 @@ from app.services.storage import get_storage_service, StorageService
 from app.services.schema_validator import SchemaValidator
 from app.services.extraction_service import ExtractionCreditValidator
 from app.dependencies.auth import require_permission, require_permission_flexible
-from app.models.enums import JobSource
+from app.models.enums import JobSource, SplitMode, ExtractionMode
+from app.schemas.extraction import resolve_mode_fields
 
 router = APIRouter()
 
@@ -40,7 +41,11 @@ async def extract_from_file(
     custom_prompt: str = Form(None),
     model_provider: str = Form(None),
     model_name: str = Form(None),
-    processing_mode: str = Form("batch"),
+    # New granular mode fields
+    split_mode: str = Form("batch"),
+    extraction_mode: str = Form("vllm"),
+    # Deprecated - use split_mode and extraction_mode instead
+    processing_mode: str = Form(None),
     markdown_converter: str = Form(None),
     markdown_format: str = Form(None),
     callback_url: str = Form(None),
@@ -59,6 +64,17 @@ async def extract_from_file(
 
     Required Permission: extraction:create
 
+    Mode Configuration:
+        - split_mode: How pages are grouped - 'per_page', 'batch', or 'auto'
+        - extraction_mode: How extraction is performed - 'vllm' or 'markdown'
+
+    Backward Compatibility:
+        - processing_mode is deprecated but still accepted
+        - If processing_mode is provided without split_mode/extraction_mode, it will be mapped:
+          - 'batch' -> split_mode='batch', extraction_mode='vllm'
+          - 'per_page' -> split_mode='per_page', extraction_mode='vllm'
+          - 'markdown' -> split_mode='batch', extraction_mode='markdown'
+
     Args:
         file: File to upload and extract from
         schema_definition_id: Optional ID of saved schema definition
@@ -66,7 +82,9 @@ async def extract_from_file(
         custom_prompt: Optional custom extraction instructions
         model_provider: Optional VLLM provider (google, openai, etc.). Uses default from .env if not provided
         model_name: Optional model name. Uses default from .env if not provided
-        processing_mode: Processing mode ('batch' or 'per_page')
+        split_mode: Split mode - 'per_page', 'batch', or 'auto' (default: 'batch')
+        extraction_mode: Extraction mode - 'vllm' or 'markdown' (default: 'vllm')
+        processing_mode: DEPRECATED - use split_mode and extraction_mode instead
         callback_url: Optional webhook URL for completion notification
         enable_thinking: Enable AI thinking mode (default: False)
         thinking_budget: Token budget for thinking when enabled (default: 3000)
@@ -79,7 +97,7 @@ async def extract_from_file(
         Extraction job ID and status
 
     Raises:
-        400: Invalid request (schema, file type, or processing mode)
+        400: Invalid request (schema, file type, or mode configuration)
         402: Insufficient credits
         404: Schema definition not found
         500: Server error
@@ -88,12 +106,14 @@ async def extract_from_file(
         Credits are deducted SYNCHRONOUSLY before job creation to prevent
         race conditions. If credit deduction fails, job creation is rolled back.
         Cost: 1 credit per page (minimum 1 credit for unknown page count).
+        Auto split mode costs additional credits for LLM boundary detection.
 
     Note:
         - At least one of schema_definition_id or extraction_schema must be provided
         - If both are provided, schema_definition_id takes precedence
         - If model_provider or model_name not provided, defaults from .env are used
         - thinking_budget only applies when enable_thinking is True
+        - Auto split mode only works with PDF files
     """
     # Use defaults from settings if not provided
     if not model_provider:
@@ -163,20 +183,33 @@ async def extract_from_file(
             detail=f"Invalid provider. Must be one of: {', '.join(valid_providers)}",
         )
 
-    # Validate processing mode
-    valid_modes = ["batch", "per_page", "markdown"]
-    if processing_mode not in valid_modes:
+    # Resolve split_mode and extraction_mode from request (handles backward compatibility)
+    resolved_split_mode, resolved_extraction_mode = resolve_mode_fields(
+        split_mode, extraction_mode, processing_mode
+    )
+
+    # Validate split_mode
+    valid_split_modes = [m.value for m in SplitMode]
+    if resolved_split_mode not in valid_split_modes:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid processing_mode. Must be one of: {', '.join(valid_modes)}",
+            detail=f"Invalid split_mode. Must be one of: {', '.join(valid_split_modes)}",
         )
 
-    # Validate markdown configuration if markdown mode
-    if processing_mode == "markdown":
+    # Validate extraction_mode
+    valid_extraction_modes = [m.value for m in ExtractionMode]
+    if resolved_extraction_mode not in valid_extraction_modes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid extraction_mode. Must be one of: {', '.join(valid_extraction_modes)}",
+        )
+
+    # Validate markdown configuration if markdown extraction mode
+    if resolved_extraction_mode == "markdown":
         if not markdown_converter:
             raise HTTPException(
                 status_code=400,
-                detail="markdown_converter is required for markdown processing mode"
+                detail="markdown_converter is required for markdown extraction mode"
             )
 
         # Validate converter availability
@@ -232,6 +265,15 @@ async def extract_from_file(
                 detail=f"Failed to process PDF: {str(e)}"
             )
 
+    # Validate auto split mode (PDF only)
+    if resolved_split_mode == "auto" and not is_pdf:
+        # Clean up uploaded file
+        storage.delete_file_sync(file_path)
+        raise HTTPException(
+            status_code=400,
+            detail="Auto split mode is only supported for PDF files"
+        )
+
     # Create document record with tenant isolation
     document = Document(
         tenant_id=current_user.tenant_id,
@@ -265,9 +307,13 @@ async def extract_from_file(
             custom_prompt=custom_prompt,
             model_provider=model_provider,
             model_name=model_name,
-            processing_mode=processing_mode,
-            markdown_converter=markdown_converter if processing_mode == "markdown" else None,
-            markdown_format=markdown_format if processing_mode == "markdown" else None,
+            # New granular mode fields
+            split_mode=resolved_split_mode,
+            extraction_mode=resolved_extraction_mode,
+            # Keep processing_mode for backward compatibility (derived from new fields)
+            processing_mode=resolved_split_mode if resolved_extraction_mode == "vllm" else "markdown",
+            markdown_converter=markdown_converter if resolved_extraction_mode == "markdown" else None,
+            markdown_format=markdown_format if resolved_extraction_mode == "markdown" else None,
             callback_url=callback_url,
             enable_thinking=enable_thinking,
             thinking_budget=thinking_budget if enable_thinking else 0,
@@ -312,24 +358,86 @@ async def extract_from_file(
         )
     # --- END CREDIT DEDUCTION ---
 
-    # Queue combined processing task
-    from app.tasks.combined_extraction import process_document_and_extract
+    # Route to appropriate task based on split_mode
+    if resolved_split_mode == "auto":
+        # Auto split mode: Create SplitJob and trigger split_and_extract pipeline
+        from app.models.document_split import SplitJob
+        from app.tasks.document_splitter import split_and_extract
 
-    task = process_document_and_extract.delay(str(job.id))
+        # Create SplitJob record
+        split_job = SplitJob(
+            document_id=document.id,
+            tenant_id=current_user.tenant_id,
+            dspy_model=f"{model_provider}/{model_name}",  # Use same model for splitting
+            status="queued",
+        )
+        db.add(split_job)
+        db.flush()
 
-    # Update job with celery task ID
-    job.celery_task_id = task.id
-    db.commit()
+        # Link extraction job to split job
+        job.parent_split_job_id = split_job.id
+        db.commit()
+        db.refresh(job)
+        db.refresh(split_job)
+
+        # Build extraction config for child jobs
+        extraction_config = {
+            "extraction_schema": final_schema,
+            "custom_prompt": custom_prompt,
+            "model_provider": model_provider,
+            "model_name": model_name,
+            "extraction_mode": resolved_extraction_mode,  # Pass through extraction mode
+            "markdown_converter": markdown_converter if resolved_extraction_mode == "markdown" else None,
+            "markdown_format": markdown_format if resolved_extraction_mode == "markdown" else None,
+            "callback_url": callback_url,
+            "enable_thinking": enable_thinking,
+            "thinking_budget": thinking_budget if enable_thinking else 0,
+            "source": source,
+        }
+        if schema_definition_id:
+            extraction_config["schema_definition_id"] = schema_definition_id
+
+        # Queue split_and_extract task
+        task = split_and_extract.delay(
+            str(split_job.id),
+            str(current_user.id),
+            extraction_config
+        )
+
+        # Update split job with celery task ID
+        split_job.celery_task_id = task.id
+        job.celery_task_id = task.id  # Also set on extraction job for tracking
+        db.commit()
+
+        message = "Document uploaded and split+extract pipeline queued (auto split mode)"
+    else:
+        # Standard modes: Queue combined processing task
+        from app.tasks.combined_extraction import process_document_and_extract
+
+        task = process_document_and_extract.delay(str(job.id))
+
+        # Update job with celery task ID
+        job.celery_task_id = task.id
+        db.commit()
+
+        message = "Document uploaded and extraction job queued"
 
     # Estimate processing time
     # PDF processing ~10s + extraction time
     base_time = 10 if is_pdf else 0
     page_estimate = page_count or 1
 
-    if processing_mode == "batch":
+    if resolved_split_mode == "auto":
+        # Auto split: boundary detection + per-child extraction
+        extraction_time = 30 + (page_estimate * 10)  # Extra time for LLM splitting
+    elif resolved_split_mode == "batch":
         extraction_time = 20  # Base time for batch processing
-    else:
+    else:  # per_page
         extraction_time = page_estimate * 15
+
+    # Markdown mode adds extra time for conversion
+    if resolved_extraction_mode == "markdown":
+        extraction_time += page_estimate * 5
 
     estimated_time = base_time + extraction_time
 
@@ -337,7 +445,7 @@ async def extract_from_file(
         extraction_job_id=job.id,
         document_id=document.id,
         status=job.status,
-        message="Document uploaded and extraction job queued",
+        message=message,
         estimated_time_seconds=estimated_time,
         created_at=job.created_at,
     )
@@ -730,8 +838,15 @@ async def retry_job(
             custom_prompt=original_job.custom_prompt,
             model_provider=original_job.model_provider,
             model_name=original_job.model_name,
-            processing_mode=original_job.processing_mode,
+            # Copy new granular mode fields
+            split_mode=original_job.split_mode,
+            extraction_mode=original_job.extraction_mode,
+            processing_mode=original_job.processing_mode,  # Keep for backward compatibility
+            markdown_converter=original_job.markdown_converter,
+            markdown_format=original_job.markdown_format,
             callback_url=original_job.callback_url,
+            enable_thinking=original_job.enable_thinking,
+            thinking_budget=original_job.thinking_budget,
             status="queued",
             credits_cost=document.page_count or 1,  # Set cost upfront
             source=source,  # Track job origin (webui or api)
@@ -772,6 +887,8 @@ async def retry_job(
     # --- END CREDIT DEDUCTION ---
 
     # Queue extraction task
+    # Note: For retry, we always use the standard combined task, even if original was auto-split.
+    # Auto-split only applies to initial job creation (document splitting already happened).
     from app.tasks.combined_extraction import process_document_and_extract
 
     task = process_document_and_extract.delay(str(new_job.id))
@@ -780,15 +897,20 @@ async def retry_job(
     new_job.celery_task_id = task.id
     db.commit()
 
-    # Estimate processing time
+    # Estimate processing time using new granular mode fields
     is_pdf = document.mime_type == settings.allowed_pdf_type
     base_time = 10 if is_pdf else 0
     page_estimate = document.page_count or 1
 
-    if new_job.processing_mode == "batch":
+    if new_job.split_mode == "batch" or new_job.split_mode == "auto":
+        # Auto mode retries use batch since document is already processed
         extraction_time = 20
-    else:
+    else:  # per_page
         extraction_time = page_estimate * 15
+
+    # Markdown mode adds extra time for conversion
+    if new_job.extraction_mode == "markdown":
+        extraction_time += page_estimate * 5
 
     estimated_time = base_time + extraction_time
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FileText, Plus, Clock, CheckCircle, XCircle, Loader2, RotateCw, Files, FileCode, Globe, Terminal } from 'lucide-react';
+import { Eye, FileText, Plus, Clock, CheckCircle, XCircle, Loader2, RotateCw, Files, FileCode, Globe, Terminal, Layers, Sparkles, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Page, PageHeader, PageContent } from '@/components/layout';
@@ -17,7 +17,15 @@ import { Badge } from '@/components/ui/badge';
 import { ProcessingModeBadge } from '@/components/markdown/ProcessingModeBadge';
 import type { Job } from '@/types/job';
 import { listJobs, retryJob } from '@/lib/api';
-import { JobSource } from '@/types/enums';
+import {
+  JobSource,
+  SplitMode,
+  ExtractionMode,
+  getSplitModeLabel,
+  getExtractionModeLabel,
+  isSplitMode,
+  isExtractionMode,
+} from '@/types/enums';
 
 export function JobList() {
   const navigate = useNavigate();
@@ -101,12 +109,45 @@ export function JobList() {
       <div className="text-sm text-muted-foreground">{model || 'N/A'}</div>
     )),
     {
-      id: 'processing_mode',
-      accessorKey: 'processing_mode',
-      header: 'Mode',
+      id: 'split_mode',
+      accessorKey: 'split_mode',
+      header: 'Split',
       cell: ({ row }: { row: any }) => {
-        const mode = row.original.processing_mode;
-        return mode ? <ProcessingModeBadge mode={mode} /> : <span className="text-muted-foreground">N/A</span>;
+        const mode = row.original.split_mode;
+        if (!mode || !isSplitMode(mode)) return <span className="text-muted-foreground">N/A</span>;
+        const isAuto = mode === SplitMode.AUTO;
+        return (
+          <Badge variant={isAuto ? 'secondary' : 'outline'} className="gap-1">
+            {isAuto ? <Sparkles className="h-3 w-3" /> : <Layers className="h-3 w-3" />}
+            {getSplitModeLabel(mode)}
+          </Badge>
+        );
+      },
+      filterFn: (row: any, id: string, value: string[]) => {
+        return value.includes(row.getValue(id));
+      },
+    },
+    {
+      id: 'extraction_mode',
+      accessorKey: 'extraction_mode',
+      header: 'Extraction',
+      cell: ({ row }: { row: any }) => {
+        const mode = row.original.extraction_mode;
+        if (!mode || !isExtractionMode(mode)) {
+          // Fallback to deprecated processing_mode
+          const processingMode = row.original.processing_mode;
+          if (processingMode) {
+            return <ProcessingModeBadge mode={processingMode} />;
+          }
+          return <span className="text-muted-foreground">N/A</span>;
+        }
+        const isMarkdown = mode === ExtractionMode.MARKDOWN;
+        return (
+          <Badge variant={isMarkdown ? 'secondary' : 'outline'} className="gap-1">
+            {isMarkdown ? <FileCode className="h-3 w-3" /> : <ScanEye className="h-3 w-3" />}
+            {getExtractionModeLabel(mode)}
+          </Badge>
+        );
       },
       filterFn: (row: any, id: string, value: string[]) => {
         return value.includes(row.getValue(id));
@@ -211,12 +252,12 @@ export function JobList() {
               ],
             },
             {
-              id: 'processing_mode',
-              title: 'Processing Mode',
+              id: 'split_mode',
+              title: 'Split Mode',
               options: [
                 {
-                  label: 'Direct',
-                  value: 'direct',
+                  label: 'Per Page',
+                  value: 'per_page',
                   icon: FileText,
                 },
                 {
@@ -225,7 +266,23 @@ export function JobList() {
                   icon: Files,
                 },
                 {
-                  label: 'Markdown',
+                  label: 'Auto (LLM Split)',
+                  value: 'auto',
+                  icon: Sparkles,
+                },
+              ],
+            },
+            {
+              id: 'extraction_mode',
+              title: 'Extraction Mode',
+              options: [
+                {
+                  label: 'Vision LLM',
+                  value: 'vllm',
+                  icon: ScanEye,
+                },
+                {
+                  label: 'Markdown Pipeline',
                   value: 'markdown',
                   icon: FileCode,
                 },
@@ -249,7 +306,7 @@ export function JobList() {
             },
           ]}
           exportFilename="extraction-jobs"
-          exportableColumns={['id', 'document_name', 'status', 'processing_mode', 'source', 'model_used', 'created_at']}
+          exportableColumns={['id', 'document_name', 'status', 'split_mode', 'extraction_mode', 'source', 'model_used', 'created_at']}
           isLoading={isLoading}
           emptyMessage="No jobs found. Create your first extraction job to get started."
         />

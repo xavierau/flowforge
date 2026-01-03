@@ -164,15 +164,47 @@ class WorkflowNodeExecutionStatus(str, Enum):
 
 class ProcessingMode(str, Enum):
     """
-    Extraction processing modes.
+    Extraction processing modes (DEPRECATED - use SplitMode + ExtractionMode instead).
 
     Controls how document extraction is performed:
     - DIRECT: Per-page vision → JSON (legacy, deprecated)
     - BATCH: All pages vision → JSON in single call (current default)
     - MARKDOWN: Vision → Markdown → JSON (new two-stage pipeline)
+
+    Migration mapping:
+    - batch → SplitMode.BATCH + ExtractionMode.VLLM
+    - direct/per_page → SplitMode.PER_PAGE + ExtractionMode.VLLM
+    - markdown → SplitMode.BATCH + ExtractionMode.MARKDOWN
     """
     DIRECT = "direct"
     BATCH = "batch"
+    MARKDOWN = "markdown"
+
+
+class SplitMode(str, Enum):
+    """
+    Document split mode - how pages are grouped for extraction.
+
+    Controls page grouping strategy:
+    - PER_PAGE: Each page processed individually (N API calls)
+    - BATCH: All pages processed together in one call (1 API call, default)
+    - AUTO: LLM detects document boundaries and creates separate jobs per child document
+            (costs extra credits for boundary detection)
+    """
+    PER_PAGE = "per_page"
+    BATCH = "batch"
+    AUTO = "auto"
+
+
+class ExtractionMode(str, Enum):
+    """
+    Extraction mode - how extraction is performed.
+
+    Controls the extraction pipeline:
+    - VLLM: Vision LLM extracts directly from page images (default)
+    - MARKDOWN: Convert to markdown first, then extract from text (better for tables)
+    """
+    VLLM = "vllm"
     MARKDOWN = "markdown"
 
 

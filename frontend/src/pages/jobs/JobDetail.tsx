@@ -16,7 +16,13 @@ import { MarkdownViewer } from '@/components/markdown/MarkdownViewer';
 import type { Job, JobResultResponse } from '@/types/job';
 import type { DocumentStatusResponse } from '@/lib/api';
 import { getJobStatus, getJobResult, getDocument } from '@/lib/api';
-import { ProcessingMode } from '@/types/enums';
+import {
+  ExtractionMode,
+  getSplitModeLabel,
+  getExtractionModeLabel,
+  isSplitMode,
+  isExtractionMode,
+} from '@/types/enums';
 
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -153,7 +159,9 @@ export function JobDetail() {
     return null;
   }
 
-  const isMarkdownMode = result?.processing_mode === ProcessingMode.MARKDOWN;
+  // Use extraction_mode with fallback to deprecated processing_mode
+  const isMarkdownMode = result?.extraction_mode === ExtractionMode.MARKDOWN ||
+    (!result?.extraction_mode && result?.processing_mode === 'markdown');
 
   return (
     <Page>
@@ -300,6 +308,13 @@ export function JobDetail() {
                 <span>Time: <span className="text-foreground">{(result.metadata.processing_time_ms / 1000).toFixed(1)}s</span></span>
                 {result.metadata.confidence_score > 0 && (
                   <span>Confidence: <span className="text-foreground">{(result.metadata.confidence_score * 100).toFixed(0)}%</span></span>
+                )}
+                {/* Display new granular mode fields */}
+                {result.split_mode && isSplitMode(result.split_mode) && (
+                  <span>Split: <span className="text-foreground">{getSplitModeLabel(result.split_mode)}</span></span>
+                )}
+                {result.extraction_mode && isExtractionMode(result.extraction_mode) && (
+                  <span>Extraction: <span className="text-foreground">{getExtractionModeLabel(result.extraction_mode)}</span></span>
                 )}
               </div>
             )}

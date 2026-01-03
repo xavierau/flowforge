@@ -548,9 +548,13 @@ export interface ExtractRequest {
   custom_prompt?: string;
   model_provider: string;             // e.g., "google", "openai"
   model_name: string;                 // e.g., "gemini-2.5-flash"
-  processing_mode?: 'batch' | 'per_page' | 'markdown'; // Default: "batch"
-  markdown_converter?: string;        // Required when processing_mode is "markdown"
-  markdown_format?: string;           // Required when processing_mode is "markdown"
+  // New granular mode fields
+  split_mode?: 'per_page' | 'batch' | 'auto';  // How pages are grouped (default: "batch")
+  extraction_mode?: 'vllm' | 'markdown';       // How extraction is performed (default: "vllm")
+  // Deprecated - use split_mode and extraction_mode instead
+  processing_mode?: 'batch' | 'per_page' | 'markdown';
+  markdown_converter?: string;        // Required when extraction_mode is "markdown"
+  markdown_format?: string;           // Markdown format style (default: "table_heavy")
   callback_url?: string;
   enable_thinking?: boolean;          // Enable thinking mode (default: false)
   thinking_budget?: number;           // Thinking budget in tokens (default: 3000)
@@ -597,11 +601,21 @@ export async function extractFromFile(request: ExtractRequest): Promise<ExtractR
       formData.append('custom_prompt', request.custom_prompt);
     }
 
+    // New granular mode fields
+    if (request.split_mode) {
+      formData.append('split_mode', request.split_mode);
+    }
+
+    if (request.extraction_mode) {
+      formData.append('extraction_mode', request.extraction_mode);
+    }
+
+    // Deprecated - kept for backward compatibility
     if (request.processing_mode) {
       formData.append('processing_mode', request.processing_mode);
     }
 
-    // Markdown pipeline configuration (required when processing_mode is 'markdown')
+    // Markdown pipeline configuration (required when extraction_mode is 'markdown')
     if (request.markdown_converter) {
       formData.append('markdown_converter', request.markdown_converter);
     }

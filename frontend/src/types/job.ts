@@ -3,7 +3,7 @@
  * Corresponds to app/schemas/job.py
  */
 
-import type { ProcessingMode, MarkdownConverter, MarkdownFormat, JobSource } from './enums';
+import type { ProcessingMode, MarkdownConverter, MarkdownFormat, JobSource, SplitMode, ExtractionMode } from './enums';
 
 export interface JobProgress {
   total_pages: number;
@@ -45,7 +45,11 @@ export interface JobResultResponse {
   callback_url?: string;
   enable_thinking?: boolean;  // Whether thinking mode was enabled
   thinking_budget?: number;   // Thinking budget in tokens
-  processing_mode?: ProcessingMode;  // Processing mode used
+  // New granular mode fields
+  split_mode?: SplitMode;  // Split mode: per_page, batch, auto
+  extraction_mode?: ExtractionMode;  // Extraction mode: vllm, markdown
+  // Deprecated - use split_mode and extraction_mode instead
+  processing_mode?: ProcessingMode;  // Processing mode used (deprecated)
   markdown_converter?: MarkdownConverter;  // Markdown converter if markdown mode
   markdown_format?: MarkdownFormat;  // Markdown format if markdown mode
 }
@@ -65,7 +69,11 @@ export interface Job {
   error?: string;
   // For display in list
   model_used?: string;
-  processing_mode?: ProcessingMode;  // Processing mode used
+  // New granular mode fields
+  split_mode?: SplitMode;  // Split mode: per_page, batch, auto
+  extraction_mode?: ExtractionMode;  // Extraction mode: vllm, markdown
+  // Deprecated - use split_mode and extraction_mode instead
+  processing_mode?: ProcessingMode;  // Processing mode used (deprecated)
   markdown_converter?: MarkdownConverter;  // Markdown converter if markdown mode
   markdown_format?: MarkdownFormat;  // Markdown format if markdown mode
   source?: JobSource;  // Job source - webui or api
@@ -86,7 +94,11 @@ export interface ExtractionJobCreate {
   custom_prompt?: string;
   model_provider: string;
   model_name: string;
-  processing_mode: ProcessingMode;
+  // New granular mode fields
+  split_mode: SplitMode;
+  extraction_mode: ExtractionMode;
+  // Deprecated - use split_mode and extraction_mode instead
+  processing_mode?: ProcessingMode;
   markdown_converter?: MarkdownConverter;
   markdown_format?: MarkdownFormat;
   enable_thinking: boolean;

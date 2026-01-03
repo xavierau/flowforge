@@ -17,7 +17,8 @@ from app.schemas.document import (
     DocumentListResponse,
     DocumentResponse,
 )
-from app.schemas.extraction import ParseRequest, ParseResponse, DocumentPageResponse
+from app.schemas.extraction import ParseRequest, ParseResponse, DocumentPageResponse, resolve_mode_fields
+from app.models.enums import SplitMode, ExtractionMode
 from app.services.storage import get_storage_service, StorageService
 from app.services.schema_validator import SchemaValidator
 from app.services.extraction_service import ExtractionCreditValidator
@@ -198,20 +199,50 @@ async def parse_document(
             detail=f"Invalid provider. Must be one of: {', '.join(valid_providers)}",
         )
 
-    # Validate processing mode
-    valid_modes = ["batch", "per_page", "markdown"]
-    if request.processing_mode not in valid_modes:
+    # --- RESOLVE SPLIT/EXTRACTION MODES (with backward compatibility) ---
+    split_mode, extraction_mode = resolve_mode_fields(
+        request.split_mode,
+        request.extraction_mode,
+        request.processing_mode
+    )
+
+    # Validate split_mode
+    valid_split_modes = [m.value for m in SplitMode]
+    if split_mode not in valid_split_modes:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid processing_mode. Must be one of: {', '.join(valid_modes)}",
+            detail=f"Invalid split_mode. Must be one of: {', '.join(valid_split_modes)}",
         )
 
-    # Validate markdown configuration if markdown mode
-    if request.processing_mode == "markdown":
+    # Validate extraction_mode
+    valid_extraction_modes = [m.value for m in ExtractionMode]
+    if extraction_mode not in valid_extraction_modes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid extraction_mode. Must be one of: {', '.join(valid_extraction_modes)}",
+        )
+
+    # Validate auto split mode - only valid for PDFs with multiple pages
+    if split_mode == SplitMode.AUTO.value:
+        if document.mime_type != "application/pdf":
+            raise HTTPException(
+                status_code=400,
+                detail="Auto split mode is only available for PDF documents"
+            )
+        # Check if document has pages (needs to be processed first if not)
+        if document.status == "uploaded":
+            raise HTTPException(
+                status_code=400,
+                detail="Document must be processed before using auto split mode. "
+                       "Upload the document first, wait for processing, then submit extraction."
+            )
+
+    # Validate markdown configuration if markdown extraction mode
+    if extraction_mode == ExtractionMode.MARKDOWN.value:
         if not request.markdown_converter:
             raise HTTPException(
                 status_code=400,
-                detail="markdown_converter is required for markdown processing mode"
+                detail="markdown_converter is required for extraction_mode='markdown'"
             )
 
         # Validate converter availability
@@ -234,6 +265,13 @@ async def parse_document(
                 status_code=400,
                 detail=f"Invalid markdown_format. Must be one of: {', '.join(valid_formats)}"
             )
+
+    # Derive processing_mode for backward compatibility (stored in DB)
+    derived_processing_mode = "batch"
+    if split_mode == SplitMode.PER_PAGE.value:
+        derived_processing_mode = "per_page"
+    if extraction_mode == ExtractionMode.MARKDOWN.value:
+        derived_processing_mode = "markdown"
 
     # Validate LlamaExtract configuration
     if request.model_provider_config.provider == "llamaextract":
@@ -266,9 +304,13 @@ async def parse_document(
             custom_prompt=request.custom_prompt,
             model_provider=request.model_provider_config.provider,
             model_name=request.model_provider_config.model,
-            processing_mode=request.processing_mode,
-            markdown_converter=request.markdown_converter if request.processing_mode == "markdown" else None,
-            markdown_format=request.markdown_format if request.processing_mode == "markdown" else None,
+            # New granular mode fields
+            split_mode=split_mode,
+            extraction_mode=extraction_mode,
+            # Legacy processing_mode for backward compatibility
+            processing_mode=derived_processing_mode,
+            markdown_converter=request.markdown_converter if extraction_mode == ExtractionMode.MARKDOWN.value else None,
+            markdown_format=request.markdown_format if extraction_mode == ExtractionMode.MARKDOWN.value else None,
             llamaextract_mode=request.llamaextract_mode if request.model_provider_config.provider == "llamaextract" else None,
             llamaextract_target=request.llamaextract_target if request.model_provider_config.provider == "llamaextract" else None,
             callback_url=request.callback_url,
@@ -312,10 +354,51 @@ async def parse_document(
 
     # --- END SYNCHRONOUS CREDIT DEDUCTION ---
 
-    # Route to appropriate pipeline based on processing_mode
-    if request.processing_mode == "markdown":
-        # NEW: Markdown pipeline (vision → markdown → JSON)
-        # For unprocessed documents (uploaded status), they need PDF→images first
+    # Route to appropriate pipeline based on split_mode and extraction_mode
+    if split_mode == SplitMode.AUTO.value:
+        # AUTO SPLIT MODE: Use document splitter + extraction pipeline
+        # Creates SplitJob, analyzes boundaries, creates child documents, then extracts each
+        from app.tasks.document_splitter import split_and_extract
+        from app.models.document_split import SplitJob
+
+        # Create SplitJob to track the splitting operation
+        split_job = SplitJob(
+            tenant_id=current_user.tenant_id,
+            source_document_id=document.id,
+            status="queued",
+            apply_rotation=True,  # Enable rotation correction by default
+        )
+        db.add(split_job)
+        db.flush()
+
+        # Link extraction job to split job
+        job.parent_split_job_id = split_job.id
+        db.commit()
+        db.refresh(job)
+
+        # Build extraction config for child documents
+        extraction_config = {
+            "schema_definition_id": str(schema_def_id) if schema_def_id else None,
+            "extraction_schema": final_schema,
+            "custom_prompt": request.custom_prompt,
+            "model_provider": request.model_provider_config.provider,
+            "model_name": request.model_provider_config.model,
+            "extraction_mode": extraction_mode,
+            "markdown_converter": request.markdown_converter if extraction_mode == ExtractionMode.MARKDOWN.value else None,
+            "markdown_format": request.markdown_format if extraction_mode == ExtractionMode.MARKDOWN.value else None,
+            "callback_url": request.callback_url,
+        }
+
+        # Queue split_and_extract task
+        task = split_and_extract.delay(
+            str(split_job.id),
+            str(current_user.tenant_id),
+            extraction_config
+        )
+        logger.info(f"Queued auto-split + extraction for job {job.id}, split_job {split_job.id}")
+
+    elif extraction_mode == ExtractionMode.MARKDOWN.value:
+        # MARKDOWN EXTRACTION MODE: vision → markdown → JSON pipeline
         if document.status == "uploaded":
             # Chain: PDF→images → markdown pipeline
             from app.tasks.combined_extraction import process_document_and_extract
@@ -327,8 +410,8 @@ async def parse_document(
             task = process_markdown_extraction_pipeline.delay(str(job.id))
             logger.info(f"Queued markdown pipeline for job {job.id}")
 
-    elif request.processing_mode in ["batch", "per_page"]:
-        # EXISTING: Direct vision extraction
+    else:
+        # VLLM EXTRACTION MODE: Direct vision extraction (batch or per_page)
         if document.status == "uploaded":
             # Document needs to be processed (PDF to images) AND extracted
             from app.tasks.combined_extraction import process_document_and_extract
@@ -340,23 +423,21 @@ async def parse_document(
             task = process_extraction_job.delay(str(job.id))
             logger.info(f"Queued direct extraction for job {job.id}")
 
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid processing_mode: {request.processing_mode}"
-        )
-
     # Update job with celery task ID
     job.celery_task_id = task.id
     db.commit()
 
     # Estimate processing time (rough estimate)
     page_count = document.page_count or 1
-    if request.processing_mode == "markdown":
+    if split_mode == SplitMode.AUTO.value:
+        # Auto split mode: analysis + splitting + extraction per child
+        # Roughly 60 seconds base + 5 seconds per page for analysis + 15 seconds per page for extraction
+        estimated_time = 60 + (page_count * 20)
+    elif extraction_mode == ExtractionMode.MARKDOWN.value:
         # Markdown mode: 2-stage pipeline (vision→markdown + text→JSON)
         # Roughly 30 seconds base + 10 seconds per page
         estimated_time = 30 + (page_count * 10)
-    elif request.processing_mode == "batch":
+    elif split_mode == SplitMode.BATCH.value:
         # Batch mode: faster since it's one API call
         estimated_time = 20  # Base time for batch processing
     else:

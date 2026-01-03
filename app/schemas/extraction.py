@@ -1,10 +1,52 @@
 """Extraction-related Pydantic schemas."""
 
+import logging
 from datetime import datetime
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_mode_fields(
+    split_mode: str,
+    extraction_mode: str,
+    processing_mode: Optional[str]
+) -> Tuple[str, str]:
+    """
+    Resolve split_mode and extraction_mode from request fields.
+
+    Handles backward compatibility by mapping deprecated processing_mode
+    to the new granular fields if provided.
+
+    Args:
+        split_mode: The split_mode from request (default: 'batch')
+        extraction_mode: The extraction_mode from request (default: 'vllm')
+        processing_mode: The deprecated processing_mode (optional)
+
+    Returns:
+        Tuple of (resolved_split_mode, resolved_extraction_mode)
+    """
+    # If processing_mode is provided and new fields are at defaults,
+    # map the deprecated field to new fields
+    if processing_mode and split_mode == "batch" and extraction_mode == "vllm":
+        if processing_mode == "batch":
+            return "batch", "vllm"
+        elif processing_mode in ("per_page", "direct"):
+            return "per_page", "vllm"
+        elif processing_mode == "markdown":
+            return "batch", "markdown"
+        else:
+            # Unknown processing_mode value - log warning and use defaults
+            logger.warning(
+                f"Unknown processing_mode '{processing_mode}' ignored. "
+                f"Using defaults: split_mode='batch', extraction_mode='vllm'"
+            )
+
+    # Otherwise use the new fields as-is
+    return split_mode, extraction_mode
 
 
 class ModelConfig(BaseModel):
@@ -28,6 +70,17 @@ class ParseRequest(BaseModel):
 
     Either schema_definition_id OR extraction_schema must be provided.
     If both are provided, schema_definition_id takes precedence.
+
+    Mode Configuration:
+    - split_mode: How pages are grouped - 'per_page', 'batch', or 'auto'
+    - extraction_mode: How extraction is performed - 'vllm' or 'markdown'
+
+    Backward Compatibility:
+    - processing_mode is deprecated but still accepted
+    - If processing_mode is provided without split_mode/extraction_mode, it will be mapped:
+      - 'batch' -> split_mode='batch', extraction_mode='vllm'
+      - 'per_page' -> split_mode='per_page', extraction_mode='vllm'
+      - 'markdown' -> split_mode='batch', extraction_mode='markdown'
     """
 
     schema_definition_id: Optional[UUID] = Field(
@@ -40,16 +93,29 @@ class ParseRequest(BaseModel):
         None, description="Custom extraction instructions"
     )
     model_provider_config: ModelConfig = Field(..., description="Model configuration")
-    processing_mode: str = Field(
+
+    # New granular mode fields
+    split_mode: str = Field(
         default="batch",
-        description="Processing mode: 'batch' (all pages in one call), 'per_page' (individual processing), or 'markdown' (vision → markdown → JSON pipeline)"
+        description="Split mode: 'per_page' (N calls), 'batch' (1 call), or 'auto' (LLM splitter - costs extra credits)"
     )
+    extraction_mode: str = Field(
+        default="vllm",
+        description="Extraction mode: 'vllm' (direct vision extraction) or 'markdown' (markdown pipeline)"
+    )
+
+    # Deprecated - use split_mode and extraction_mode instead
+    processing_mode: Optional[str] = Field(
+        default=None,
+        description="DEPRECATED: Use split_mode and extraction_mode instead. Kept for backward compatibility."
+    )
+
     markdown_converter: Optional[str] = Field(
-        None, description="Markdown converter (only for markdown mode): 'gemini_vision' or 'gpt4v'"
+        None, description="Markdown converter (only for extraction_mode='markdown'): 'gemini_vision' or 'gpt4v'"
     )
     markdown_format: Optional[str] = Field(
         default="table_heavy",
-        description="Markdown format style (only for markdown mode): 'standard', 'table_heavy', or 'layout_preserved'"
+        description="Markdown format style (only for extraction_mode='markdown'): 'standard', 'table_heavy', or 'layout_preserved'"
     )
     llamaextract_mode: Optional[str] = Field(
         default="standard",
@@ -91,7 +157,8 @@ class ParseRequest(BaseModel):
                     "provider": "google",
                     "model": "gemini-2.5-flash",
                 },
-                "processing_mode": "batch",
+                "split_mode": "batch",
+                "extraction_mode": "vllm",
                 "callback_url": "https://example.com/webhooks/extraction-complete",
             }
         }
@@ -128,6 +195,17 @@ class ExtractRequest(BaseModel):
 
     Either schema_definition_id OR extraction_schema must be provided.
     If both are provided, schema_definition_id takes precedence.
+
+    Mode Configuration:
+    - split_mode: How pages are grouped - 'per_page', 'batch', or 'auto'
+    - extraction_mode: How extraction is performed - 'vllm' or 'markdown'
+
+    Backward Compatibility:
+    - processing_mode is deprecated but still accepted
+    - If processing_mode is provided without split_mode/extraction_mode, it will be mapped:
+      - 'batch' -> split_mode='batch', extraction_mode='vllm'
+      - 'per_page' -> split_mode='per_page', extraction_mode='vllm'
+      - 'markdown' -> split_mode='batch', extraction_mode='markdown'
     """
 
     schema_definition_id: Optional[UUID] = Field(
@@ -140,16 +218,29 @@ class ExtractRequest(BaseModel):
         None, description="Custom extraction instructions"
     )
     model_provider_config: ModelConfig = Field(..., description="Model configuration")
-    processing_mode: str = Field(
+
+    # New granular mode fields
+    split_mode: str = Field(
         default="batch",
-        description="Processing mode: 'batch' (all pages in one call), 'per_page' (individual processing), or 'markdown' (vision → markdown → JSON pipeline)"
+        description="Split mode: 'per_page' (N calls), 'batch' (1 call), or 'auto' (LLM splitter - costs extra credits)"
     )
+    extraction_mode: str = Field(
+        default="vllm",
+        description="Extraction mode: 'vllm' (direct vision extraction) or 'markdown' (markdown pipeline)"
+    )
+
+    # Deprecated - use split_mode and extraction_mode instead
+    processing_mode: Optional[str] = Field(
+        default=None,
+        description="DEPRECATED: Use split_mode and extraction_mode instead. Kept for backward compatibility."
+    )
+
     markdown_converter: Optional[str] = Field(
-        None, description="Markdown converter (only for markdown mode): 'gemini_vision' or 'gpt4v'"
+        None, description="Markdown converter (only for extraction_mode='markdown'): 'gemini_vision' or 'gpt4v'"
     )
     markdown_format: Optional[str] = Field(
         default="table_heavy",
-        description="Markdown format style (only for markdown mode): 'standard', 'table_heavy', or 'layout_preserved'"
+        description="Markdown format style (only for extraction_mode='markdown'): 'standard', 'table_heavy', or 'layout_preserved'"
     )
     llamaextract_mode: Optional[str] = Field(
         default="standard",
@@ -172,7 +263,8 @@ class ExtractRequest(BaseModel):
                     "provider": "google",
                     "model": "gemini-2.5-flash",
                 },
-                "processing_mode": "batch",
+                "split_mode": "batch",
+                "extraction_mode": "vllm",
                 "callback_url": "https://example.com/webhooks/extraction-complete",
             }
         }
