@@ -394,6 +394,10 @@ async def extract_from_file(
             "enable_thinking": enable_thinking,
             "thinking_budget": thinking_budget if enable_thinking else 0,
             "source": source,
+            "tenant_id": str(current_user.tenant_id),
+            "user_id": str(current_user.id),
+            # Pass parent's credit transaction so child jobs inherit credit status
+            "parent_credit_transaction_id": str(job.credit_transaction_id) if job.credit_transaction_id else None,
         }
         if schema_definition_id:
             extraction_config["schema_definition_id"] = schema_definition_id

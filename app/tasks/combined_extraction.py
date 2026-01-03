@@ -35,6 +35,7 @@ def process_extraction(
     source: str = "api",
     tenant_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    parent_credit_transaction_id: Optional[str] = None,
 ) -> dict:
     """
     Create extraction job for a document and process it.
@@ -58,6 +59,7 @@ def process_extraction(
         source: Job source - 'webui' or 'api'
         tenant_id: Tenant UUID for validation
         user_id: User UUID for credit tracking
+        parent_credit_transaction_id: Parent job's credit transaction ID (for child jobs)
 
     Returns:
         Dictionary with job ID and status
@@ -99,6 +101,7 @@ def process_extraction(
 
         # Create extraction job for child document
         # Child documents from split always use 'batch' split_mode (already split)
+        # Child jobs inherit credit status from parent (credits already deducted for parent)
         job = ExtractionJob(
             document_id=document.id,
             tenant_id=document.tenant_id,
@@ -118,6 +121,9 @@ def process_extraction(
             status="queued",
             credits_cost=document.page_count or 1,
             source=source,
+            # Child jobs inherit credit status from parent
+            credits_deducted=True if parent_credit_transaction_id else False,
+            credit_transaction_id=UUID(parent_credit_transaction_id) if parent_credit_transaction_id else None,
         )
 
         db.add(job)
