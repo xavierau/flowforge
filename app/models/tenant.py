@@ -74,6 +74,7 @@ class Tenant(Base):
     workflows = relationship("Workflow", back_populates="tenant")
     workflow_executions = relationship("WorkflowExecution", back_populates="tenant")
     review_requests = relationship("ReviewRequest", back_populates="tenant")
+    inbound_email_addresses = relationship("InboundEmailAddress", back_populates="tenant")
 
     # Indexes
     __table_args__ = (

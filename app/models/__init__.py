@@ -50,6 +50,9 @@ from app.models.password_reset_token import PasswordResetToken
 # Document Split models
 from app.models.document_split import SplitJob, SplitResult
 
+# Inbound Email models
+from app.models.inbound_email import InboundEmailAddress, InboundEmailLog
+
 __all__ = [
     "Document",
     "DocumentPage",
@@ -90,4 +93,7 @@ __all__ = [
     # Document Split
     "SplitJob",
     "SplitResult",
+    # Inbound Email
+    "InboundEmailAddress",
+    "InboundEmailLog",
 ]

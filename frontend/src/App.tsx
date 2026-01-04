@@ -41,6 +41,9 @@ const ExecutionDetail = lazy(() => import('@/pages/workflows/ExecutionDetail').t
 const ReviewQueue = lazy(() => import('@/pages/ReviewQueue').then(m => ({ default: m.ReviewQueue })));
 const ReviewDetail = lazy(() => import('@/pages/ReviewDetail').then(m => ({ default: m.ReviewDetail })));
 const Credentials = lazy(() => import('@/pages/Credentials').then(m => ({ default: m.Credentials })));
+const InboundEmailList = lazy(() => import('@/pages/inbound-emails/InboundEmailList').then(m => ({ default: m.InboundEmailList })));
+const InboundEmailForm = lazy(() => import('@/pages/inbound-emails/InboundEmailForm').then(m => ({ default: m.InboundEmailForm })));
+const InboundEmailDetail = lazy(() => import('@/pages/inbound-emails/InboundEmailDetail').then(m => ({ default: m.InboundEmailDetail })));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const TenantList = lazy(() => import('@/pages/admin/TenantList').then(m => ({ default: m.TenantList })));
 const TenantDetail = lazy(() => import('@/pages/admin/TenantDetail').then(m => ({ default: m.TenantDetail })));
@@ -280,6 +283,47 @@ function App() {
             <ProtectedRoute>
               <AuthenticatedLayout>
                 <ReviewDetail />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        {/* Inbound Email Routes */}
+        <Route
+          path="/inbound-emails"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <InboundEmailList />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbound-emails/new"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <InboundEmailForm />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbound-emails/:id"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <InboundEmailDetail />
+              </AuthenticatedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbound-emails/:id/edit"
+          element={
+            <ProtectedRoute>
+              <AuthenticatedLayout>
+                <InboundEmailForm />
               </AuthenticatedLayout>
             </ProtectedRoute>
           }

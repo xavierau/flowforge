@@ -55,7 +55,7 @@ interface PageProps {
  */
 export function Page({ children, className }: PageProps) {
   return (
-    <div className={cn('p-6 space-y-6', className)}>
+    <div className={cn('p-6 space-y-6 min-w-0 overflow-hidden', className)}>
       {children}
     </div>
   );

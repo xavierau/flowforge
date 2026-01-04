@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     email_from_address: str = "noreply@example.com"
     email_from_name: str = "AI Document Processing"
 
+    # Inbound Email Processing
+    inbound_email_domain: str = "parse.phbsolution.com"
+    inbound_email_webhook_secret: str = ""
+    max_email_attachment_size_mb: int = 25
+
     # Frontend URL (for email links)
     frontend_url: str = "http://localhost:3002"
 

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, subscriptions, admin, credits, workflows, reviews, credentials, models, splits
+from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, subscriptions, admin, credits, workflows, reviews, credentials, models, splits, inbound_emails, webhooks
 from app.dependencies.rate_limit import limiter
 from app.config import settings
 from app.middleware.tenant_context import TenantContextMiddleware
@@ -88,6 +88,8 @@ app.include_router(reviews.router, prefix="/api/v1", tags=["Reviews"])
 app.include_router(credentials.router, prefix="/api/v1", tags=["Credentials"])
 app.include_router(models.router, prefix="/api/v1", tags=["Models"])
 app.include_router(splits.router, prefix="/api/v1", tags=["Document Splitting"])
+app.include_router(inbound_emails.router, prefix="/api/v1", tags=["Inbound Emails"])
+app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
 
 
 if __name__ == "__main__":

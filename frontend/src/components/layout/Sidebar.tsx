@@ -27,6 +27,7 @@ import {
   Workflow,
   ClipboardCheck,
   DollarSign,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -60,6 +61,11 @@ const navItems: NavItem[] = [
     name: 'Jobs',
     path: '/jobs',
     icon: Briefcase,
+  },
+  {
+    name: 'Inbound Emails',
+    path: '/inbound-emails',
+    icon: Mail,
   },
   {
     name: 'Reviews',

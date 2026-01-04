@@ -422,3 +422,21 @@ class RotationConfidence(str, Enum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+
+class InboundEmailLogStatus(str, Enum):
+    """
+    Status values for inbound email processing log.
+
+    State machine:
+    received -> processed (success)
+             -> rejected_* (validation failed)
+             -> failed (processing error)
+    """
+    RECEIVED = "received"
+    PROCESSED = "processed"
+    REJECTED_SENDER = "rejected_sender"
+    REJECTED_NO_CREDITS = "rejected_no_credits"
+    REJECTED_NO_ATTACHMENTS = "rejected_no_attachments"
+    REJECTED_INACTIVE = "rejected_inactive"
+    FAILED = "failed"

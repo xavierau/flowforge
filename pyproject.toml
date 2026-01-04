@@ -45,6 +45,7 @@ dependencies = [
     "matplotlib>=3.10.8",
     "pytesseract>=0.3.13",
     "asyncer>=0.0.12",
+    "mail-parser>=4.1.4",
 ]
 
 [project.optional-dependencies]

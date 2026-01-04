@@ -52,7 +52,7 @@ export function PageContent({
   return (
     <section
       className={cn(
-        'space-y-6 rounded-lg border bg-white p-6 shadow-sm',
+        'space-y-6 rounded-lg border bg-white p-6 shadow-sm overflow-hidden min-w-0',
         className
       )}
       aria-label={ariaLabel || 'Page content'}
