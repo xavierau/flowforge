@@ -123,6 +123,13 @@ class JobResultResponse(BaseModel):
     model_provider: str = Field(..., description="Model provider (google, openai, deepseek)")
     model_name: str = Field(..., description="Model name")
     callback_url: Optional[str] = Field(None, description="Webhook callback URL")
+    # New granular mode fields
+    split_mode: Optional[str] = Field(None, description="Split mode: per_page, batch, auto")
+    extraction_mode: Optional[str] = Field(None, description="Extraction mode: vllm, markdown")
+    processing_mode: Optional[str] = Field(None, description="DEPRECATED: Use split_mode + extraction_mode")
+    # Thinking mode fields
+    enable_thinking: Optional[bool] = Field(None, description="Whether thinking mode was enabled")
+    thinking_budget: Optional[int] = Field(None, description="Thinking budget in tokens")
 
 
 class JobListItem(BaseModel):

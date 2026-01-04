@@ -744,6 +744,13 @@ async def get_job_result(
         model_provider=job.model_provider,
         model_name=job.model_name,
         callback_url=job.callback_url,
+        # New granular mode fields
+        split_mode=job.split_mode,
+        extraction_mode=job.extraction_mode,
+        processing_mode=job.processing_mode,
+        # Thinking mode fields
+        enable_thinking=job.enable_thinking,
+        thinking_budget=job.thinking_budget,
     )
 
 

@@ -88,7 +88,8 @@ def extract_from_file(file_path: str) -> str:
             'model_provider': '${config.provider}',
             'model_name': '${config.model}',
             'custom_prompt': '${promptText}',
-            'processing_mode': 'batch',
+            'split_mode': 'batch',  # Options: per_page, batch, auto
+            'extraction_mode': 'vllm',  # Options: vllm, markdown
             'callback_url': '${callbackUrl}',
             'enable_thinking': ${config.enableThinking || false},
             'thinking_budget': ${config.thinkingBudget || 3000}
@@ -171,7 +172,8 @@ async function extractFromFile(file: File): Promise<string> {
   formData.append('model_provider', '${config.provider}');
   formData.append('model_name', '${config.model}');
   formData.append('custom_prompt', '${promptText}');
-  formData.append('processing_mode', 'batch');
+  formData.append('split_mode', 'batch');  // Options: per_page, batch, auto
+  formData.append('extraction_mode', 'vllm');  // Options: vllm, markdown
   formData.append('callback_url', '${callbackUrl}');
   formData.append('enable_thinking', '${config.enableThinking || false}');
   formData.append('thinking_budget', '${config.thinkingBudget || 3000}');
@@ -247,7 +249,8 @@ async function extractFromFile(file) {
   formData.append('model_provider', '${config.provider}');
   formData.append('model_name', '${config.model}');
   formData.append('custom_prompt', '${promptText}');
-  formData.append('processing_mode', 'batch');
+  formData.append('split_mode', 'batch');  // Options: per_page, batch, auto
+  formData.append('extraction_mode', 'vllm');  // Options: vllm, markdown
   formData.append('callback_url', '${callbackUrl}');
   formData.append('enable_thinking', '${config.enableThinking || false}');
   formData.append('thinking_budget', '${config.thinkingBudget || 3000}');
@@ -329,7 +332,8 @@ EXTRACT_RESPONSE=$(curl -s -X POST \\
   -F "model_provider=${config.provider}" \\
   -F "model_name=${config.model}" \\
   -F "custom_prompt=${promptText}" \\
-  -F "processing_mode=batch" \\
+  -F "split_mode=batch" \\
+  -F "extraction_mode=vllm" \\
   -F "callback_url=${callbackUrl}" \\
   -F "enable_thinking=${config.enableThinking || false}" \\
   -F "thinking_budget=${config.thinkingBudget || 3000}")
