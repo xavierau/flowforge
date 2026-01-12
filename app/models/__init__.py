@@ -53,6 +53,11 @@ from app.models.document_split import SplitJob, SplitResult
 # Inbound Email models
 from app.models.inbound_email import InboundEmailAddress, InboundEmailLog
 
+# Platform API models
+from app.models.platform_application import PlatformApplication
+from app.models.platform_api_key import PlatformApiKey
+from app.models.platform_audit_log import PlatformAuditLog
+
 __all__ = [
     "Document",
     "DocumentPage",
@@ -96,4 +101,8 @@ __all__ = [
     # Inbound Email
     "InboundEmailAddress",
     "InboundEmailLog",
+    # Platform API
+    "PlatformApplication",
+    "PlatformApiKey",
+    "PlatformAuditLog",
 ]

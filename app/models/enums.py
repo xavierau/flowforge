@@ -440,3 +440,139 @@ class InboundEmailLogStatus(str, Enum):
     REJECTED_NO_ATTACHMENTS = "rejected_no_attachments"
     REJECTED_INACTIVE = "rejected_inactive"
     FAILED = "failed"
+
+
+class PlatformScope(str, Enum):
+    """
+    Platform API scopes for external application authorization.
+
+    These scopes control what operations platform applications can perform
+    via Platform API keys (pk_live_).
+
+    Scope format: {resource}:{action}
+    - Tenant operations: create, read, update, delete tenants
+    - User operations: create, read, update, delete users in any tenant
+    - Token operations: create, read, revoke API tokens for users
+    - Credit operations: add credits, read credit balance
+    """
+    # Tenant operations
+    TENANTS_CREATE = "tenants:create"
+    TENANTS_READ = "tenants:read"
+    TENANTS_UPDATE = "tenants:update"
+    TENANTS_DELETE = "tenants:delete"
+
+    # User operations
+    USERS_CREATE = "users:create"
+    USERS_READ = "users:read"
+    USERS_UPDATE = "users:update"
+    USERS_DELETE = "users:delete"
+
+    # Token operations
+    TOKENS_CREATE = "tokens:create"
+    TOKENS_READ = "tokens:read"
+    TOKENS_REVOKE = "tokens:revoke"
+
+    # Credit operations
+    CREDITS_ADD = "credits:add"
+    CREDITS_READ = "credits:read"
+
+    @classmethod
+    def all_scopes(cls) -> list[str]:
+        """Get all valid scope values as a list."""
+        return [scope.value for scope in cls]
+
+    @staticmethod
+    def matches_scope(granted_scope: str, required_scope: str) -> bool:
+        """
+        Check if a single granted scope matches a required scope.
+
+        This is the single source of truth for scope matching logic.
+        Handles exact matches and wildcard patterns.
+
+        Args:
+            granted_scope: A scope that has been granted (may contain wildcards)
+            required_scope: The scope required for an operation
+
+        Returns:
+            True if granted_scope matches required_scope, False otherwise
+
+        Examples:
+            matches_scope("tenants:read", "tenants:read") -> True (exact match)
+            matches_scope("tenants:*", "tenants:read") -> True (resource wildcard)
+            matches_scope("tenants:*", "tenants:create") -> True (resource wildcard)
+            matches_scope("*:*", "tenants:read") -> True (full wildcard)
+            matches_scope("tenants:read", "users:read") -> False (no match)
+        """
+        # Exact match
+        if granted_scope == required_scope:
+            return True
+
+        # Full wildcard matches everything
+        if granted_scope == "*:*":
+            return True
+
+        # Resource wildcard (e.g., "tenants:*" matches "tenants:read")
+        if granted_scope.endswith(":*"):
+            granted_resource = granted_scope.split(":")[0]
+            required_resource = required_scope.split(":")[0]
+            if granted_resource == required_resource:
+                return True
+
+        return False
+
+    @classmethod
+    def has_required_scope(cls, user_scopes: list[str], required: str) -> bool:
+        """
+        Check if a list of user scopes includes the required scope.
+
+        Supports wildcard patterns:
+        - "*:*" matches everything
+        - "tenants:*" matches all tenant scopes (tenants:create, tenants:read, etc.)
+
+        Args:
+            user_scopes: List of scopes granted to the user/key
+            required: The scope required for an operation
+
+        Returns:
+            True if any granted scope matches the required scope, False otherwise
+
+        Examples:
+            has_required_scope(["tenants:read"], "tenants:read") -> True
+            has_required_scope(["tenants:*"], "tenants:create") -> True
+            has_required_scope(["*:*"], "anything:anything") -> True
+            has_required_scope(["users:read"], "tenants:read") -> False
+        """
+        return any(
+            cls.matches_scope(granted, required)
+            for granted in user_scopes
+        )
+
+    @classmethod
+    def validate_scopes(cls, scopes: list[str]) -> bool:
+        """Validate that all provided scopes are valid.
+
+        Accepts:
+        - Exact scope values (e.g., "tenants:create")
+        - Full wildcard "*:*" for admin access
+        - Resource wildcards like "tenants:*" for all actions on a resource
+
+        A wildcard is valid if it would match at least one valid scope.
+        """
+        valid_scopes = set(cls.all_scopes())
+
+        for scope in scopes:
+            # Check if it's an exact valid scope
+            if scope in valid_scopes:
+                continue
+
+            # Check if it's a valid wildcard pattern
+            # A wildcard is valid if it would match at least one valid scope
+            is_valid_wildcard = any(
+                cls.matches_scope(scope, valid_scope)
+                for valid_scope in valid_scopes
+            )
+
+            if not is_valid_wildcard:
+                return False
+
+        return True

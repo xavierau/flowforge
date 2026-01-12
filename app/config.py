@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+    redis_pool_size: int = 10  # Maximum connections in the Redis pool
 
     # Storage
     storage_type: Literal["local", "s3"] = "local"
@@ -125,6 +126,20 @@ class Settings(BaseSettings):
     # Rate Limiting
     # Set to False in tests to disable rate limiting
     rate_limit_enabled: bool = True
+    # Fail-open vs fail-closed behavior when Redis is unavailable
+    # False (default): Deny requests with 503 when Redis is down (security-first)
+    # True: Use in-memory fallback counter (for development environments)
+    rate_limit_fail_open: bool = False
+
+    # Proxy Headers Trust
+    # Set to True ONLY if running behind a trusted reverse proxy (nginx, load balancer)
+    # When False, X-Forwarded-For and X-Real-IP headers are ignored
+    trust_proxy_headers: bool = False
+
+    # Platform Auth Timing Attack Mitigation
+    # Minimum number of bcrypt verifications to perform regardless of candidate count
+    # This prevents attackers from inferring how many API keys share a prefix
+    platform_auth_min_iterations: int = 10
 
     @property
     def max_file_size_bytes(self) -> int:
