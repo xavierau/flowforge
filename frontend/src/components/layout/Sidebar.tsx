@@ -116,6 +116,11 @@ const adminNavItems: NavItem[] = [
     icon: Users,
   },
   {
+    name: 'Platform API',
+    path: '/admin/platform',
+    icon: KeyRound,
+  },
+  {
     name: 'Pricing',
     path: '/admin/pricing',
     icon: DollarSign,

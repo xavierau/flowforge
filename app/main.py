@@ -8,11 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, subscriptions, admin, credits, workflows, reviews, credentials, models, splits, inbound_emails, webhooks
+from app.api import documents, jobs, health, schemas, auth, users, metrics, logging, tokens, subscriptions, admin, credits, workflows, reviews, credentials, models, splits, inbound_emails, webhooks, platform, admin_platform
+from app.core.redis import close_redis_pool
 from app.dependencies.rate_limit import limiter
 from app.config import settings
 from app.middleware.tenant_context import TenantContextMiddleware
 from app.middleware.admin_audit import AdminAuditMiddleware
+from app.middleware.rate_limit_headers import RateLimitHeaderMiddleware
 from app.logging_config import setup_logging
 
 # Initialize logging
@@ -37,7 +39,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield  # Application runs here
 
     # Shutdown
-    print("👋 AI Document Processing API shutting down...")
+    print("Closing Redis connection pool...")
+    close_redis_pool()
+    print("AI Document Processing API shutting down...")
 
 
 # Create FastAPI app
@@ -70,6 +74,9 @@ app.add_middleware(TenantContextMiddleware)
 # Add admin audit logging middleware (must be after tenant context)
 app.add_middleware(AdminAuditMiddleware)
 
+# Add rate limit header middleware for platform API
+app.add_middleware(RateLimitHeaderMiddleware)
+
 # Include routers
 app.include_router(health.router, tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
@@ -90,6 +97,10 @@ app.include_router(models.router, prefix="/api/v1", tags=["Models"])
 app.include_router(splits.router, prefix="/api/v1", tags=["Document Splitting"])
 app.include_router(inbound_emails.router, prefix="/api/v1", tags=["Inbound Emails"])
 app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
+
+# Platform API routers (for external application integration)
+app.include_router(platform.router, tags=["Platform API"])
+app.include_router(admin_platform.router, prefix="/api/v1", tags=["Admin - Platform"])
 
 
 if __name__ == "__main__":
