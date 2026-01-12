@@ -21,11 +21,12 @@ import { toast } from 'sonner';
 import {
   listApplications,
   createApplication,
+  copyToClipboard,
+} from '@/services/platform.service';
+import type {
   PlatformApplication,
   PlatformApplicationCreated,
   CreateApplicationRequest,
-  copyToClipboard,
-  formatDate,
 } from '@/services/platform.service';
 
 export function PlatformApplications() {

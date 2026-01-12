@@ -43,14 +43,16 @@ import {
   updateApplication,
   deactivateApplication,
   activateApplication,
+  PLATFORM_SCOPES,
+  copyToClipboard,
+  formatDate,
+} from '@/services/platform.service';
+import type {
   PlatformApplication,
   PlatformApiKey,
   PlatformApiKeyCreated,
   CreateApiKeyRequest,
   UpdateApplicationRequest,
-  PLATFORM_SCOPES,
-  copyToClipboard,
-  formatDate,
 } from '@/services/platform.service';
 
 export function PlatformApplicationDetail() {
