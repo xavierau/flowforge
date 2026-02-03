@@ -3,9 +3,12 @@
 from datetime import datetime
 from uuid import UUID
 import logging
+import time
+import random
 
 from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 from sqlalchemy import func
 import json
 
@@ -287,9 +290,52 @@ async def extract_from_file(
         metadata={},
     )
 
-    db.add(document)
-    db.commit()
-    db.refresh(document)
+    # Retry logic for database serialization failures (concurrent uploads)
+    # Configured for high concurrency (50+ simultaneous uploads)
+    max_retries = 30
+    base_delay = 0.05   # 50ms base delay
+    max_delay = 1.0     # Cap at 1 second
+    max_jitter = 0.3    # 300ms random jitter
+
+    for attempt in range(max_retries):
+        try:
+            db.add(document)
+            db.commit()
+            db.refresh(document)
+            break  # Success, exit retry loop
+        except OperationalError as e:
+            db.rollback()
+            # Check if it's a serialization failure
+            if "SerializationFailure" in str(e) or "could not serialize" in str(e):
+                if attempt < max_retries - 1:
+                    # Exponential backoff with cap + random jitter
+                    jitter = random.uniform(0, max_jitter)
+                    delay = min(base_delay * (2 ** attempt), max_delay) + jitter
+                    logger.warning(
+                        f"Serialization failure on document creation attempt {attempt + 1}/{max_retries}, "
+                        f"retrying in {delay:.2f}s: {file.filename}"
+                    )
+                    time.sleep(delay)
+                    # Re-create document object since session was rolled back
+                    document = Document(
+                        tenant_id=current_user.tenant_id,
+                        filename=file.filename or "untitled",
+                        mime_type=file.content_type or "application/octet-stream",
+                        size_bytes=size,
+                        file_path=file_path,
+                        status=status,
+                        page_count=page_count,
+                        metadata={},
+                    )
+                else:
+                    logger.error(f"Failed to create document after {max_retries} attempts: {file.filename}")
+                    raise HTTPException(
+                        status_code=503,
+                        detail="Database temporarily unavailable due to high concurrency. Please retry."
+                    )
+            else:
+                # Different database error, re-raise
+                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
     # --- CRITICAL FIX: SYNCHRONOUS CREDIT DEDUCTION ---
     # FIX: Deduct credits IMMEDIATELY before creating job (not async in Celery)
