@@ -56,7 +56,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '1G',
+      max_memory_restart: '900M',
       env: {
         ...dotEnvVars,
         NODE_ENV: 'production',
@@ -71,12 +71,15 @@ module.exports = {
     {
       name: 'ai-document-processing-celery-worker',
       script: venvPython,
-      args: '-m celery -A app.tasks.celery_app worker --loglevel=info',
+      // Using prefork pool (process-based) for asyncio compatibility
+      // Concurrency of 2 for constrained server (2 CPU, 3.8GB RAM)
+      // Matches CPU cores, reduces memory pressure
+      args: '-m celery -A app.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2',
       cwd: projectRoot,
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '1G',
+      max_memory_restart: '900M',  // 2 workers + main process
       env: {
         ...dotEnvVars,
         NODE_ENV: 'production',

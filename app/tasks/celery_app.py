@@ -24,7 +24,7 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=600,  # 10 minutes max
     task_soft_time_limit=540,  # 9 minutes soft limit
-    worker_prefetch_multiplier=1,
+    worker_prefetch_multiplier=4,  # Allow prefetching for better queue throughput with gevent
     worker_max_tasks_per_child=1000,
 
     # --- CHORD/GROUP CONFIGURATION ---
